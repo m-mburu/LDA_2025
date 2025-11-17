@@ -1,0 +1,1537 @@
+---
+title: "LDA Homework 1 (2025-2026)"
+author: |
+  \vspace{1cm}
+  \ 
+  Student A (student number) \
+  Student B (student number) \
+  Student C (student number) \
+  Student D (student number)
+  \textbf{\large{Group members:}} \
+output:
+  github_document: default
+  pdf_document: 
+    toc: true
+    pdf_engine: xelatex
+fontsize: 11pt   
+header-includes:
+  # line spacing
+  - \renewcommand{\baselinestretch}{1.1}
+  # packages
+  - \usepackage{graphicx}
+  - \usepackage{xcolor}         % replaces 'color'
+  - \usepackage{amsmath,amssymb}
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{array}
+  - \usepackage{multirow}       % optional
+  - \usepackage{makecell}       % optional
+  - \usepackage{pdflscape}
+  - \usepackage{float}          % for [H] (hold_position)
+  - \usepackage{fancyhdr}       % if customizing header/footer
+---
+
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                        message = FALSE,
+                        warning = FALSE,
+                        fig.width = 7,
+                        fig.height = 4.3)
+
+library(kableExtra)
+
+use_latex_packages()
+
+
+#list.files(lda_data_path)
+
+#' Tidy model with 95% CIs and a formatted estimate column
+#'
+#' Works for lm/glm via broom and lme4/glmmTMB via broom.mixed.
+#' @param model a fitted model (lm, glm, lmerMod, glmerMod, glmmTMB, etc.)
+#' @param effects which effects to return
+#' for mixed models ("fixed", "ran_pars", "ran_vals")
+#' @param conf_level CI level
+#' @param exponentiate exponentiate estimates/CIs (useful for logit/Poisson)
+#' @param digits rounding for formatted strings
+#' @return tibble with columns term, estimate (formatted),
+#' std.error, statistic, p.value, conf.low, conf.high
+tidy_with_ci <- function(model,
+                         effects = c("fixed"),
+                         conf_level = 0.95,
+                         exponentiate = FALSE,
+                         digits = 2) {
+  mm_class <- class(model)
+
+  is_mixed <-
+    any(c(
+      "lmerMod", "lmerModLmerTest",
+      "glmerMod", "nlmerMod"
+    ) %in% mm_class) ||
+      inherits(model, "glmmTMB")
+
+  if (is_mixed) {
+    if (!requireNamespace("broom.mixed", quietly = TRUE)) {
+      stop("broom.mixed is required for mixed models.\n
+        Install with install.packages('broom.mixed').")
+    }
+    out <- broom.mixed::tidy(
+      model,
+      effects = effects,
+      conf.int = TRUE,
+      conf.level = conf_level,
+      exponentiate = exponentiate
+    )
+    # keep only common columns
+    out <- out[, intersect(
+      c(
+        "effect", "group", "term", "estimate", "std.error",
+        "statistic", "p.value", "conf.low", "conf.high"
+      ),
+      names(out)
+    )]
+  } else if (inherits(model, "gls")) {
+    # nlme::gls objects are not supported by broom::tidy; extract manually
+    s <- summary(model)
+    if (!is.null(s$tTable)) {
+      tt <- as.data.frame(s$tTable)
+      # tTable columns: Value, Std.Error, t-value, p-value
+      out <- data.frame(
+        term = rownames(tt),
+        estimate = tt[["Value"]],
+        std.error = tt[["Std.Error"]],
+        statistic = tt[["t-value"]],
+        p.value = tt[["p-value"]],
+        stringsAsFactors = FALSE
+      )
+      # Wald (normal) CIs
+      z <- stats::qnorm(1 - (1 - conf_level) / 2)
+      out$conf.low <- out$estimate - z * out$std.error
+      out$conf.high <- out$estimate + z * out$std.error
+      # ensure column names match later expectations
+      out <- out[, c(
+        "term", "estimate", "std.error",
+        "statistic", "p.value", "conf.low", "conf.high"
+      )]
+    } else {
+      stop("Unable to extract coefficient table from gls summary output.")
+    }
+  } else {
+    if (!requireNamespace("broom", quietly = TRUE)) {
+      stop("broom is required. Install with install.packages('broom').")
+    }
+    out <- broom::tidy(
+      model,
+      conf.int = TRUE,
+      conf.level = conf_level,
+      exponentiate = exponentiate
+    )
+    out <- out[, intersect(
+      c(
+        "term", "estimate", "std.error",
+        "statistic", "p.value", "conf.low", "conf.high"
+      ),
+      names(out)
+    )]
+  }
+
+  # format numeric columns
+  num_cols <- intersect(c("estimate", "std.error", "statistic", "
+  p.value", "conf.low", "conf.high"), names(out))
+  out[num_cols] <- lapply(out[num_cols], function(x) {
+    if (is.numeric(x)) round(x, digits) else x
+  })
+
+  # formatted estimate with CI
+  if (all(c("estimate", "conf.low", "conf.high") %in%
+    names(out))) {
+    # Use sprintf to format numbers to a consistent width for alignment
+    # make 3f to be digitsf
+    out$estimate_str <- sprintf(paste0("%7.", digits, "f"), out$estimate)
+    out$conf.low_str <- sprintf(paste0("%7.", digits, "f"), out$conf.low)
+    out$conf.high_str <- sprintf(paste0("%7.", digits, "f"), out$conf.high)
+
+    est_ci <- paste0(
+      out$estimate_str, " [",
+      out$conf.low_str, ", ", out$conf.high_str, "]"
+    )
+    out$estimate <- est_ci
+  }
+
+  # optional: pretty p-values (e.g., <0.001)
+  if ("p.value" %in% names(out)) {
+    out$p.value <- ifelse(is.na(out$p.value), NA_character_,
+      ifelse(out$p.value < 10^(-digits),
+        paste0("<", format(10^(-digits), scientific = FALSE)),
+        format(round(out$p.value, digits), nsmall = digits)
+      )
+    )
+  }
+
+  # reorder columns: put term first, then estimate string
+  keep_order <- c(
+    "effect", "group", "term", "estimate", "std.error",
+    "statistic", "p.value"
+  )
+  out <- out[, intersect(keep_order, names(out))]
+
+  tibble::as_tibble(out)
+}
+
+
+# Tidy adjacent model comparisons from base anova() output
+# Works for anova(m1, m2, ...): lm/glm, lmer/glmer, gls/lme, etc.
+tidy_anova_compare <- function(anova_df, digits = 2) {
+  x <- anova_df
+  is_num <- vapply(x, is.numeric, logical(1))
+  x[is_num] <- lapply(x[is_num], function(v) {
+    ifelse(is.na(v), v, round(v, digits))
+  })
+  x$call <- NULL
+  x
+}
+
+```
+
+
+
+```{r}
+library(here)
+library(tidyverse)
+library(data.table)
+library(haven)
+library(janitor)
+library(knitr)
+library(lme4)   
+library(lmerTest)
+library(pbkrtest)
+library(gridExtra)
+
+lda_path <- here()
+lda_data_path <- here(lda_path, "data")
+#list.files(lda_data_path)
+
+```
+
+
+
+```{r}
+# Load the data
+alzheimer_data <- read_sas(here(
+    lda_data_path,
+    "alzheimer25.sas7bdat"
+)) |> clean_names()
+
+
+```
+
+
+
+
+
+```{r factor-conversion}
+setDT(alzheimer_data)
+# log bmi
+#alzheimer_data[, bmi := log(bmi)]
+factor_info <- list(
+  sex = list(
+    levels = c(0, 1),
+    labels = c("Male", "Female")
+  ),
+  edu = list(
+    levels = c(1, 2, 3, 4),
+    labels = c("Primary", "Lower secondary", "Upper secondary", "Higher")
+  ),
+  job = list(
+    levels = c(0, 1),
+    labels = c("No Paid Job", "Paid Job")
+  ),
+  wzc = list(
+    levels = c(0, 1),
+    labels = c("Lives at Home", "Nursing Home")
+  )
+)
+
+
+for (col_name in names(factor_info)) {
+  info <- factor_info[[col_name]]
+  alzheimer_data[, (col_name) := factor(get(col_name),
+    levels = info$levels,
+    labels = info$labels
+  )]
+}
+
+# Verify the changes by checking the structure of the new columns
+#kable(alzheimer_data[1:5, c("sex", "edu", "job", "wzc")])
+```
+
+
+
+
+
+```{r reshape-data}
+
+id_vars <- c("patid", "trial", "sex", "age", 
+             "edu", "bmi", "inkomen", "job", "adl", "wzc",
+             "cdrsb0",  "abpet0", "taupet0")
+
+
+
+alzheimer_long <- melt(alzheimer_data,
+  id.vars = id_vars,
+  measure.vars = patterns(
+    cdrsb = "^cdrsb[1-6]",
+    bprs = "^bprs[0-6]",
+    abpet = "^abpet[1-6]",
+    taupet = "^taupet[1-6]"
+  ),
+  variable.name = "time",
+  value.name = c("cdrsb", "bprs", "abpet", "taupet"),
+  variable.factor = FALSE
+)
+
+alzheimer_long[, time := as.integer(time)]
+
+#alzheimer_long[, time := time - 1]
+
+
+# Display the first few rows of the new long-format data
+#kable(head(alzheimer_long))
+```
+
+
+
+
+### Question 1
+
+
+####  Check if Data is Balanced
+
+From the description of the experiment we note that there is dropout during follow up. Before using any summary methods to check the mean, 
+variancce and correlation structure we first check if the data is balanced. We see that there is missingness in the data as shown in figure 1 below.
+Patients with higher baseline BPRS scores tend to miss more follow-up visits. There is also an increase of of the percentage of missingness over time, 
+reaching above 40% by year 6. Because simple by time  averages overweight those who remain and underrepresent those who dropped out 
+(patients with higher baseline BPRS scores), they can paint an overly optimistic trend. This pattern suggests data are not missing completely at random,
+ so we use smoothing methodsthat remain robust to missing data.
+
+
+
+```{r missingness-analysis, fig.width = 8.5, fig.height = 4.5}
+bprs_cols <- paste0("bprs", 0:6)
+alzheimer_data[, n_missing := rowSums(is.na(.SD)), .SDcols = bprs_cols]
+
+# Group by the number of missing visits
+# and calculate summary stats for baseline BPRS
+dropout_summary <- alzheimer_data[!is.na(bprs0), .(
+  mean_bprs0 = mean(bprs0),
+  median_bprs0 = median(bprs0),
+  visit_n_patients = .N
+), by = n_missing][order(n_missing)]
+
+
+
+missing_by_time <- alzheimer_long[, .(
+  n_patients = uniqueN(patid),
+  n_obs = sum(!is.na(bprs))
+), by = time][order(time)]
+
+missing_by_time[, pct_missing := round(100 *
+                                         (n_patients - n_obs)/
+                                         n_patients, 1)]
+
+
+
+boxplot_meanbprso0 <- ggplot(alzheimer_data[!is.na(bprs0)], 
+                             aes(x = factor(n_missing),
+                                 y = bprs0)) +
+  geom_boxplot(aes(fill = factor(n_missing)),
+               alpha = 0.7) +
+  labs(
+    title = "Baseline BPRS Score by
+    Number of Missed Visits",
+    x = "Number of Missed 
+    BPRS Measurements",
+    y = "Baseline BPRS 
+    Score (bprs0)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+missing_by_time_plot <- ggplot(missing_by_time, 
+                               aes(x = time, y = pct_missing)) +
+  geom_line(color = "blue", size = 1) +
+  geom_point(color = "blue", size = 2) +
+  labs(
+    title = "Percentage of Missing BPRS \n Measurements Over Time",
+    x = "Time (Years)",
+    y = "Percentage of Missing BPRS Measurements (%)"
+  ) +
+  theme_minimal()
+
+grid.arrange(boxplot_meanbprso0,
+             missing_by_time_plot,
+             ncol = 2,
+             bottom = grid::textGrob(
+               "Figure 1: Baseline BPRS by number of missed 
+               visits (left) and percentage missing 
+               over time (right).",
+               gp = grid::gpar(fontsize = 10),
+               x = 0.5,
+               hjust = 0.5
+             ))
+```
+
+
+
+#### Zero-variance check for baseline Tau PET (taupet0)
+
+From the table, taupet0 still varies through Year 2 (SD drops from 0.116 to 0.023), but from Year 3 onwards it has zero variance 
+(only one unique value among those with BPRS observed). That means taupet0 cannot explain any between-patient 
+differences after Year 2 and coefficients for those years are not estimable. 
+We should  not use   taupet0 from year 3 as this variable would not provide information on growth trajectories from here onwards.
+
+
+```{r taupet0-zero-variance-summary}
+# For each BPRS year, compute variability of baseline taupet0 among patients
+# lets add abpet0
+taupet0_var_by_year <- data.table::rbindlist(lapply(0:6, function(y) {
+  outcome <- paste0("bprs", y)
+  d <- alzheimer_data[!is.na(get(outcome)), .(
+    n_patients          = .N,
+    n_unique_taupet0    = uniqueN(taupet0, na.rm = TRUE),
+    n_unique_abet0      = uniqueN(abpet0, na.rm = TRUE),
+    sd_taupet0          = sd(taupet0, na.rm = TRUE),
+    sd_abet0            = sd(abpet0, na.rm = TRUE)
+  )]
+  d[, year := y]
+  d[, zero_variance := sd_taupet0 < 1e-12 | n_unique_taupet0 <= 1]
+  d
+}))[order(year)]
+
+knitr::kable(
+  taupet0_var_by_year,
+  format = "latex",
+  caption = "Baseline taupet0 variability among patients
+   with observed BPRS at each year",
+  booktabs = TRUE,
+  align = "lrrrc"
+) |>
+  kableExtra::kable_styling(latex_options = "hold_position")
+```
+
+```{r taupet0-zero-variance-plot, fig.width=6.5, fig.height=3.5, eval=F}
+ggplot(taupet0_var_by_year, aes(x = year, y = sd_taupet0)) +
+  geom_line() +
+  geom_point(aes(color = zero_variance), size = 2) +
+  scale_color_manual(
+    values = c(`TRUE` = "red", `FALSE` = "black"),
+    na.value = "grey50", name = "Zero variance"
+  ) +
+  labs(
+    title = "SD of baseline taupet0 among
+     patients contributing to each BPRS year",
+    x = "Follow-up year",
+    y = "SD of taupet0"
+  ) +
+  theme_minimal()
+```
+
+#### Average loess smoothing 
+
+
+
+
+```{r loess-smoothing}
+#  LOESS model
+
+loess_fit <- loess(bprs ~ time,
+  data = alzheimer_long[!is.na(bprs)],
+  na.action = na.omit
+)
+
+# Score the data to get predictions (equivalent to `score data=...`)
+
+bprs_smoothed <- predict(loess_fit, newdata = alzheimer_long)
+
+# Create and sort the output data
+
+loess_results <- alzheimer_long[!is.na(bprs), .(patid, time, bprs, sex)]
+loess_results[, predicted_bprs := predict(loess_fit, newdata = .SD)]
+
+# Sort the results by time
+setorder(loess_results, time)
+
+
+# Visualize 
+simple_avg_plot <- ggplot(alzheimer_long, aes(x = time, y = bprs)) +
+  geom_point(alpha = 0.1, color = "gray") + # Plot raw data points transparently
+  geom_line(
+    data = loess_results,
+    aes(y = predicted_bprs), color = "blue", size = 1
+  ) +
+  labs(
+    title = "LOESS Smoothed Trend of BPRS Over Time",
+    x = "Time (Years)",
+    y = "BPRS Score"
+  ) +
+  theme_minimal()
+```
+
+
+#### Categorical Variables
+
+To explore potential subgroup differences, we create LOESS smoothed plots of BPRS over time stratified by  categorical variables: sex, education, job status, living situation, and clinical center.
+Across these variables, BPRS increases over time. Most subgroup curves are roughly parallel, showing main effects without interactions for variables like sex, job status, and living situation.
+The four education categories overlap almost completely and there is no difference in trend. This means there is unlikely a significant effect of education on BPRS trajectory. Taupet also shows distinct level shifts with roughly parallel trends, indicating a main effect without interaction.
+was a variable with only one measurement where it was not missing hence a zero variance variable.
+
+```{r loess-by-subgroups, fig.width=10.3, fig.height=9}
+library(gridExtra)
+
+subgroup_vars <- c("sex", 
+                   "edu", 
+                   "job",
+                   "wzc", 
+                   "trial")
+
+# factor trial
+
+alzheimer_long[, trial := factor(as.character(trial))]
+
+mycolors <- c(
+  "#E41A1C", "#377EB8", "#4DAF4A",
+  "#984EA3", "#FF7F00", "#FFFF33",
+  "#A65628", "#1B9E77", "#D95F02",
+  "#7570B3", "#E7298A", "#66A61E",
+  "#E6AB02", "#A6761D", "#7FC97F",
+  "#BEAED4", "#FDC086", "#FFFF99",
+  "#386CB0", "#F0027F", "#BF5B17",
+  "#FBB4AE", "#B3CDE3", "#CCEBC5",
+  "#DECBE4", "#FED9A6", "#FFFFCC", 
+  "#E5D8BD"
+)
+# Titles for each plot
+plot_titles <- c(
+  "sex" = "LOESS Smoothed BPRS by Sex",
+  "edu" = "LOESS Smoothed BPRS by Education",
+  "job" = "LOESS Smoothed BPRS by Job Status",
+  "wzc" = "LOESS Smoothed BPRS by Living Situation",
+  "trial" = "LOESS Smoothed BPRS by Clinical Center",
+  "taupet0" = "LOESS Smoothed BPRS by Baseline Tau PET"
+)
+
+#alzheimer_long[, taupet0 := factor(as.character(taupet0))]
+# List to store plots
+plot_list <- list()
+
+# Loop to create plots
+for (var in subgroup_vars) {
+  p <- ggplot(
+    alzheimer_long[!is.na(bprs)],
+    aes_string(x = "time", y = "bprs", color = var)
+  ) +
+    geom_smooth(method = "loess", se = FALSE) +
+    labs(
+      title = plot_titles[var],
+      x = "Time (Years)",
+      y = "BPRS Score"
+    ) +
+    theme_minimal() +
+    scale_color_manual(
+      name = "",
+      values =mycolors
+    ) +
+    theme(legend.position = "bottom")
+
+
+  if (var == "trial") {
+    p <- p + guides(color = guide_legend(ncol = 10, byrow = TRUE))
+  }
+  plot_list[[var]] <- p
+}
+
+names(plot_list) <- subgroup_vars
+
+trial_centers_plot <- plot_list[["trial"]]
+plot_list[["trial"]] <- NULL
+# Arrange the plots in a grid
+plot_list[["simple_avg_plot"]] <- simple_avg_plot
+
+
+# create ordered grob list with overall plot first
+glist <- plot_list[c(
+  "simple_avg_plot",
+  setdiff(
+    names(plot_list),
+    "simple_avg_plot"
+  )
+)]
+glist <- unname(glist)
+
+
+ncol <- 2
+n_other <- length(glist) - 1
+nrows <- 1 + ceiling(n_other / ncol)
+layout_mat <- matrix(NA_integer_, nrow = nrows, ncol = ncol)
+layout_mat[1, ] <- 1L
+idx <- 2L
+for (r in 2:nrows) {
+  for (c in 1:ncol) {
+    if (idx <= length(glist)) {
+      layout_mat[r, c] <- idx
+      idx <- idx + 1L
+    }
+  }
+}
+
+## add figure 2 caption
+bottom_caption <- grid::textGrob(
+  "Figure 2: LOESS Smoothed BPRS Over Time by Subgroups.
+  Overall average (top),  sex, education, job status, 
+  living situation, and clinical center.",
+  gp = grid::gpar(fontsize = 10),
+  x = 0.5,
+  hjust = 0.5
+)
+
+grid.arrange(
+  grobs = glist,
+  layout_matrix = layout_mat,
+  bottom = bottom_caption
+)
+```
+
+
+
+#### Continuous Variables
+
+To explore continuous predictors, we plotted LOESS-smoothed BPRS against age, BMI, baseline BPRS (bprs0), and baseline CDR-SB (cdrsb0),
+using separate curves for each follow-up year. Higher age and higher baseline BPRS are both consistently associated with higher BPRS at every visit.
+BMI shows a curved pattern that peaks in the mid-20s, suggesting that a non-linear term would
+describe it better than a straight line. Baseline CDR-SB shows only a weak and slightly curved association with BPRS.
+
+
+```{r loess-by-time-cross-section, fig.width=10.3, fig.height=8}
+
+continuous_vars <- c(
+  "age", "bmi", 
+  "cdrsb0", "abpet0"
+)
+
+plot_list_cross_section <- list()
+
+# Loop to create plots
+for (var in continuous_vars) {
+  p <- ggplot(
+    data = alzheimer_long[!is.na(bprs)],
+    aes_string(x = var, y = "bprs", color = "factor(time)")
+  ) +
+    geom_smooth(method = "loess", se = FALSE) +
+    # geom_point()+
+    labs(
+      title = paste("BPRS vs.", var, "by Visit Year"),
+      x = var,
+      y = "BPRS Score",
+      color = "Time (Year)"
+    ) +
+    theme_minimal() +
+    scale_color_manual(name = "", values = mycolors) +
+    theme(legend.position = "bottom") +
+    guides(color = guide_legend(ncol = 6, byrow = TRUE))
+
+  plot_list_cross_section[[var]] <- p
+}
+
+# Arrange the plots in a grid
+# add figure 3 caption
+bottom_caption_cs <- grid::textGrob(
+  "Figure 3: LOESS Smoothed BPRS Over Continuous Predictors by Visit Year.
+  Age, BMI, baseline BPRS (bprs0), and baseline CDR-SB (cdrsb0).",
+  gp = grid::gpar(fontsize = 10),
+  x = 0.5,
+  hjust = 0.5
+)
+
+grid.arrange(
+  grobs = plot_list_cross_section,
+  ncol = 2,
+  bottom = bottom_caption_cs
+)
+
+```
+
+
+#### Trial Centers Plot
+
+To check whether clinical center (trial) affects the mean structure, we plot(figure 4) LOESS-smoothed BPRS over time separately by trial centre. We see clear separate 
+curves between centers, indicating that trial should be included as a random effect in the model to account for between center variability.
+
+
+```{r trial-centersplot, fig.width=7, fig.height=4.5}
+# use grid extra to display trial centers plot alone
+#trial_centers_plot
+grid.arrange(
+  trial_centers_plot,
+  bottom = grid::textGrob(
+    "Figure 4: LOESS Smoothed BPRS Over Time by Clinical Center.",
+    gp = grid::gpar(fontsize = 10),
+    x = 0.5,
+    hjust = 0.5
+  )
+)
+
+```
+
+
+
+#### Variance & Correlation Structure
+
+
+The smoothed squared residuals shows a flat residual curve, we dont observe a heteroscedastic pattern, meaning the spread of patients BPR's readings tranjectory around there expected readings  doesn't change a lot.
+The semi-variogram also rises with the time gap between measurements, showing that observations from the same patient are more similar when close together 
+and become less similar as the gap widens. These patterns indicate increasing variance over time and a clear within-patient correlation that 
+weakens with distance in time. Models therefore need to allow for changing variances and a correlation structure that decays over time. The plots are shown in figure 5 below.
+
+
+```{r variance-structure}
+
+alzheimer_long_full <- alzheimer_long[!is.na(bprs)]
+mean_model <- lm(bprs ~ factor(time), data = alzheimer_long_full)
+
+
+alzheimer_long_full[, resid_sq := residuals(mean_model)^2]
+
+
+var_function_plot <- ggplot(
+  alzheimer_long_full,
+  aes(x = time, y = resid_sq)
+) +
+  geom_point(alpha = 0.3) +
+  geom_smooth(
+    method = "loess", se = FALSE,
+    color = "black", size = 1.2
+  ) +
+  labs(
+    title = "Smoothed Variance Function (BPRS)",
+    x = "Time (Years)",
+    y = "Squared Residual"
+  ) +
+  theme_minimal()
+```
+
+
+
+```{r correlation-structure, fig.width=8, fig.height=3.5}
+
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(purrr)
+
+# Residuals from a linear average trend: bprs ~ time  (no covariates)
+dt <- alzheimer_long %>%
+  select(patid, time, bprs) %>%
+  filter(!is.na(bprs), !is.na(time))
+
+m_lin <- lm(bprs ~ time, data = dt)
+dt_res <- dt %>% mutate(r = residuals(m_lin))
+
+#  WITHIN-subject pairs: u = |t_k - t_j|, v = 0.5 * (r_k - r_j)^2
+pairs_within <- dt_res %>%
+  inner_join(dt_res, by = "patid", suffix = c(".j", ".k")) %>%
+  filter(time.k > time.j) %>%
+  transmute(
+    u = time.k - time.j,               # time lag
+    v = 0.5 * (r.k - r.j)^2            # semi-variance point
+  )
+
+# Discrete-by-lag estimate and LOESS smooth
+vario_by_u <- pairs_within %>%
+  group_by(u) %>%
+  summarise(v = mean(v, na.rm = TRUE), n = n(), .groups = "drop") %>%
+  arrange(u)
+
+lo <- loess(v ~ u, data = pairs_within, span = 0.7)
+grid <- tibble(u = seq(min(pairs_within$u),
+  max(pairs_within$u),
+  length.out = 200
+)) %>%
+  mutate(vsmooth = as.numeric(predict(lo, newdata = cur_data())))
+
+# 3) BETWEEN-subject pairs for "total variance" reference (≈ σ^2 + τ^2 + ν^2)
+#    (SAS used all cross-subject half-squared differences and took the mean)
+pairs_between_mean <- {
+  # light-weight approx: sample some cross pairs for speed if data is large
+  set.seed(1)
+  # sample up to 20k cross pairs; increase if dataset is small
+  target_n <- 20000
+
+  # draw indices
+  idx_j <- sample.int(nrow(dt_res), min(target_n, nrow(dt_res)), replace = TRUE)
+  idx_k <- sample.int(nrow(dt_res), min(target_n, nrow(dt_res)), replace = TRUE)
+
+  cross_df <- tibble(
+    patid_j = dt_res$patid[idx_j],
+    r_j     = dt_res$r[idx_j],
+    patid_k = dt_res$patid[idx_k],
+    r_k     = dt_res$r[idx_k]
+  ) %>% filter(patid_j != patid_k)
+
+  mean(0.5 * (cross_df$r_k - cross_df$r_j)^2, na.rm = TRUE)
+}
+total_hat <- pairs_between_mean 
+
+
+# Plot: raw points by lag, LOESS smooth, and total-variance reference line
+coor_plot <- ggplot() +
+  geom_point(data = vario_by_u, aes(u, v, size = n), alpha = 0.5) +
+  geom_line(data = grid, aes(u, vsmooth), linewidth = 1) +
+  geom_hline(yintercept = total_hat, linetype = 2) +
+  labs(
+    title = "Semi-variogram of BPRS residuals, linear trend",
+    x = "Time lag u (years)",
+    y = "Semivariogram v(u)"
+  ) +
+  guides(size = "none")+
+  theme_minimal()
+
+# use grid arrange for variance and correlation plots
+grid.arrange(var_function_plot,
+  coor_plot,
+  ncol = 2,
+  bottom = grid::textGrob(
+    "Figure 5: Smoothed Variance Function (left) and 
+    Semi-variogram (right) of BPRS Residuals.",
+    gp = grid::gpar(fontsize = 10),
+    x = 0.5,
+    hjust = 0.5
+  )
+)
+
+```
+
+
+
+#### Question 1: Conclusions and modeling implications
+
+* Mean structure: BPRS rises steadily over time. Subgroup curves are mostly parallel with level shifts by sex, job, living situation, and clear vertical shifts by clinical center; education shows little separation.
+* Variance structure: The smoothed squared-residual function is roughly flat across visits (no  visual heteroscedasticity observed). We will fit a model with un assumed heterogeneous variance and compare this with a constant variance model using AIC.
+* Correlation structure: The semivariogram increases with time lag, indicating strong within-patient correlation at short lags that decays as visits are farther apart.
+* Missingness: Dropout increases over time and is more common for patients with higher baseline BPRS, so simple time-point averages would be biased; use smoothing for exploration and appropriate longitudinal models for inference.
+* Modeling implications: For population-average inference, use GLS with AR(1) correlation (add time-specific variances only if AIC improves). For subject-specific inference, use a mixed model with patient random intercept and slope; include a random intercept for clinical center and test a center-level time slope only if it improves fit. Keep time×age and time×bprs0; model BMI flexibly (e.g., quadratic/spline); education can likely be omitted.
+
+
+### Question 2
+
+#### Individual profiles & per-patient slopes
+
+
+
+To visualise heterogeneity in longitudinal evolution, BPRS trajectories of 40 random patients were plotted. These individual profiles show variation in baseline symptom severity, together with increasing trends over time. The profiles also illustrate the unbalanced nature of the data, as subjects contribute different numbers of observations. These observations help justify the choice of summary statistics for longitudinal data.
+
+```{r}
+uniqu_ppid <- alzheimer_data[, unique(patid)]
+set.seed(200)
+random_ppid <- sample(uniqu_ppid, 50)
+
+# Filter long data for these patients
+plot_data <- alzheimer_long[patid %in% random_ppid]
+
+spaggheti_plot <- ggplot(plot_data, aes(x = time, y = bprs, group = patid)) +
+  geom_line(alpha = 0.5, color = "steelblue") +
+  labs(
+    title = "Individual BPRS Profiles (50 Random Patients)",
+    x = "Time (Years)",
+    y = "BPRS"
+  ) +
+  theme_minimal()
+
+```
+
+
+
+
+```{r per-patient-slope, fig.width=8, fig.height=4.5}
+# Calculate per-patient slopes
+slopes <- alzheimer_long[!is.na(bprs), .(
+  slope = if (.N > 1) {
+    coef(lm(bprs ~ time))[2]
+  } else {
+    NA_real_
+  }
+), by = patid]
+# Plot histogram of slopes
+per_patient_slope <- ggplot(slopes, aes(x = slope)) +
+  geom_histogram(
+    binwidth = 0.5,
+    color = "black",
+    alpha = 0.7
+  ) +
+  labs(
+    title = "Distribution of Per-Patient BPRS Slopes",
+    x = "Slope of BPRS over Time",
+    y = "Number of Patients"
+  ) +
+  theme_minimal()
+
+grid.arrange(
+  spaggheti_plot,
+  per_patient_slope,
+  ncol = 2,
+  bottom = grid::textGrob(
+    "Figure 6: Individual BPRS Profiles (left) and
+     Distribution of Per-Patient Slopes (right).",
+    gp = grid::gpar(fontsize = 10),
+    x = 0.5,
+    hjust = 0.5
+  )
+)
+
+```
+
+
+
+#### Change Score Analysis
+
+The change score is defined as the difference between the last observed BPRS score and the baseline BPRS score for each patient. A linear model is fitted to determine which baseline covariates predict this change. The model is:
+
+$$
+\begin{aligned}
+\text{ChangeScore}_i = & \beta_0 + \beta_1 \cdot \text{sex}_i + \beta_2 \cdot \text{age}_i + \beta_3 \cdot \text{bmi}_i + \beta_4 \cdot \text{job}_i + \beta_5 \cdot \text{adl}_i \\
+& + \beta_6 \cdot \text{wzc}_i + \beta_7 \cdot \text{cdrsb0}_i + \beta_8 \cdot \text{abpet0}_i + \beta_9 \cdot \text{taupet0}_i + \epsilon_i
+\end{aligned}
+$$
+
+where:
+
+- $\text{ChangeScore}_i = \text{BPRS}_{\text{last}, i} - \text{BPRS}_{0, i}$ for patient $i$.
+- $\beta_0$ is the intercept: expected change for the reference individual (Male, No Paid Job, Lives at Home), with continuous covariates equal to 0.
+- $\beta_1$ is the effect of sex on change: Female vs Male.
+- $\beta_2$ is the effect of age on change: per 1-year increase.
+- $\beta_3$ is the effect of BMI on change: per 1-unit increase.
+- $\beta_4$ is the effect of job on change: Paid Job vs No Paid Job.
+- $\beta_5$ is the effect of ADL on change: per 1-unit increase.
+- $\beta_6$ is the effect of living situation (wzc) on change: Nursing Home vs Lives at Home.
+- $\beta_7$ is the effect of baseline CDR-SB (cdrsb0) on change: per 1-unit increase.
+- $\beta_8$ is the effect of baseline Amyloid PET (abpet0) on change: per 1-unit increase.
+- $\beta_9$ is the effect of baseline Tau PET (taupet0) on change: per 1-unit increase.
+- $\epsilon_i$ is the error term.
+
+```{r change-score-analysis}
+# last observation for each patient
+last_obs <- alzheimer_long[!is.na(bprs),
+  .SD[which.max(time)],
+  by = patid
+]
+
+# Select baseline data and merge with the last observation
+id_vars_bprs <- c(id_vars, "bprs0")
+change_data <- alzheimer_data[, ..id_vars_bprs]
+change_data <- merge(change_data,
+  last_obs[, .(patid, last_bprs = bprs)],
+  by = "patid"
+)
+
+# Calculate the change score
+change_data[, change_score := last_bprs - bprs0]
+
+# linear model to see what predicts the change
+
+fm_adj <- change_score ~   sex +
+  age + bmi + job + adl + wzc  + cdrsb0 + abpet0 + taupet0
+
+change_model <- lm(fm_adj, data = change_data)
+
+
+tidy_with_ci(change_model, digits = 2) |> 
+  kable(format = "latex",
+        caption = "Change Score Model Results",
+        booktabs = TRUE,
+        align = "lrrrr", # l=left, r=right alignment for columns
+        linesep = "") |>
+  column_spec(2, width = "5cm") |> # Set the width of the 2nd column (estimate)
+  kable_styling(latex_options = c("hold_position", "scale_down"))
+
+```
+
+
+#### Separate analyses for each follow-up year
+
+For each follow-up year $t \in \{1,\dots,6\}$, we fit an ordinary linear model relating the BPRS score at year $t$ to baseline covariates:
+
+$$
+\begin{aligned}
+  ext{BPRS}_{it} = &\; \alpha_{0t} + \alpha_{1t} \cdot \text{sex}_i + \alpha_{2t} \cdot \text{age}_i + \alpha_{3t} \cdot \text{bmi}_i + \alpha_{4t} \cdot \text{job}_i + \alpha_{5t} \cdot \text{adl}_i \\
+& + \alpha_{6t} \cdot \text{wzc}_i + \alpha_{7t} \cdot \text{cdrsb0}_i + \alpha_{8t} \cdot \text{abpet0}_i + \alpha_{9t} \cdot \text{taupet0}_i + \varepsilon_{it} .
+\end{aligned}
+$$
+
+where, for each fixed year $t$:
+
+- $\alpha_{0t}$ is the expected BPRS at year $t$ for the reference patient (Male, No Paid Job, Lives at Home), with continuous covariates at 0.
+- $\alpha_{1t}$ is the difference at year $t$ for Female vs Male.
+- $\alpha_{2t}$ is the change at year $t$ per 1-year increase in age.
+- $\alpha_{3t}$ is the change at year $t$ per 1-unit increase in BMI.
+- $\alpha_{4t}$ is the difference at year $t$ for Paid Job vs No Paid Job.
+- $\alpha_{5t}$ is the change at year $t$ per 1-unit increase in ADL.
+- $\alpha_{6t}$ is the difference at year $t$ for Nursing Home vs Lives at Home.
+- $\alpha_{7t}$ is the change at year $t$ per 1-unit increase in baseline CDR-SB (cdrsb0).
+- $\alpha_{8t}$ is the change at year $t$ per 1-unit increase in baseline Amyloid PET (abpet0).
+- $\alpha_{9t}$ is the change at year $t$ per 1-unit increase in baseline Tau PET (taupet0).
+- $\varepsilon_{it}$ is the error term at year $t$.
+
+```{r separate-analyses}
+
+baseline_covariates_str <- "sex + age + bmi + job + adl + wzc +
+cdrsb0 + abpet0 + taupet0"
+# Split the string into a vector of predictor names
+all_predictors <- trimws(strsplit(baseline_covariates_str, "\\+")[[1]])
+
+list_models <- list()
+
+# Loop through each follow-up year from 0 to 6
+for (year in 0:6) {
+  bprs_outcome <- paste0("bprs", year)
+
+  # 1. Create the data subset for the current year
+  current_data <- alzheimer_data[!is.na(get(bprs_outcome)), ]
+
+  # 2. Identify valid predictors by checking for variance
+  valid_predictors <- c()
+  for (pred in all_predictors) {
+    col_data <- current_data[[pred]]
+    is_valid <- FALSE
+
+    if (is.numeric(col_data)) {
+      # For numeric: check if standard deviation is greater than 0
+      is_valid <- sd(col_data, na.rm = TRUE) > 0
+    } else if (is.factor(col_data)) {
+      # For factors: check if there is more than one unique level
+      is_valid <- uniqueN(col_data, na.rm = TRUE) > 1
+    }
+
+    # Add to list if valid, otherwise print a message
+    if (is_valid & !is.na(is_valid)) {
+      valid_predictors <- c(valid_predictors, pred)
+    }
+  }
+
+  # 3. Create the new formula string with only the valid predictors
+  formula_str <- paste(
+    bprs_outcome, "~",
+    paste(valid_predictors, collapse = " + ")
+  )
+
+  # 4. Fit the model using the cleaned formula
+  model <- lm(as.formula(formula_str), data = current_data)
+
+  list_models[[bprs_outcome]] <- model
+}
+
+
+
+format_p <- function(p) {
+  ifelse(p < 0.001, "<0.001", sprintf("%.3f", p))
+}
+
+years <- 0:6
+
+dt_long <- rbindlist(lapply(years, function(y) {
+  outcome <- paste0("bprs", y)
+  mod <- list_models[[outcome]]
+
+  sm <- summary(mod)$coef
+  ci <- confint(mod)
+
+  dt <- data.table(
+    covariate = rownames(sm),
+    estimate  = sm[, "Estimate"],
+    lower     = ci[, 1],
+    upper     = ci[, 2],
+    #p         = sm[, "Pr(>|t|)"],
+    year      = paste0("Year", y)
+  )
+
+  dt[,
+     .(covariate,
+       year,
+       cell = sprintf(
+         "%.2f [%.2f, %.2f]",
+         estimate, lower, upper
+       ))]
+}))
+
+
+# Wide table: one row per covariate, columns = Year1..Year6
+summary_dt <- dcast(
+  dt_long,
+  covariate ~ year,
+  value.var = "cell"
+)[order(covariate)]
+
+# Optional nicer name for clinicians
+#setnames(summary_dt, "covariate", "Baseline covariate")
+kable(summary_dt,
+  format = "latex",
+  caption = "Separate Linear Models for Each Follow-up Year",
+  booktabs = TRUE,
+  align = "lrrrrrrr", # l=left, r=right alignment for columns
+  linesep = ""
+) |>
+  kable_styling(latex_options = c("hold_position", "scale_down"))
+```
+
+
+### Question 3
+
+##### Full Mean Structure
+
+The full marginal model for the BPRS score ($Y_{ij}$) of patient $i$ at time $j$ is specified with a comprehensive set of main effects and time interactions. The mean structure is modeled as:
+
+
+$$
+\begin{aligned}
+E[Y_{ij} | \boldsymbol{X}_i] = & \beta_0 + \beta_1 \cdot \text{time}_{j} + \beta_2 \cdot \text{edu}_i + \beta_3 \cdot \text{sex}_i + \beta_4 \cdot \text{age}_i + \beta_5 \cdot \text{bmi}_i + \beta_6 \cdot \text{job}_i \\
+& + \beta_7 \cdot \text{adl}_i + \beta_8 \cdot \text{wzc}_i + \beta_9 \cdot \text{cdrsb0}_i + \beta_{10} \cdot \text{taupet0}_i + \beta_{11} \cdot \text{abpet0}_i \\
+& + \beta_{12} \cdot (\text{time}_{j} \times \text{sex}_i) + \beta_{13} \cdot (\text{time}_{j} \times \text{age}_i) + \beta_{14} \cdot (\text{time}_{j} \times \text{bmi}_i) \\
+& + \beta_{15} \cdot (\text{time}_{j} \times \text{job}_i) + \beta_{16} \cdot (\text{time}_{j} \times \text{adl}_i) + \beta_{17} \cdot (\text{time}_{j} \times \text{wzc}_i) \\
+& + \beta_{18} \cdot (\text{time}_{j} \times \text{cdrsb0}_i) + \beta_{19} \cdot (\text{time}_{j} \times \text{abpet0}_i) + \beta_{20} \cdot (\text{time}_{j} \times \text{taupet0}_i)
+\end{aligned}
+$$
+
+where:
+
+- $Y_{ij}$ is the BPRS score for patient $i$ at time $j$.
+- $\beta_0$ is the intercept: expected BPRS at time 0 for the reference patient (Male, Primary education, No Paid Job, Lives at Home), with continuous covariates at 0.
+- $\beta_1$ is the main effect of time: average yearly change in BPRS for the reference patient.
+- $\beta_2$ is the (vector of) main effect(s) of education: contrasts for Lower secondary, Upper secondary, and Higher vs Primary (written compactly as $\beta_2\,\text{edu}_i$).
+- $\beta_3$ is the main effect of sex: Female vs Male at time 0.
+- $\beta_4$ is the main effect of age: per 1-year increase at baseline.
+- $\beta_5$ is the main effect of BMI: per 1-unit increase at baseline.
+- $\beta_6$ is the main effect of job: Paid Job vs No Paid Job at time 0.
+- $\beta_7$ is the main effect of ADL: per 1-unit increase at baseline.
+- $\beta_8$ is the main effect of living situation (wzc): Nursing Home vs Lives at Home at time 0.
+- $\beta_9$ is the main effect of baseline CDR-SB (cdrsb0): per 1-unit increase at baseline.
+- $\beta_{10}$ is the main effect of baseline Tau PET (taupet0): per 1-unit increase at baseline.
+- $\beta_{11}$ is the main effect of baseline Amyloid PET (abpet0): per 1-unit increase at baseline.
+- $\beta_{12}$ is the time-by-sex interaction: additional yearly change for Female vs Male.
+- $\beta_{13}$ is the time-by-age interaction: modification of yearly change per 1-year increase in age.
+- $\beta_{14}$ is the time-by-BMI interaction: modification of yearly change per 1-unit increase in BMI.
+- $\beta_{15}$ is the time-by-job interaction: additional yearly change for Paid Job vs No Paid Job.
+- $\beta_{16}$ is the time-by-ADL interaction: modification of yearly change per 1-unit increase in ADL.
+- $\beta_{17}$ is the time-by-living situation (wzc) interaction: additional yearly change for Nursing Home vs Lives at Home.
+- $\beta_{18}$ is the time-by-cdrsb0 interaction: modification of yearly change per 1-unit increase in baseline CDR-SB.
+- $\beta_{19}$ is the time-by-abpet0 interaction: modification of yearly change per 1-unit increase in baseline Amyloid PET.
+- $\beta_{20}$ is the time-by-taupet0 interaction: modification of yearly change per 1-unit increase in baseline Tau PET.
+
+Notes: Categorical predictors (sex, edu, job, wzc) are encoded as factors in R. Their coefficients represent contrasts relative to the reference levels shown above; for education, the single symbol $\beta_2$ denotes a vector of three contrasts (levels 2–4 versus Primary).
+
+The within-patient errors $\boldsymbol{e}_i = (e_{i1}, \dots, e_{in_i})^T$ are assumed to follow a multivariate normal distribution, $\boldsymbol{e}_i \sim N(\boldsymbol{0}, \boldsymbol{\Sigma}_i)$, where $\boldsymbol{\Sigma}_i$ is a covariance matrix that accounts for correlation and heteroscedasticity. 
+In this model, we use an unstructured correlation matrix (`corSymm`) and allow for different variances at each time point (`varIdent`).
+
+
+
+
+
+```{r question-3}
+library(dplyr)
+library(nlme)
+library(emmeans)
+
+
+fm_adj_full <- bprs ~ time + edu + sex + 
+  age + bmi + job + adl + wzc +  cdrsb0 + taupet0 + abpet0 +
+  time:sex + time:age + time:bmi + time:job + time:adl + time:wzc +
+  time:cdrsb0 + time:abpet0 + time:taupet0
+
+gls_full_mean_structure <- gls(fm_adj_full,
+  data = alzheimer_long,
+  correlation = corSymm(form = ~ time | patid),
+  weights = varIdent(form = ~ 1 | time),
+  method = "ML", na.action = na.exclude
+)
+
+#summary(gls_full_mean_structure )
+
+tidy_with_ci(gls_full_mean_structure) |>
+  kable(
+    format = "latex",
+    caption = "Gls Full Model Results",
+    booktabs = TRUE,
+    #longtable = TRUE,
+    align = "lrrrr"
+  ) |>
+  column_spec(2, width = "5cm") |>
+  kable_styling(font_size = 9)   # removed scale_down
+
+
+```
+
+
+
+##### Simplified Mean Structure
+
+After backward elimination on the mean structure, the simplified model is:
+
+$$
+\begin{aligned}
+E[Y_{ij} | \boldsymbol{X}_i] = & \beta_0 + \beta_1 \cdot \text{time}_{j} + \beta_2 \cdot \text{sex}_i + \beta_3 \cdot \text{age}_i + \beta_4 \cdot \text{bmi}_i + \beta_5 \cdot \text{job}_i \\
+& + \beta_6 \cdot \text{adl}_i + \beta_7 \cdot \text{wzc}_i + \beta_8 \cdot \text{cdrsb0}_i + \beta_{9} \cdot \text{taupet0}_i + \beta_{10} \cdot \text{abpet0}_i \\
+& + \beta_{11} \cdot (\text{time}_{j} \times \text{cdrsb0}_i)
+\end{aligned}
+$$
+
+where:
+
+- $Y_{ij}$ is the BPRS score for patient $i$ at time $j$.
+- $\beta_0$ is the intercept: expected BPRS at time 0 for the reference patient (Male, No Paid Job, Lives at Home), with continuous covariates at 0.
+- $\beta_1$ is the main effect of time: average yearly change in BPRS for the reference patient.
+- $\beta_2$ is the main effect of sex: Female vs Male at time 0.
+- $\beta_3$ is the main effect of age: per 1-year increase at baseline.
+- $\beta_4$ is the main effect of BMI: per 1-unit increase at baseline.
+- $\beta_5$ is the main effect of job: Paid Job vs No Paid Job at time 0.
+- $\beta_6$ is the main effect of ADL: per 1-unit increase at baseline.
+- $\beta_7$ is the main effect of living situation (wzc): Nursing Home vs Lives at Home at time 0.
+- $\beta_8$ is the main effect of baseline CDR-SB (cdrsb0): per 1-unit increase at baseline.
+- $\beta_9$ is the main effect of baseline Tau PET (taupet0): per 1-unit increase at baseline.
+- $\beta_{10}$ is the main effect of baseline Amyloid PET (abpet0): per 1-unit increase at baseline.
+- $\beta_{11}$ is the time-by-cdrsb0 interaction: modification of yearly change per 1-unit increase in baseline CDR-SB.
+
+The covariance structure remains the same as in the full model.
+
+
+
+
+
+```{r question-3-model}
+
+fm_adj <- bprs ~ time +  sex + 
+  age + bmi + job + adl + wzc +  cdrsb0 + 
+   + time:cdrsb0 
+
+#taupet0 + abpet0 
+gls_reduced_mean_structure <- gls(fm_adj,
+  data = alzheimer_long,
+  correlation = corSymm(form = ~ time | patid),
+  weights = varIdent(form = ~ 1 | time),
+  method = "ML", na.action = na.exclude
+)
+
+#summary(gls_reduced_mean_structure )
+
+tidy_with_ci(gls_reduced_mean_structure) |>
+  kable(
+    format = "latex",
+    caption = "Simplfied mean structiure Unstructured Covariance Results",
+    booktabs = TRUE,
+    #longtable = TRUE,
+    align = "lrrrr"
+  ) |>
+  column_spec(2, width = "5cm") |>
+  kable_styling(font_size = 9, position = "center")   |>
+  kable_styling(latex_options = c("hold_position", "scale_down"))
+
+```
+
+
+##### LR test between full and reduced mean structure models
+
+
+
+```{r lr-test}
+lr_test <- anova(
+  gls_full_mean_structure,
+  gls_reduced_mean_structure
+) |> tidy_anova_compare()
+
+lr_test |>
+  kable(
+    format = "latex",
+    caption = "Likelihood Ratio Test between Full and 
+    Reduced Mean Structure Models",
+    booktabs = TRUE,
+    #longtable = TRUE,
+    align = "lrrrr"
+  ) |>
+  column_spec(2, width = "5cm") |>
+  kable_styling(font_size = 9, position = "left")   |>
+  kable_styling(latex_options = c("hold_position", "scale_down"))
+
+```
+
+
+#### Reduced Covariance Structure
+
+
+```{r reduce-covariance-structure}
+gls_reduced_cov_structure <- gls(fm_adj,
+  data = alzheimer_long,
+  correlation = corAR1(form = ~ time | patid),
+  weights = varIdent(form = ~ 1 | time),
+  method = "ML", na.action = na.exclude
+)
+
+#summary(gls_reduced_cov_structure )
+
+tidy_with_ci(gls_reduced_cov_structure) |>
+  kable(
+    format = "latex",
+    caption = "Marginal Model with AR(1) Covariance Results",
+    booktabs = TRUE,
+    #longtable = TRUE,
+    align = "lrrrr"
+  ) |>
+  kable_styling(font_size = 9, position = "left")   |>
+  kable_styling(latex_options = c("hold_position", "scale_down"))
+```
+
+
+
+
+##### Reduced mean structure vs reduced covariance structure
+
+
+```{r lr-test-covariance}
+lr_test_cov <- anova(
+  gls_reduced_mean_structure,
+  gls_reduced_cov_structure
+) |> tidy_anova_compare() 
+
+
+lr_test_cov |>
+  kable(
+    format = "latex",
+    caption = "Likelihood Ratio Test between Reduced Mean 
+    Structure and Reduced Covariance Structure Models",
+    booktabs = TRUE,
+    #longtable = TRUE,
+    align = "lrrrr"
+  ) |>
+  column_spec(2, width = "5cm") |>
+  kable_styling(font_size = 9, position = "left")   |>
+  kable_styling(latex_options = c("hold_position", "scale_down"))
+
+```
+
+
+
+
+
+
+
+
+### Question 4
+
+In the first stage of a two-stage analysis, we fit a separate linear regression model for each patient to estimate their individual intercept and slope over time. For each patient $i$, the model is:
+
+$$
+Y_{ij} = \beta_{0i} + \beta_{1i} \cdot \text{time}_j + e_{ij}
+$$
+
+where:
+
+- $Y_{ij}$ is the BPRS score for patient $i$ at time $j$.
+- $\beta_{0i}$ is the patient-specific intercept (estimated baseline BPRS).
+- $\beta_{1i}$ is the patient-specific slope (estimated rate of change in BPRS).
+- $e_{ij}$ are the individual error terms, assumed to be independent with mean zero.
+
+
+```{r two-stage-stage1, fig.width=8, fig.height=3.5}
+
+# We fit patient with more than one observation
+stage1_results <- alzheimer_long[!is.na(bprs),
+  if (.N > 1) {
+    model <- lm(bprs ~ time)
+    .(intercept = coef(model)[1], slope = coef(model)[2])
+  },
+  by = patid
+]
+
+
+# melt for plotting
+
+stage1_results_melt <- melt(stage1_results,
+  id.vars = "patid",
+  variable.name = "parameter",
+  value.name = "estimate"
+)
+
+# distribution of intercepts and slopes
+two_stage <- ggplot(stage1_results_melt, aes(x = estimate)) +
+  geom_histogram(
+    binwidth = 1, color = "black",
+    fill = "lightblue", alpha = 0.7
+  ) +
+  facet_wrap(~parameter, scales = "free_x") +
+  labs(
+    title = "Distribution of Individual Intercepts and Slopes",
+    x = "Estimate",
+    y = "Number of Patients"
+  ) +
+  theme_minimal()
+
+grid.arrange(
+  two_stage,
+  ncol = 1,
+  bottom = grid::textGrob(
+    "Figure 7: Individual BPRS Profiles (left) and
+     Distribution of Individual Intercepts and Slopes (right).",
+    gp = grid::gpar(fontsize = 10),
+    x = 0.5,
+    hjust = 0.5
+  )
+)
+```
+
+
+
+
+#### Stage 2: Relate Intercepts and Slopes to Covariates
+
+
+##### Model for the Intercepts
+
+In the second stage, we model the estimated patient-specific intercepts ($\hat{\beta}_{0i}$) as a function of baseline covariates to understand which factors predict the initial BPRS score. The model is:
+
+$$
+\begin{aligned}
+\hat{\beta}_{0i} = & \gamma_{00} + \gamma_{01} \cdot \text{sex}_i + \gamma_{02} \cdot \text{age}_i + \gamma_{03} \cdot \text{bmi}_i + \gamma_{04} \cdot \text{job}_i + \gamma_{05} \cdot \text{adl}_i \\
+& + \gamma_{06} \cdot \text{wzc}_i + \gamma_{07} \cdot \text{cdrsb0}_i + \gamma_{08} \cdot \text{abpet0}_i + \gamma_{09} \cdot \text{taupet0}_i + \epsilon_{0i}
+\end{aligned}
+$$
+
+where:
+
+- $\hat{\beta}_{0i}$ is the estimated intercept for patient $i$ from Stage 1.
+- $\gamma_{00}$ is the average intercept for the reference individual (Male, No Paid Job, Lives at Home), with continuous covariates at 0.
+- $\gamma_{01}$ is the intercept difference for Female vs Male.
+- $\gamma_{02}$ is the intercept change per 1-year increase in age.
+- $\gamma_{03}$ is the intercept change per 1-unit increase in BMI.
+- $\gamma_{04}$ is the intercept difference for Paid Job vs No Paid Job.
+- $\gamma_{05}$ is the intercept change per 1-unit increase in ADL.
+- $\gamma_{06}$ is the intercept difference for Nursing Home vs Lives at Home.
+- $\gamma_{07}$ is the intercept change per 1-unit increase in baseline CDR-SB (cdrsb0).
+- $\gamma_{08}$ is the intercept change per 1-unit increase in baseline Amyloid PET (abpet0).
+- $\gamma_{09}$ is the intercept change per 1-unit increase in baseline Tau PET (taupet0).
+- $\epsilon_{0i}$ is the error term.
+
+```{r two-stage-stage2}
+# Merge the Stage 1 results with the baseline data
+stage2_data <- merge(stage1_results,
+  alzheimer_data,
+  by = "patid"
+)
+
+# baseline covariates to test
+baseline_covariates <- " sex + age + bmi + job + adl +
+wzc + cdrsb0 + abpet0 + taupet0"
+
+# What predicts a patient's starting BPRS level?
+intercept_formula <- as.formula(paste(
+  "intercept ~",
+  baseline_covariates
+))
+intercept_model <- lm(intercept_formula,
+  data = stage2_data
+)
+
+tidy_with_ci(intercept_model) |>
+  kable(
+    format = "latex",
+    caption = "Two-Stage Intercept Model Results",
+    booktabs = TRUE,
+    align = "lrrrr",
+    # l=left, r=right alignment for columns
+    linesep = ""
+  ) |>
+  column_spec(2, width = "5cm") |> # Set the width of the 2nd column (estimate)
+  kable_styling(latex_options = c("hold_position", "scale_down"))
+
+```
+
+
+
+
+#### Model for the Slopes
+
+Similarly, we model the estimated patient-specific slopes ($\hat{\beta}_{1i}$) as a function of baseline covariates to see what predicts the rate of change in BPRS. The model is:
+
+$$
+\begin{aligned}
+\hat{\beta}_{1i} = & \gamma_{10} + \gamma_{11} \cdot \text{sex}_i + \gamma_{12} \cdot \text{age}_i + \gamma_{13} \cdot \text{bmi}_i + \gamma_{14} \cdot \text{job}_i + \gamma_{15} \cdot \text{adl}_i \\
+& + \gamma_{16} \cdot \text{wzc}_i + \gamma_{17} \cdot \text{cdrsb0}_i + \gamma_{18} \cdot \text{abpet0}_i + \gamma_{19} \cdot \text{taupet0}_i + \epsilon_{1i}
+\end{aligned}
+$$
+
+where:
+
+- $\hat{\beta}_{1i}$ is the estimated slope for patient $i$ from Stage 1.
+- $\gamma_{10}$ is the average slope for the reference individual (Male, No Paid Job, Lives at Home), with continuous covariates at 0.
+- $\gamma_{11}$ is the slope difference for Female vs Male.
+- $\gamma_{12}$ is the slope change per 1-year increase in age.
+- $\gamma_{13}$ is the slope change per 1-unit increase in BMI.
+- $\gamma_{14}$ is the slope difference for Paid Job vs No Paid Job.
+- $\gamma_{15}$ is the slope change per 1-unit increase in ADL.
+- $\gamma_{16}$ is the slope difference for Nursing Home vs Lives at Home.
+- $\gamma_{17}$ is the slope change per 1-unit increase in baseline CDR-SB (cdrsb0).
+- $\gamma_{18}$ is the slope change per 1-unit increase in baseline Amyloid PET (abpet0).
+- $\gamma_{19}$ is the slope change per 1-unit increase in baseline Tau PET (taupet0).
+- $\epsilon_{1i}$ is the error term.
+
+```{r slope-model}
+slope_formula <- as.formula(paste(
+  "slope ~",
+  baseline_covariates
+))
+slope_model <- lm(slope_formula,
+  data = stage2_data
+)
+
+tidy_with_ci(slope_model) |>
+  kable(
+    format = "latex",
+    caption = "Two-Stage Slope Model Results",
+    booktabs = TRUE,
+    align = "lrrrr", # l=left, r=right alignment for columns
+    linesep = ""
+  ) |>
+  column_spec(2, width = "5cm") |> # Set the width of the 2nd column (estimate)
+  kable_styling(latex_options = c("hold_position", "scale_down"))
+
+```
+
+
+### Question 5
+
+```{r lmer-reduced-mean-structure}
+# random effects with reduce mean structure 
+
+library(lme4 )
+fm_adj <- bprs ~ time + sex + 
+  age + bmi + job + adl + wzc +  cdrsb0 + 
+   time:cdrsb0 +
+   1 + (time | patid) + (1 | trial)
+lmer_reduced_mean_structure <- lmer(fm_adj,
+  data = alzheimer_long,
+  na.action = na.exclude
+)
+
+tidy_with_ci(lmer_reduced_mean_structure) |>
+  kable(
+    format = "latex",
+    caption = "Mixed Model with Random Intercept
+     and Slope Results",
+    booktabs = TRUE,
+    # longtable = TRUE,
+    align = "lrrrr"
+  ) |>
+  column_spec(2, width = "5cm") |>
+  kable_styling(font_size = 9, position = "center") |>
+  kable_styling(latex_options = c("hold_position", "scale_down"))
+
+```
+
