@@ -1535,3 +1535,164 @@ tidy_with_ci(lmer_reduced_mean_structure) |>
 
 ```
 
+
+##### Variance components from mixed model
+
+```{r variance-components-table}
+# Helper to tidy random-effects variance/correlation like lmer summary
+tidy_re_varcorr <- function(model, digits = 3) {
+  vc <- lme4::VarCorr(model)
+  rows <- list()
+
+  for (grp in names(vc)) {
+    m <- vc[[grp]]
+    sd <- attr(m, "stddev")
+    trm <- names(sd)
+    var <- sd^2
+
+    corMat <- tryCatch(attr(m, "correlation"),
+      error = function(e) NULL
+    )
+
+    for (k in seq_along(trm)) {
+      term <- trm[k]
+      corr_val <- NA_real_
+      if (!is.null(corMat) && nrow(corMat) > 1 &&
+        term != "(Intercept)" &&
+        "(Intercept)" %in% colnames(corMat)) {
+        corr_val <- as.numeric(corMat[term, "(Intercept)"])
+      }
+      rows[[length(rows) + 1L]] <- data.frame(
+        Groups = grp,
+        Name = term,
+        Variance = var[k],
+        Std.Dev. = sd[k],
+        Corr = corr_val,
+        check.names = FALSE
+      )
+    }
+  }
+
+  out <- do.call(rbind, rows)
+  num_cols <- c("Variance", "Std.Dev.", "Corr")
+  out[num_cols] <- lapply(
+    out[num_cols],
+    function(x) {
+      ifelse(is.na(x),
+        NA, round(x, digits)
+      )
+    }
+  )
+  out
+}
+
+display_random_effects <- function(
+    model,
+    caption = "Random effects: variance components",
+    digits = 3) {
+  df <- tidy_re_varcorr(model, digits = digits)
+  knitr::kable(
+    df,
+    format = "latex",
+    booktabs = TRUE,
+    caption = caption,
+    align = c("l", "l", "r", "r", "r")
+  ) |>
+    kableExtra::kable_styling(latex_options = "hold_position")
+}
+
+# Display variance components for the fitted mixed model
+display_random_effects(lmer_reduced_mean_structure,
+  caption = "Random effects:
+                        variance components (lmer)",
+  digits = 3
+)
+```
+
+
+##### Subject-specific intercepts and slopes from mixed model vs two-stage estimates
+```{r subject-specific-int-slope, fig.width=9, fig.height=4.5}
+
+# Build per-patient newdata at time 0 and 1 (baseline covariates)
+base_covs <- alzheimer_data[, .(
+  patid, trial, sex,
+  age, bmi, job, adl, wzc, cdrsb0, abpet0
+)]
+
+nd0 <- copy(base_covs)
+nd0[, time := 0L]
+nd1 <- copy(base_covs)
+nd1[, time := 1L]
+
+# Subject-specific predictions (uses BLUPs since patid/trial exist in model)
+pred0 <- predict(lmer_reduced_mean_structure,
+  newdata = nd0,
+  re.form = NULL,
+  allow.new.levels = FALSE
+)
+pred1 <- predict(lmer_reduced_mean_structure,
+  newdata = nd1,
+  re.form = NULL,
+  allow.new.levels = FALSE
+)
+
+# Extract intercept (at time 0) and slope (per year ≈ pred at 1 - pred at 0)
+subj_spec <- data.table(
+  patid = nd0$patid,
+  intercept_mixed = pred0,
+  slope_mixed = pred1 - pred0
+)
+
+# also show random-effects-only deviations (BLUPs)
+re_pat <- data.table(
+  patid = rownames(ranef(lmer_reduced_mean_structure)$patid),
+  ranef(lmer_reduced_mean_structure)$patid
+)
+
+setnames(
+  re_pat, c("patid", "(Intercept)", "time"),
+  c("patid", "b0i", "b1i")
+)
+
+# Compare to two-stage estimates (Question 4)
+comp <- merge(stage1_results,
+  subj_spec,
+  by = "patid",
+  all.x = TRUE
+)
+
+# Correlations
+corr_int <- cor(comp$intercept,
+  comp$intercept_mixed,
+  use = "complete.obs"
+)
+corr_slope <- cor(comp$slope,
+  comp$slope_mixed,
+  use = "complete.obs"
+)
+
+# Plots
+p_int <- ggplot(comp, aes(intercept, intercept_mixed)) +
+  geom_point(alpha = 0.4) +
+  geom_abline(slope = 1, intercept = 0, color = "red") +
+  labs(
+    title = sprintf("Intercepts: Two-stage vs Mixed (r = %.2f)", corr_int),
+    x = "Two-stage intercept", y = "Mixed-model intercept"
+  ) +
+  theme_minimal()
+
+p_slope <- ggplot(comp, aes(slope, slope_mixed)) +
+  geom_point(alpha = 0.4) +
+  geom_abline(slope = 1, intercept = 0, color = "red") +
+  labs(
+    title = sprintf("Slopes: Two-stage vs Mixed (r = %.2f)", corr_slope),
+    x = "Two-stage slope", y = "Mixed-model slope"
+  ) +
+  theme_minimal()
+
+gridExtra::grid.arrange(p_int,
+  p_slope,
+  ncol = 2
+)
+
+```
