@@ -1574,6 +1574,20 @@ tidy_re_varcorr <- function(model, digits = 3) {
   }
 
   out <- do.call(rbind, rows)
+
+  # Add Residual variance
+  resid_sd <- sigma(model)
+  resid_var <- resid_sd^2
+  resid_row <- data.frame(
+    Groups = "Residual",
+    Name = "",
+    Variance = resid_var,
+    Std.Dev. = resid_sd,
+    Corr = NA_real_,
+    check.names = FALSE
+  )
+  out <- rbind(out, resid_row)
+
   num_cols <- c("Variance", "Std.Dev.", "Corr")
   out[num_cols] <- lapply(
     out[num_cols],
