@@ -1847,6 +1847,40 @@ gridExtra::grid.arrange(p_int,
 ```
 
 
+
+
+```{r}
+# Ensure patid type matches
+stage1_results$patid <- as.character(stage1_results$patid)
+re_coefs$patid       <- as.character(re_coefs$patid)
+
+# Merge two-stage and mixed-model random effects
+compare_slopes <- stage1_results |>
+  rename(
+    intercept_two_stage = intercept,
+    slope_two_stage     = slope
+  ) |>
+  inner_join(re_coefs, by = "patid")
+
+# Correlations
+cor(compare_slopes$intercept_two_stage, compare_slopes$intercept_mixed, use = "complete.obs")
+cor(compare_slopes$slope_two_stage,     compare_slopes$slope_mixed,     use = "complete.obs")
+
+# Scatterplots
+ggplot(compare_slopes, aes(x = slope_two_stage, y = slope_mixed)) +
+  geom_point(alpha = 0.4) +
+  geom_abline(intercept = 0, slope = 1, colour = "red") +
+  labs(x = "Two-stage slope", y = "Mixed-model slope")
+
+ggplot(compare_slopes, aes(x = intercept_two_stage, y = intercept_mixed)) +
+  geom_point(alpha = 0.4) +
+  geom_abline(intercept = 0, slope = 1, colour = "red") +
+  labs(x = "Two-stage intercept", y = "Mixed-model intercept")
+```
+
+
+
+
 **Do both methods give similar patient-specific results?**
 
 Yes.

@@ -802,6 +802,12 @@ model provides meaningful improvement.
 estimates**
 ![](lda_homework1_2025_files/figure-gfm/subject-specific-int-slope-1.png)<!-- -->
 
+    ## [1] 0.07416293
+
+    ## [1] 0.762492
+
+![](lda_homework1_2025_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->![](lda_homework1_2025_files/figure-gfm/unnamed-chunk-7-2.png)<!-- -->
+
 **Do both methods give similar patient-specific results?**
 
 Yes. When we compared the patient-specific results, we found the
