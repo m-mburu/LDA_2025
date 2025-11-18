@@ -299,6 +299,134 @@ correlation and heteroscedasticity. In this model, we use an
 unstructured correlation matrix (`corSymm`) and allow for different
 variances at each time point (`varIdent`).
 
+    ## Generalized least squares fit by maximum likelihood
+    ##   Model: fm_adj_full 
+    ##   Data: alzheimer_long 
+    ##        AIC      BIC    logLik
+    ##   27321.61 27665.12 -13609.81
+    ## 
+    ## Correlation Structure: General
+    ##  Formula: ~time | patid 
+    ##  Parameter estimate(s):
+    ##  Correlation: 
+    ##   1     2     3     4     5     6    
+    ## 2 0.317                              
+    ## 3 0.333 0.498                        
+    ## 4 0.277 0.531 0.682                  
+    ## 5 0.261 0.539 0.703 0.785            
+    ## 6 0.215 0.524 0.692 0.810 0.856      
+    ## 7 0.247 0.535 0.717 0.824 0.877 0.899
+    ## Variance function:
+    ##  Structure: Different standard deviations per stratum
+    ##  Formula: ~1 | time 
+    ##  Parameter estimates:
+    ##        1        2        3        4        5        6        7 
+    ## 1.000000 1.143726 1.422111 1.731714 2.105182 2.480566 2.851443 
+    ## 
+    ## Coefficients:
+    ##                           Value Std.Error   t-value p-value
+    ## (Intercept)          -130.84783 3.0037912 -43.56090  0.0000
+    ## time                    6.57872 2.2879649   2.87536  0.0040
+    ## eduLower secondary      0.19903 0.1662933   1.19686  0.2314
+    ## eduUpper secondary      0.11348 0.1555718   0.72945  0.4658
+    ## eduHigher               0.19157 0.1565404   1.22376  0.2211
+    ## sexFemale              -0.24573 0.1252423  -1.96206  0.0498
+    ## age                     2.35859 0.0188963 124.81772  0.0000
+    ## bmi                     0.51427 0.0302133  17.02121  0.0000
+    ## jobPaid Job           -18.13357 0.3968365 -45.69531  0.0000
+    ## adl                     2.00106 0.0518754  38.57438  0.0000
+    ## wzcNursing Home         1.63131 0.1464927  11.13579  0.0000
+    ## cdrsb0                  0.00175 0.0081772   0.21394  0.8306
+    ## taupet0                 0.73534 1.3276875   0.55385  0.5797
+    ## abpet0                  0.34634 0.2247379   1.54106  0.1234
+    ## time:sexFemale         -0.03201 0.0626516  -0.51088  0.6095
+    ## time:age                0.01499 0.0093577   1.60138  0.1093
+    ## time:bmi               -0.00099 0.0145646  -0.06783  0.9459
+    ## time:jobPaid Job       -0.38367 0.2030637  -1.88941  0.0589
+    ## time:adl                0.05247 0.0269475   1.94700  0.0516
+    ## time:wzcNursing Home    0.14215 0.0744030   1.91055  0.0561
+    ## time:cdrsb0            -0.02124 0.0041613  -5.10511  0.0000
+    ## time:abpet0            -0.06518 0.1141957  -0.57081  0.5681
+    ## time:taupet0           -0.33394 1.1362256  -0.29391  0.7688
+    ## 
+    ##  Correlation: 
+    ##                      (Intr) time   edLwrs edUpps edHghr sexFml age    bmi   
+    ## time                 -0.845                                                 
+    ## eduLower secondary   -0.012 -0.017                                          
+    ## eduUpper secondary   -0.051 -0.018  0.649                                   
+    ## eduHigher            -0.078 -0.012  0.642  0.728                            
+    ## sexFemale            -0.056  0.022 -0.005  0.027 -0.008                     
+    ## age                  -0.413  0.160 -0.018  0.009 -0.012  0.058              
+    ## bmi                  -0.385  0.141 -0.020  0.098  0.218  0.043  0.203       
+    ## jobPaid Job           0.406 -0.170  0.001 -0.023  0.000 -0.091 -0.568 -0.250
+    ## adl                  -0.479  0.200 -0.004  0.020  0.000  0.186  0.701  0.282
+    ## wzcNursing Home       0.018 -0.018  0.016  0.007  0.036  0.024 -0.045  0.053
+    ## cdrsb0               -0.024  0.010  0.000  0.017 -0.002  0.061  0.023 -0.034
+    ## taupet0              -0.813  0.862 -0.011 -0.022 -0.013 -0.010 -0.075  0.015
+    ## abpet0                0.166 -0.065  0.008  0.000  0.001 -0.096 -0.630 -0.097
+    ## time:sexFemale        0.029 -0.027 -0.001  0.000  0.000 -0.620 -0.042 -0.025
+    ## time:age              0.234 -0.260  0.002  0.002  0.004 -0.043 -0.576 -0.120
+    ## time:bmi              0.221 -0.236 -0.001  0.001  0.003 -0.026 -0.125 -0.591
+    ## time:jobPaid Job     -0.236  0.255 -0.001 -0.001 -0.003  0.056  0.334  0.146
+    ## time:adl              0.273 -0.295  0.002  0.001  0.003 -0.111 -0.403 -0.161
+    ## time:wzcNursing Home -0.038  0.040 -0.002 -0.001 -0.001 -0.010  0.035 -0.027
+    ## time:cdrsb0           0.032 -0.037  0.002  0.003 -0.003 -0.041 -0.018  0.022
+    ## time:abpet0          -0.097  0.119 -0.001  0.000 -0.004  0.069  0.355  0.054
+    ## time:taupet0          0.772 -0.926  0.018  0.018  0.012  0.005  0.022 -0.002
+    ##                      jbPdJb adl    wzcNrH cdrsb0 taupt0 abpet0 tm:sxF time:g
+    ## time                                                                        
+    ## eduLower secondary                                                          
+    ## eduUpper secondary                                                          
+    ## eduHigher                                                                   
+    ## sexFemale                                                                   
+    ## age                                                                         
+    ## bmi                                                                         
+    ## jobPaid Job                                                                 
+    ## adl                  -0.866                                                 
+    ## wzcNursing Home      -0.008  0.103                                          
+    ## cdrsb0               -0.042  0.042  0.029                                   
+    ## taupet0              -0.018  0.011 -0.016  0.000                            
+    ## abpet0                0.173 -0.234 -0.165 -0.013  0.006                     
+    ## time:sexFemale        0.056 -0.115 -0.010 -0.042  0.014  0.071              
+    ## time:age              0.346 -0.424  0.038 -0.020  0.052  0.366  0.063       
+    ## time:bmi              0.156 -0.174 -0.029  0.025 -0.002  0.059  0.040  0.212
+    ## time:jobPaid Job     -0.594  0.542 -0.017  0.030  0.002 -0.103 -0.086 -0.579
+    ## time:adl              0.533 -0.619 -0.037 -0.031  0.004  0.136  0.175  0.699
+    ## time:wzcNursing Home -0.012 -0.042 -0.657 -0.025  0.031  0.108  0.014 -0.058
+    ## time:cdrsb0           0.028 -0.029 -0.027 -0.618 -0.019  0.013  0.073  0.031
+    ## time:abpet0          -0.100  0.136  0.106  0.015  0.013 -0.637 -0.108 -0.622
+    ## time:taupet0          0.013 -0.012  0.010  0.001 -0.930  0.008 -0.015 -0.055
+    ##                      tim:bm tm:jPJ tim:dl tm:wNH tm:cd0 tm:bp0
+    ## time                                                          
+    ## eduLower secondary                                            
+    ## eduUpper secondary                                            
+    ## eduHigher                                                     
+    ## sexFemale                                                     
+    ## age                                                           
+    ## bmi                                                           
+    ## jobPaid Job                                                   
+    ## adl                                                           
+    ## wzcNursing Home                                               
+    ## cdrsb0                                                        
+    ## taupet0                                                       
+    ## abpet0                                                        
+    ## time:sexFemale                                                
+    ## time:age                                                      
+    ## time:bmi                                                      
+    ## time:jobPaid Job     -0.250                                   
+    ## time:adl              0.276 -0.882                            
+    ## time:wzcNursing Home  0.049  0.026  0.059                     
+    ## time:cdrsb0          -0.037 -0.043  0.043  0.041              
+    ## time:abpet0          -0.102  0.198 -0.257 -0.158 -0.021       
+    ## time:taupet0          0.000  0.003 -0.010 -0.031  0.021 -0.010
+    ## 
+    ## Standardized residuals:
+    ##          Min           Q1          Med           Q3          Max 
+    ## -3.594650967 -0.672542422  0.009877319  0.656222963  3.753282034 
+    ## 
+    ## Residual standard error: 1.930139 
+    ## Degrees of freedom: 6220 total; 6197 residual
+
 ##### Simplified Mean Structure
 
 After backward elimination on the mean structure, the simplified model
@@ -339,9 +467,115 @@ where:
 
 The covariance structure remains the same as in the full model.
 
+    ## Generalized least squares fit by maximum likelihood
+    ##   Model: fm_adj 
+    ##   Data: alzheimer_long 
+    ##        AIC      BIC    logLik
+    ##   27310.07 27566.02 -13617.03
+    ## 
+    ## Correlation Structure: General
+    ##  Formula: ~time | patid 
+    ##  Parameter estimate(s):
+    ##  Correlation: 
+    ##   1     2     3     4     5     6    
+    ## 2 0.317                              
+    ## 3 0.330 0.500                        
+    ## 4 0.274 0.533 0.684                  
+    ## 5 0.258 0.541 0.706 0.786            
+    ## 6 0.212 0.526 0.694 0.810 0.857      
+    ## 7 0.243 0.536 0.719 0.823 0.878 0.900
+    ## Variance function:
+    ##  Structure: Different standard deviations per stratum
+    ##  Formula: ~1 | time 
+    ##  Parameter estimates:
+    ##        1        2        3        4        5        6        7 
+    ## 1.000000 1.145671 1.424446 1.731188 2.109724 2.483480 2.860215 
+    ## 
+    ## Coefficients:
+    ##                      Value Std.Error    t-value p-value
+    ## (Intercept)     -131.59457 1.2846720 -102.43437  0.0000
+    ## time               7.22016 0.0402511  179.37778  0.0000
+    ## sexFemale         -0.26615 0.0977429   -2.72300  0.0065
+    ## age                2.39453 0.0112608  212.64356  0.0000
+    ## bmi                0.51088 0.0224114   22.79554  0.0000
+    ## jobPaid Job      -18.68780 0.3125190  -59.79732  0.0000
+    ## adl                2.08240 0.0391653   53.16940  0.0000
+    ## wzcNursing Home    1.83672 0.1089160   16.86366  0.0000
+    ## cdrsb0             0.00284 0.0081749    0.34711  0.7285
+    ## time:cdrsb0       -0.02194 0.0041486   -5.28778  0.0000
+    ## 
+    ##  Correlation: 
+    ##                 (Intr) time   sexFml age    bmi    jbPdJb adl    wzcNrH cdrsb0
+    ## time            -0.038                                                        
+    ## sexFemale       -0.081 -0.005                                                 
+    ## age             -0.867 -0.002 -0.019                                          
+    ## bmi             -0.639 -0.002  0.041  0.209                                   
+    ## jobPaid Job      0.655 -0.005 -0.068 -0.600 -0.249                            
+    ## adl             -0.813  0.011  0.164  0.753  0.289 -0.846                     
+    ## wzcNursing Home  0.059 -0.012  0.019 -0.197  0.031  0.004  0.092              
+    ## cdrsb0          -0.047  0.423  0.042  0.013 -0.024 -0.027  0.027  0.017       
+    ## time:cdrsb0      0.024 -0.678  0.005  0.002  0.002  0.002 -0.001  0.001 -0.618
+    ## 
+    ## Standardized residuals:
+    ##         Min          Q1         Med          Q3         Max 
+    ## -3.60934214 -0.67825468  0.01511925  0.65612417  3.79158992 
+    ## 
+    ## Residual standard error: 1.932531 
+    ## Degrees of freedom: 6220 total; 6210 residual
+
 ##### LR test between full and reduced mean structure models
 
 #### Reduced Covariance Structure
+
+    ## Generalized least squares fit by maximum likelihood
+    ##   Model: fm_adj 
+    ##   Data: alzheimer_long 
+    ##       AIC      BIC    logLik
+    ##   28503.3 28624.54 -14233.65
+    ## 
+    ## Correlation Structure: AR(1)
+    ##  Formula: ~time | patid 
+    ##  Parameter estimate(s):
+    ##       Phi 
+    ## 0.6768273 
+    ## Variance function:
+    ##  Structure: Different standard deviations per stratum
+    ##  Formula: ~1 | time 
+    ##  Parameter estimates:
+    ##        1        2        3        4        5        6        7 
+    ## 1.000000 1.201363 1.301545 1.380350 1.501456 1.666260 1.987266 
+    ## 
+    ## Coefficients:
+    ##                      Value Std.Error   t-value p-value
+    ## (Intercept)     -131.97662 1.6441264 -80.27158  0.0000
+    ## time               7.23968 0.0347107 208.57203  0.0000
+    ## sexFemale         -0.28016 0.1251559  -2.23847  0.0252
+    ## age                2.40071 0.0144201 166.48361  0.0000
+    ## bmi                0.50332 0.0286423  17.57261  0.0000
+    ## jobPaid Job      -18.90513 0.4016343 -47.07052  0.0000
+    ## adl                2.09712 0.0501361  41.82848  0.0000
+    ## wzcNursing Home    1.84276 0.1390777  13.24987  0.0000
+    ## cdrsb0             0.00359 0.0109538   0.32788  0.7430
+    ## time:cdrsb0       -0.02347 0.0035203  -6.66704  0.0000
+    ## 
+    ##  Correlation: 
+    ##                 (Intr) time   sexFml age    bmi    jbPdJb adl    wzcNrH cdrsb0
+    ## time            -0.040                                                        
+    ## sexFemale       -0.079  0.000                                                 
+    ## age             -0.868  0.006 -0.021                                          
+    ## bmi             -0.639  0.006  0.040  0.210                                   
+    ## jobPaid Job      0.650  0.047 -0.067 -0.598 -0.248                            
+    ## adl             -0.809 -0.058  0.163  0.753  0.288 -0.843                     
+    ## wzcNursing Home  0.060  0.031  0.018 -0.198  0.029  0.009  0.086              
+    ## cdrsb0          -0.045  0.450  0.039  0.006 -0.019 -0.018  0.018  0.011       
+    ## time:cdrsb0      0.027 -0.673  0.006  0.005 -0.005 -0.008  0.007  0.008 -0.661
+    ## 
+    ## Standardized residuals:
+    ##         Min          Q1         Med          Q3         Max 
+    ## -3.80335301 -0.65597868  0.02461036  0.65467086  4.08362961 
+    ## 
+    ## Residual standard error: 2.295041 
+    ## Degrees of freedom: 6220 total; 6210 residual
 
 ##### Reduced mean structure vs reduced covariance structure
 
@@ -438,6 +672,52 @@ where:
 - $\epsilon_{1i}$ is the error term.
 
 ### Question 5
+
+    ## Linear mixed model fit by REML. t-tests use Satterthwaite's method [
+    ## lmerModLmerTest]
+    ## Formula: fm_adj
+    ##    Data: alzheimer_long
+    ## 
+    ## REML criterion at convergence: 27121.3
+    ## 
+    ## Scaled residuals: 
+    ##     Min      1Q  Median      3Q     Max 
+    ## -3.6390 -0.5982 -0.0086  0.5904  3.3222 
+    ## 
+    ## Random effects:
+    ##  Groups   Name        Variance Std.Dev. Corr 
+    ##  patid    (Intercept) 0.8067   0.8982        
+    ##           time        0.6863   0.8284   -0.61
+    ##  trial    (Intercept) 8.0037   2.8291        
+    ##  Residual             2.6980   1.6426        
+    ## Number of obs: 6220, groups:  patid, 1253; trial, 25
+    ## 
+    ## Fixed effects:
+    ##                   Estimate Std. Error         df t value Pr(>|t|)    
+    ## (Intercept)     -6.029e+01  4.169e+00  9.534e+02 -14.461  < 2e-16 ***
+    ## time             7.220e+00  4.026e-02  9.957e+02 179.318  < 2e-16 ***
+    ## sexFemale       -1.609e-01  8.760e-02  1.169e+03  -1.837   0.0665 .  
+    ## age              1.697e+00  4.006e-02  1.044e+03  42.364  < 2e-16 ***
+    ## bmi              1.784e-01  2.729e-02  1.204e+03   6.537 9.26e-11 ***
+    ## jobPaid Job     -5.136e+00  8.042e-01  1.059e+03  -6.386 2.54e-10 ***
+    ## adl              6.535e-02  1.178e-01  1.054e+03   0.555   0.5791    
+    ## wzcNursing Home  1.915e+00  9.790e-02  1.258e+03  19.565  < 2e-16 ***
+    ## cdrsb0           2.002e-03  7.603e-03  1.083e+03   0.263   0.7924    
+    ## time:cdrsb0     -2.178e-02  4.149e-03  9.707e+02  -5.248 1.88e-07 ***
+    ## ---
+    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+    ## 
+    ## Correlation of Fixed Effects:
+    ##             (Intr) time   sexFml age    bmi    jbPdJb adl    wzcNrH cdrsb0
+    ## time        -0.009                                                        
+    ## sexFemale    0.026 -0.006                                                 
+    ## age         -0.981 -0.003 -0.054                                          
+    ## bmi         -0.773 -0.005 -0.002  0.693                                   
+    ## jobPaid Job  0.955 -0.001  0.025 -0.960 -0.697                            
+    ## adl         -0.975  0.002 -0.001  0.980  0.708 -0.983                     
+    ## wzcNursngHm  0.052 -0.016  0.020 -0.086 -0.003  0.037 -0.009              
+    ## cdrsb0      -0.017  0.444  0.044  0.006 -0.014 -0.013  0.011  0.016       
+    ## time:cdrsb0  0.006 -0.677  0.005  0.002  0.003  0.000  0.001  0.000 -0.651
 
 ##### Variance components from mixed model
 
