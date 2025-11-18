@@ -325,9 +325,10 @@ compare_fix
 
 
 
-# Question 5
+### Question 5
 
-## Random Effects model
+#### Random Effects model
+
 To understand how psychiatric symptoms evolve over time in Alzheimer’s disease, we developed a statistical model that accounts for repeated measurements in each patient. This model allows each patient to have their own starting level of symptoms and their own rate of change over time. The outcome of interest was the Brief Psychiatric Rating Scale (BPRS), measured annually over six years.
 
 We build a random-effects model, compare it to the multivariate model used earlier, and evaluate how well it describes both population-level trends and patient-specific trajectories.
@@ -381,7 +382,7 @@ Disadvantages / potential issues:
 
 
 
-## The model fitted
+#### The model fitted
 
 For patient \( i \) in trial \( j \) at time point \( t \), the linear mixed-effects model is:
 
@@ -401,7 +402,7 @@ For patient \( i \) in trial \( j \) at time point \( t \), the linear mixed-eff
 + \epsilon_{ijt}.
 \]
 
-### Where:
+##### Where:
 
 - \( \beta \)'s = population-level (fixed) effects  
 - \( b_{0i} \) = patient-specific deviation in baseline symptom severity (random intercept)  
@@ -409,11 +410,11 @@ For patient \( i \) in trial \( j \) at time point \( t \), the linear mixed-eff
 - \( u_{0j} \) = trial-specific deviation in baseline symptom severity (random intercept for trial)  
 - \( \epsilon_{ijt} \) = residual error  
 
----
 
-## Random effects
 
-### Patient-specific random effects
+#### Random effects
+
+#### Patient-specific random effects
 
 \[
 \begin{pmatrix}
@@ -445,12 +446,28 @@ u_{0j} \sim N(0, \sigma_{u0}^2).
 \epsilon_{ijt} \sim N(0, \sigma^2).
 \]
 
----
+
 
 This model allows patients to vary in both their **starting level of psychiatric symptoms** and their **rate of symptom progression**, while also accounting for **differences between clinical trials** through the trial-specific random intercept.
 
-## Results
+#### Results
 The linear mixed-effects model showed a significant yearly increase in psychiatric symptom severity, with BPRS scores rising by 7.22 points per year (p < 0.001). Several baseline characteristics were significantly associated with overall BPRS levels, including age (+1.70, p < 0.001), BMI (+0.18, p < 0.001), paid employment (–5.14, p < 0.001), and nursing home residence (+1.91, p < 0.001). Sex showed a borderline effect, with females scoring slightly lower (–0.16, p = 0.064), while ADL score, baseline CDR-SB, and amyloid PET were not significant predictors. The interaction between baseline CDR-SB and time was significant (–0.022, p < 0.001). The random-effects structure indicated substantial patient-level variability, with a standard deviation of 0.90 for baseline symptom levels and 0.83 for rates of symptom change, and a negative intercept–slope correlation (–0.61). Trial-level variability was also present, with a trial-specific intercept standard deviation of 2.83. Overall, the model included 6,220 observations from 1,253 patients across 25 clinical trials.
+
+```{r}
+lmer_re <- lmer(
+  bprs ~ time + sex + 
+    age + bmi + job + adl + wzc +
+    cdrsb0 + abpet0 +
+    time:cdrsb0 +
+    1 + (time | patid) + (1 | trial),
+  data = alzheimer_long,
+  REML = TRUE
+)
+
+summary(lmer_re)
+```
+
+
 
 ```{r}
 library(broom.mixed)
@@ -464,7 +481,8 @@ table_lmer
 ```
 
 
-####Diagnostics: Evaluating Model Appropriateness
+#### Diagnostics: Evaluating Model Appropriateness
+
 To ensure that the linear mixed-effects model (which estimates both the average progression of BPRS over time and patient-specific patterns) is statistically reliable, several diagnostic checks were performed. These checks help determine whether the model's assumptions are met, and whether the results can be trusted.
 
 
@@ -490,9 +508,11 @@ The Q–Q plot compares the distribution of the model residuals (errors) to what
 
 
 ### Figure 2. Residuals vs. Fitted Values Plot
+
 This plot assesses whether residuals are randomly distributed around zero, which reflects the assumption of constant variability ("homoscedasticity").Residuals are spread evenly around zero with no funnel shape or curvature. This indicates Variance is stable across time, The model does not systematically under- or over-predict symptoms and The linearity assumption is appropriate. The model fits the data well and the variability is appropriately captured.
 
 ### Figure 3. Distribution of Patient-Specific Intercepts and Slopes
+
 To evaluate whether the random-effects model appropriately captured differences between patients, we examined the distribution of the estimated subject-specific intercepts (patients’ baseline BPRS scores) and subject-specific slopes (their rates of symptom change over time). The distribution of intercepts showed some variability, indicating that patients entered the study with a wide range of psychiatric severity levels. The slopes also displayed meaningful variation, reflecting that some patients deteriorated faster than others, while a smaller number showed relatively stable symptoms. Both the intercepts and slopes followed approximately normal distributions, with no evidence of heavy tails or extreme outliers. This pattern supports the model assumptions and confirms that the random-effects component is performing as expected—accurately capturing differences between patients rather than noise. Overall, the distributions validate the appropriateness of including random intercepts and random slopes in the model.
 
 
@@ -503,12 +523,19 @@ Overall, All diagnostic checks support the validity of the linear mixed-effects 
 re <- ranef(lmer_re)$patid
 
 par(mfrow = c(1, 2))
-qqnorm(re[,"(Intercept)"], main = "Random intercepts"); qqline(re[,"(Intercept)"])
-qqnorm(re[,"time"], main = "Random slopes"); qqline(re[,"time"])
+qqnorm(re[, "(Intercept)"],
+  main = "Random intercepts"
+)
+qqline(re[, "(Intercept)"])
+qqnorm(re[, "time"],
+  main = "Random slopes"
+)
+qqline(re[, "time"])
 par(mfrow = c(1, 1))
 
-plot(re[,"(Intercept)"], re[,"time"],
-     xlab = "Random intercept", ylab = "Random slope")
+plot(re[, "(Intercept)"], re[, "time"],
+  xlab = "Random intercept", ylab = "Random slope"
+)
 abline(h = 0, v = 0, col = "grey")
 
 ```
@@ -674,12 +701,15 @@ Overall, this approach provides a detailed picture of how psychiatric symptoms e
 From a modeling and design perspective, several recommendations emerge:
 
 1) systematic recording of dropout reasons:
+
 Since dropout can bias longitudinal analyses, future studies should routinely document why patients leave the study (death, institutionalization, refusal, health decline). This would allow sensitivity analyses under different missing-data assumptions (MAR vs MNAR).
 
 2) Richer covariate information on treatment and care:
+
 Including medication use (e.g., antipsychotics, antidepressants), psychosocial interventions, caregiver burden, and comorbidities might help explain additional between-patient variation and could identify modifiable risk factors for rapid deterioration.
 
 3)Parallel assessment of multiple outcome domains
+
 Since cognition, function, and psychiatric symptoms are closely related in Alzheimer’s disease, future experiments could be designed to jointly model these domains rather than analyzing each in isolation. This would provide a more integrated picture of disease progression and may better inform clinical decision-making.
 
 
