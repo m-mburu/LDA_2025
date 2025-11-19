@@ -3,7 +3,7 @@ title: "LDA Homework 1 (2025-2026)"
 author: |
   \vspace{1cm}
   \ 
-  Student A (student number) \
+  Anita Kerubo Ogero (2469491) \
   Student B (student number) \
   Student C (student number) \
   Student D (student number)
@@ -846,14 +846,23 @@ random_ppid <- sample(uniqu_ppid, 50)
 # Filter long data for these patients
 plot_data <- alzheimer_long[patid %in% random_ppid]
 
-spaggheti_plot <- ggplot(plot_data, aes(x = time, y = bprs, group = patid)) +
-  geom_line(alpha = 0.5, color = "steelblue") +
+# Make patid a factor for cleaner colouring
+plot_data[, patid := factor(patid)]
+
+# Expand our 28-colour palette to 50 colours
+mycolors50 <- colorRampPalette(mycolors)(50)
+
+spaggheti_plot <- ggplot(plot_data, aes(x = time, y = bprs, group = patid, colour = patid)) +
+  geom_line(size = 0.5, alpha = 0.9) +
+  geom_point(size = 1, alpha = 0.9) +
+  scale_colour_manual(values = mycolors50) +
   labs(
     title = "Individual BPRS Profiles (50 Random Patients)",
     x = "Time (Years)",
     y = "BPRS"
   ) +
-  theme_minimal()
+  theme_minimal() +
+  theme(legend.position = "none")
 
 ```
 
@@ -900,7 +909,58 @@ grid.arrange(
 
 
 
+#### Increment Analysis
+Increment analysis examines the year-to-year changes in BPRS scores. We calculate the increments (differences) between consecutive years for each patient and then summarize these increments across all patients at each time point. 
 
+##### Motivation
+This approach is motivated by the goal of understanding how BPRS evolves over time and by the amount of baseline heterogeneity observed in the data; differencing removes these baseline differences and focuses on the rate of change. Increments were estimated by sorting each patient's measurements by time and subtracting BPRS<sub>t-1</sub> from BPRS<sub>t</sub>. 
+
+##### Assumptions and limitations
+This method assumes that the measurement intervals are comparable across subjects and that the change between two visits is meaningful even in the presence of unbalanced follow-up. It has the advantage of being model-free and directly interpretable in terms of annual worsening, although it uses only patients with consecutive measurements and can be influenced by measurement error at a single visit.
+
+##### Results
+The resulting plot shows that, the mean year-to-year increment in BPRS is roughly constant across all follow-up years, with an average change of about seven points per year. The error bars represent the standard deviation of these increments, indicating that the variability in annual change is also relatively constant over time. This consistency suggests that, on average, patients deteriorate at a steady rate during the follow-up.
+
+
+```{r increment-analysis}
+# Summary statistics of increments
+alz_incr <- alzheimer_long %>%
+  arrange(patid, time) %>%
+  group_by(patid) %>%
+  mutate(increment = bprs - lag(bprs)) %>%
+  ungroup()
+
+incr_summary <- alz_incr %>%
+  filter(!is.na(increment)) %>%
+  group_by(time) %>%
+  summarise(
+    n = n(),
+    mean_increment = mean(increment, na.rm = TRUE),
+    sd_increment   = sd(increment, na.rm = TRUE)
+  )
+
+#incr_summary
+
+ggplot(incr_summary, aes(time, mean_increment)) +
+  geom_line(size = 1.3, colour = "#1b9e77") +
+  geom_point(size = 4, colour = "#d95f02") +
+  geom_errorbar(aes(ymin = mean_increment - sd_increment,
+                    ymax = mean_increment + sd_increment),
+                width = 0.15, colour = "grey30") +
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "Year-to-Year Change in BPRS",
+    subtitle = "Mean increments with standard deviation bars",
+    x = "Time",
+    y = "Mean increment (ΔBPRS)"
+  ) +
+  theme(
+    plot.title = element_text(face = "bold"),
+    plot.subtitle = element_text(color = "grey40")
+  )
+
+
+```
 
 #### Separate analyses for each follow-up year
 
@@ -937,6 +997,21 @@ cdrsb0 + abpet0 + taupet0"
 all_predictors <- trimws(strsplit(baseline_covariates_str, "\\+")[[1]])
 
 list_models <- list()
+
+label_map <- c(
+  "(Intercept)"         = "Intercept",
+  "age"                 = "Age (years)",
+  "bmi"                 = "Body Mass Index",
+  "adl"                 = "Activities of Daily Living Score",
+  "cdrsb0"              = "Baseline CDR-SB Score",
+  "abpet0"              = "Baseline Amyloid PET",
+  "taupet0"             = "Baseline Tau PET",
+  "sexFemale"           = "Sex: Female vs Male",
+  "jobPaid Job"         = "Paid Job vs No Paid Job",
+  "wzcNursing Home"     = "Lives in Nursing Home vs Home"
+)
+
+
 
 # Loop through each follow-up year from 0 to 6
 for (year in 0:6) {
@@ -1018,6 +1093,27 @@ summary_dt <- dcast(
   value.var = "cell"
 )[order(covariate)]
 
+# Map the variable names
+summary_dt$covariate_clean <- label_map[ summary_dt$covariate ]
+
+summary_dt$covariate_clean <- ifelse(
+  is.na(summary_dt$covariate_clean),
+  summary_dt$covariate,   # fallback: keep original if no match in map
+  summary_dt$covariate_clean
+)
+
+# Replace the 'covariate column' with the clean version
+summary_dt <- summary_dt %>%
+  mutate(
+    covariate = ifelse(
+      is.na(covariate_clean),
+      covariate,
+      covariate_clean
+    )
+  ) %>%
+  select(-covariate_clean)
+
+
 # Optional nicer name for clinicians
 #setnames(summary_dt, "covariate", "Baseline covariate")
 kable(summary_dt,
@@ -1030,6 +1126,21 @@ kable(summary_dt,
   kable_styling(latex_options = c("hold_position", "scale_down"))
 ```
 
+##### Motivation
+This approach treats each follow-up visit as a cross-sectional outcome and regresses the BPRS score at that year on baseline demographic variables and clinical/bio-marker measures. While a full multivariate model may be difficult to specify, analysing each time point separately provides a simple way to study whether the effects of baseline covariates vary over time; making this technique appropriate. Each model uses all patients who remained under observation at that specific time, making the method suitable with unbalanced longitudinal designs.
+
+##### Assumptions and limitations
+The estimates were obtained using standard least squares for each year, assuming independent errors within each year-specific regression, and assuming that baseline covariates affect follow-up BPRS levels cumulatively. A limitation is that subjects with missing biomarker values are excluded for the affected years, and predictors that show no variation within a given year (e.g., taupet0 from year 3 onwards) cannot be included in that year's model. This leads to different sample sizes and covariate sets across years, complicating direct comparisons of effects over time.
+
+##### Results
+Across all years, several patterns emerged. Age, BMI, and ADL showed consistent positive associations with BPRS at each follow-up, and the magnitude of these effects remained constant over time. Patients living in a nursing home at baseline consistently had higher BPRS scores. Employment status also showed a persistent effect, with patients in paid jobs having lower BPRS scores at every follow-up point. CDR-SB at baseline had a small but consistent negative association with later BPRS. By contrast, ABPET and TAUPET displayed large uncertainty and no consistent effect across years.
+
+##### Conclusion
+Across both analyses, patients show a steady increase in psychiatric symptoms, with BPRS scores rising by roughly seven points each year on average. This rate of worsening symptoms remains stable throughout the six-year follow-up, with no evidence that it accelerates or slows down as the disease progresses.
+
+Patients who begin with greater functional impairement, older age, or who reside in a nursing home demonstrate higher BPRS scores throughout follow-up. In contrast, employed individuals at baseline tend to have consistently lower symptom severity over time. Baseline amyloid and tau biomarkers do not show consistent associations with BPRS trajectories.
+
+These findings suggest that the baseline factors associated with higher psychiatric severity remain consistent at all later points in follow-up. The effect sizes do not appear to change considerably over time, suggesting that the influence of these baseline characteristics on BPRS levels is stable rather than time-dependent. This supports the idea that demographic and functional status factors at baseline could be useful markers for identifying patients who are likely to experience more severe psychiatric symptoms throughout their disease course. This information can help anticipate the likely trajectory of symptom worsening and plan follow-up and supportive care accordingly. 
 
 
 
