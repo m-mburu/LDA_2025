@@ -592,17 +592,17 @@ We model the longitudinal BPRS scores using a linear mixed-effects model
 with random effects at both the patient and trial level:
 
 $$
-\text{BPRS}_{it} =
+BPRS_{it} =
 (\beta_0 + b_{0i} + u_{0j})
-+ (\beta_1 + b_{1i})\,\text{time}_{it}
-+ \beta_2 \text{sex}_i
-+ \beta_3 \text{age}_i
-+ \beta_4 \text{bmi}_i
-+ \beta_5 \text{job}_i
-+ \beta_6 \text{adl}_i
-+ \beta_7 \text{wzc}_i
-+ \beta_8 \text{cdrsb0}_i
-+ \beta_9 (\text{time}_{it} \cdot \text{cdrsb0}_i)
++ (\beta_1 + b_{1i})\,time_{it}
++ \beta_2\,sex_i
++ \beta_3\,age_i
++ \beta_4\,bmi_i
++ \beta_5\,job_i
++ \beta_6\,adl_i
++ \beta_7\,wzc_i
++ \beta_8\,cdrsb0_i
++ \beta_9\,(time_{it}\, cdrsb0_i)
 + \epsilon_{it}
 $$
 
