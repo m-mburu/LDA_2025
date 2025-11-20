@@ -2248,23 +2248,24 @@ For the covariance structure, we selected patient-level random intercepts and ra
 Based on what we observed in the exploratory plots and models, we suggest the following design and data collection improvements for future work on BPRS in Alzheimer patients.
 
 1. Address informative dropout and missingness
-  -  Patients with higher baseline BPRS missed more follow-up visits, and overall missingness rose above 40% by Year 6. This shows that dropout is related to disease severity, and is unlikely to be completely random.
-    - At enrolment, consider whether including patients with extremely severe psychiatric symptoms at baseline will lead to very early dropout. If this subgroup is retained, plan in advance how their missing data will be handled in the analysis.
-    - Record reasons for dropout in a structured way (death, institutionalisation, moving away, withdrawal of consent, adverse events). This will help future analyses distinguish between random and informative missingness and allow sensitivity analyses.
+  * Patients with higher baseline BPRS missed more follow-up visits, and overall missingness rose above 40% by Year 6. This shows     that dropout is related to disease severity, and is unlikely to be completely random.
+  * At enrolment, consider whether including patients with extremely severe psychiatric symptoms at baseline will lead to very       early dropout. If this subgroup is retained, plan in advance how their missing data will be handled in the analysis.
+  * Record reasons for dropout in a structured way (death, institutionalisation, moving away, withdrawal of consent, adverse         events). This will help future analyses distinguish between random and informative missingness and allow sensitivity             analyses.
 
 2. Standardise clinical site procedures
-  - The LOESS plots by clinical centre showed clear differences in BPRS trajectories between centres. In the mixed-effects model, a random intercept for trial was needed to account for important between-centre variation.
-    - Tighten and document SOPs for BPRS assessment across centres, including rater training and calibration, to reduce artificial differences due to measurement.
-    - If centres serve populations with different baseline severity, consider stratifying enrolment by baseline BPRS or CDR-SB so that severity is more evenly distributed over centres and treatment groups.
+ * The LOESS plots by clinical centre showed clear differences in BPRS trajectories between centres. In the mixed-effects model,    a random intercept for trial was needed to account for important between-centre variation.
+ * Tighten and document SOPs for BPRS assessment across centres, including rater training and calibration, to reduce artificial     differences due to measurement.
+ * If centres serve populations with different baseline severity, consider stratifying enrolment by baseline BPRS or CDR-SB so      that severity is more evenly distributed over centres and treatment groups.
 
 3. Collect richer covariate information
-  - In the two-stage analysis and mixed-effects model, there was still substantial variation in patient-specific intercepts and slopes after adjusting for age, sex, BMI, ADL, and cognition. This suggests important patient differences in progression that are not yet explained.
-    - In future studies, collect additional longitudinal information on treatment and care: medication classes and doses, psychosocial or behavioural interventions, caregiver burden, and comorbidities (e.g. depression, cardiovascular disease). These variables may help explain which patients deteriorate faster and could identify modifiable risk factors.
+  * In the two-stage analysis and mixed-effects model, there was still substantial variation in patient-specific intercepts and      slopes after adjusting for age, sex, BMI, ADL, and cognition. This suggests important patient differences in progression that     are not yet explained.
+  * In future studies, collect additional longitudinal information on treatment and care: medication classes and doses,              psychosocial or behavioural interventions, caregiver burden, and comorbidities (e.g. depression, cardiovascular disease).
+    These variables may help explain which patients deteriorate faster and could identify modifiable risk factors.
 
 4. Improve biomarker data collection
-  - Tau PET (taupet0) showed almost no variability from about Year 3 onwards, which made it uninformative for explaining changes in BPRS. This limits its use in longitudinal models.
-    - Review and standardise biomarker measurement protocols across centres to avoid ceiling or floor effects.
-    - Where possible, broaden the range of biomarkers collected, and ensure they are measured with enough precision and variability over time to be useful in explaining clinical trajectories.
+  * Tau PET (taupet0) showed almost no variability from about Year 3 onwards, which made it uninformative for explaining changes     in BPRS. This limits its use in longitudinal models.
+  * Review and standardise biomarker measurement protocols across centres to avoid ceiling or floor effects.
+  * Where possible, broaden the range of biomarkers collected, and ensure they are measured with enough precision and variability     over time to be useful in explaining clinical trajectories.
 
 
 ### Appendix
