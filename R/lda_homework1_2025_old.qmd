@@ -6,31 +6,30 @@ author: |
   Anita Kerubo Ogero (2469491) \
   Student B (student number) \
   Student C (student number) \
-  Student D (student number)
+  Student D (student number) \
   \textbf{\large{Group members:}} \
-output:
-  github_document: default
-  pdf_document: 
-    toc: true
-    pdf_engine: xelatex
-always_allow_html: true
-fontsize: 11pt   
-header-includes:
-  # line spacing
-  - \renewcommand{\baselinestretch}{1.1}
-  - \usepackage{graphicx}
-  - \usepackage{xcolor}         % replaces 'color'
-  - \usepackage{amsmath,amssymb}
-  - \usepackage{booktabs}
-  - \usepackage{longtable}
-  - \usepackage{array}
-  - \usepackage{multirow}       % optional
-  - \usepackage{makecell}       % optional
-  - \usepackage{pdflscape}
-  - \usepackage{float}          % for [H] (hold_position)
-  - \usepackage{fancyhdr}       % if customizing header/footer
----
 
+format:
+  pdf:
+    pdf-engine: xelatex
+    include-in-header:
+      text: |
+        \renewcommand{\baselinestretch}{1.1}
+        \usepackage{graphicx}
+        \usepackage{xcolor}
+        \usepackage{amsmath,amssymb}
+        \usepackage{booktabs}
+        \usepackage{longtable}
+        \usepackage{array}
+        \usepackage{multirow}
+        \usepackage{makecell}
+        \usepackage{pdflscape}
+        \usepackage{float}
+        \usepackage{fancyhdr}
+  gfm: default   
+
+fontsize: 11pt
+---
 
 
 
@@ -309,7 +308,12 @@ alzheimer_long[, time := as.integer(time)]
 ### Question 1
 
 
-```{r baseline-summary-tables}
+At baseline, all 1253 patients contribute BPRS data, with a mean of about 75, and this mean increases steadily to about 107 by the last scheduled visit, showing clear worsening of psychiatric symptoms over time. However, the number of observed BPRS values drops from 1253 at baseline to about 500 by the last visit (missing rising from 0% to almost 60%), so long-term averages are based on a progressively smaller, more selected group. In the table, baseline covariates such as age, sex, education, BMI, living situation, CDR-SB, and PET biomarkers look identical across visits because they are summarized for the full cohort each time; if we were to recompute them only among patients still observed at year 6, their baseline distributions would also change and reflect the same selective dropout that we see for BPRS.
+
+
+```{r}
+#| label: q1_baseline_summary_tables
+#| tbl-cap: "Baseline Patient Characteristics"
 
 library(table1)
 
@@ -343,25 +347,24 @@ for (var in names(var_labels)) {
 tab1_summary <- table1(
   ~ bprs + age + sex + edu + bmi + job + adl +
     wzc  + cdrsb0 + abpet0 + taupet0 | time,
-  data = baseline_data[!is.na(bprs)],
+  data = baseline_data,
   caption = "Baseline Patient Characteristics",
   footnote = "Continuous variables are presented as Mean (SD);
         Categorical variables as n (%)."
-) |> as.data.frame()
+) |> as.data.frame(row.names = "Variable")
 
 tab1_summary$Overall <- NULL  # Remove overall column if present
 # Print the table
 kable(tab1_summary,
   format = "latex",
   booktabs = TRUE,
-  longtable = TRUE,
-  caption = "Baseline Patient Characteristics",
+  #longtable = TRUE,
   align = "lccccccc"
 ) |>
   # scale down to fit page width
   kableExtra::kable_styling(
     latex_options = c(
-      "hold_position",
+      
       "scale_down"
     ),
     font_size = 9
@@ -373,16 +376,15 @@ kable(tab1_summary,
 
 ####  Check if Data is Balanced
 
-From the description of the experiment we note that there is dropout during follow up. Before using any summary methods to check the mean, 
-variance and correlation structure we first check if the data is balanced. We see that there is missingness in the data as shown in figure 1 below.
-Patients with higher baseline BPRS scores tend to miss more follow-up visits. There is also an increase of of the percentage of missingness over time, 
-reaching above 40% by year 6. Because simple by time  averages overweight those who remain and under represent those who dropped out 
-(patients with higher baseline BPRS scores), they can paint a biased  trend if simple bprs by time averages are used. This pattern suggests data are not missing completely at random,
-so we use smoothing methods that are better suited for unbalanced data
+From the description of the study and the summary table @q1_baseline_summary_tables , we see clear dropout over time. Figure 1 shows that patients with higher baseline BPRS are more likely to miss later visits, and the percentage missing rises to above 40% by year 6, so the number of patients contributing to the later means becomes much smaller. Simple averages by time point would then mainly reflect the patients who stay in the study and under-represent those who drop out (often the sicker ones), and can therefore give a biased trend. Because this pattern is not compatible with data missing completely at random, we use smoothing methods that are better suited for this kind of unbalanced follow-up.
 
 
 
-```{r missingness-analysis, fig.width = 8.5, fig.height = 4.5}
+
+```{r, fig.width = 8.5, fig.height = 4.5}
+#| label: missingness_analysis
+#| fig-cap: "Missingness Analysis: Baseline BPRS by Number of Missed Visits (left) and Percentage Missing Over Time (right)"
+
 bprs_cols <- paste0("bprs", 0:6)
 alzheimer_data[, n_missing := rowSums(is.na(.SD)), .SDcols = bprs_cols]
 
@@ -451,15 +453,20 @@ grid.arrange(boxplot_meanbprso0,
 
 #### Zero-variance check for baseline Tau PET (taupet0)
 
-From the table, taupet0 still varies through Year 2, but from Year 3 onwards it has zero variance 
+From the table @taupet0_zero_variance_summary , taupet0 still varies through Year 2, but from Year 3 onwards it has zero variance 
 (only one unique value among those with BPRS observed). That means taupet0 cannot explain any between-patient 
 differences after Year 2 and coefficients for those years are not estimable. 
 We should not use taupet0 from year 3 as this variable would not provide information on growth trajectories from here onwards.
 
 
-```{r taupet0-zero-variance-summary}
+```{r}
+
+#| label: taupet0_zero_variance_summary
+#| tbl-cap: "Baseline taupet0 variability among patients with observed BPRS at each year"
+
 # For each BPRS year, compute variability of baseline taupet0 among patients
 # lets add abpet0
+
 taupet0_var_by_year <- data.table::rbindlist(lapply(0:6, function(y) {
   outcome <- paste0("bprs", y)
   d <- alzheimer_data[!is.na(get(outcome)), .(
@@ -551,7 +558,7 @@ To explore potential subgroup differences and to see how various variables are a
 Across these variables, BPRS increases over time. Most subgroup curves are roughly parallel, showing main effects without interactions for variables like sex, job status, and living situation.
 The four education categories overlap almost completely and there is no difference in trend. This means there is unlikely a significant effect of education on BPRS trajectory.
 
-```{r loess-by-subgroups, fig.width=10.3, fig.height=9}
+```{r}
 library(gridExtra)
 
 subgroup_vars <- c("sex", 
@@ -1668,8 +1675,9 @@ We model the longitudinal BPRS scores using a linear mixed-effects model with ra
 
 $$
 \begin{aligned}
-\text{BPRS}_{it} &= (\beta_0 + b_{0i} + u_{0j}) + (\beta_1 + b_{1i})\,\text{time}_{it} + \beta_2 \text{sex}_i + \beta_3 \text{age}_i + \beta_4 \text{bmi}_i \\
-&\quad + \beta_5 \text{job}_i + \beta_6 \text{adl}_i + \beta_7 \text{wzc}_i + \beta_8 \text{cdrsb0}_i + \beta_9 (\text{time}_{it} \cdot \text{cdrsb0}_i) + \epsilon_{it}
+\text{BPRS}_{it} = (\beta_0 + b_{0i} + u_{0j}) + (\beta_1 + b_{1i})\,\text{time}_{it} + \beta_2 \text{sex}_i
++ \beta_3 \text{age}_i + \beta_4 \text{bmi}_i \\
++ \beta_5 \text{job}_i + \beta_6 \text{adl}_i + \beta_7 \text{wzc}_i + \beta_8 \text{cdrsb0}_i + \beta_9 (\text{time}_{it} \cdot \text{cdrsb0}_i) + \epsilon_{it}
 \end{aligned}
 $$
 

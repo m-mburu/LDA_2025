@@ -1,37 +1,34 @@
 ---
 title: "LDA Homework 1 (2025-2026)"
-author: |
-  \vspace{1cm}
-  \ 
-  Anita Kerubo Ogero (2469491) \
-  Student B (student number) \
-  Student C (student number) \
-  Student D (student number)
-  \textbf{\large{Group members:}} \
-output:
-  github_document: default
-  pdf_document: 
-    toc: true
-    pdf_engine: xelatex
-always_allow_html: true
-fontsize: 11pt   
-header-includes:
-  # line spacing
-  - \renewcommand{\baselinestretch}{1.1}
-  - \usepackage{graphicx}
-  - \usepackage{xcolor}         % replaces 'color'
-  - \usepackage{amsmath,amssymb}
-  - \usepackage{booktabs}
-  - \usepackage{longtable}
-  - \usepackage{array}
-  - \usepackage{multirow}       % optional
-  - \usepackage{makecell}       % optional
-  - \usepackage{pdflscape}
-  - \usepackage{float}          % for [H] (hold_position)
-  - \usepackage{fancyhdr}       % if customizing header/footer
+author: 
+  - Anita Kerubo Ogero (2469491)  
+  - Student B (student number)  
+  - Moses Mburu (2469300)  
+  - Student D (student number)
+
+format:
+  pdf:
+    pdf-engine: xelatex
+    fig-pos: "H"
+    tbl-pos: "H"
+    include-in-header:
+      text: |
+        \renewcommand{\baselinestretch}{1.1}
+        \usepackage{graphicx}
+        \usepackage{xcolor}
+        \usepackage{amsmath,amssymb}
+        \usepackage{booktabs}
+        \usepackage{longtable}
+        \usepackage{array}
+        \usepackage{multirow}
+        \usepackage{makecell}
+        \usepackage{pdflscape}
+        \usepackage{float}
+        \usepackage{fancyhdr}
+  gfm: default
+
+fontsize: 11pt
 ---
-
-
 
 
 
@@ -308,8 +305,14 @@ alzheimer_long[, time := as.integer(time)]
 
 ### Question 1
 
+#####  Data description 
 
-```{r baseline-summary-tables}
+At baseline, all 1253 patients contribute BPRS, with a mean around 75; this increases to about 107 by the last visit, but by year 6 only 511 patients remain, the later years summary statistics such as mean are based on less than half of the original group. Over time, those who stay in the study tend to be younger, more often male, more likely to have a paid job, with higher ADL scores, and more often living at home rather than in a nursing home. ABPET0 also tends to be lower in later years, and TAUPET0 loses almost all variability from year 4 onward. Together this shows that dropout is not random, and long-term averages mostly reflect a healthier, more selected subset of patients.
+
+
+```{r}
+#| label: tbl-q1-baseline-summary-tables
+#| tbl-cap: "Baseline Patient Characteristics"
 
 library(table1)
 
@@ -343,29 +346,28 @@ for (var in names(var_labels)) {
 tab1_summary <- table1(
   ~ bprs + age + sex + edu + bmi + job + adl +
     wzc  + cdrsb0 + abpet0 + taupet0 | time,
-  data = baseline_data[!is.na(bprs)],
+  data = baseline_data,
   caption = "Baseline Patient Characteristics",
   footnote = "Continuous variables are presented as Mean (SD);
         Categorical variables as n (%)."
-) |> as.data.frame()
+) |> as.data.frame(row.names = "Variable")
 
 tab1_summary$Overall <- NULL  # Remove overall column if present
 # Print the table
-kable(tab1_summary,
-  format = "latex",
-  booktabs = TRUE,
-  longtable = TRUE,
-  caption = "Baseline Patient Characteristics",
-  align = "lccccccc"
-) |>
-  # scale down to fit page width
-  kableExtra::kable_styling(
-    latex_options = c(
-      "hold_position",
-      "scale_down"
-    ),
-    font_size = 9
-  )
+# kable(tab1_summary,
+#   format = "latex",
+#   booktabs = TRUE,
+#   #longtable = TRUE,
+#   align = "lccccccc"
+# ) |>
+#   # scale down to fit page width
+#   kableExtra::kable_styling(
+#     latex_options = c(
+      
+#       "scale_down"
+#     ),
+#     font_size = 9
+#   )
 
 ```
 
@@ -373,16 +375,15 @@ kable(tab1_summary,
 
 ####  Check if Data is Balanced
 
-From the description of the experiment we note that there is dropout during follow up. Before using any summary methods to check the mean, 
-variance and correlation structure we first check if the data is balanced. We see that there is missingness in the data as shown in figure 1 below.
-Patients with higher baseline BPRS scores tend to miss more follow-up visits. There is also an increase of of the percentage of missingness over time, 
-reaching above 40% by year 6. Because simple by time  averages overweight those who remain and under represent those who dropped out 
-(patients with higher baseline BPRS scores), they can paint a biased  trend if simple bprs by time averages are used. This pattern suggests data are not missing completely at random,
-so we use smoothing methods that are better suited for unbalanced data
+To confirm results from summary statistics describe above. We plot @fig-missingness_analysis to show that patients with higher baseline BPRS are more likely to miss later visits, and the percentage missing rises to above 40% by year 6, so the number of patients contributing to the later means becomes much smaller. Simple averages by time point would then mainly reflect the patients who stay in the study and under-represent those who drop out (often the sicker ones), and can therefore give a biased trend. Because this pattern of missing causes an imbalanced data set, we use smoothing methods that are better suited for to investigate mean, variance and correlation structure over time.
 
 
 
-```{r missingness-analysis, fig.width = 8.5, fig.height = 4.5}
+
+```{r, fig.width = 8.5, fig.height = 4.5}
+#| label: fig-missingness_analysis
+#| fig-cap: "Missingness Analysis: Baseline BPRS by Number of Missed Visits (left) and Percentage Missing Over Time (right)"
+
 bprs_cols <- paste0("bprs", 0:6)
 alzheimer_data[, n_missing := rowSums(is.na(.SD)), .SDcols = bprs_cols]
 
@@ -436,72 +437,13 @@ missing_by_time_plot <- ggplot(missing_by_time,
 
 grid.arrange(boxplot_meanbprso0,
              missing_by_time_plot,
-             ncol = 2,
-             bottom = grid::textGrob(
-               "Figure 1: Baseline BPRS by number of missed 
-               visits (left) and percentage missing 
-               over time (right).",
-               gp = grid::gpar(fontsize = 10),
-               x = 0.5,
-               hjust = 0.5
-             ))
+             ncol = 2
+             )
 ```
 
 
 
-#### Zero-variance check for baseline Tau PET (taupet0)
 
-From the table, taupet0 still varies through Year 2, but from Year 3 onwards it has zero variance 
-(only one unique value among those with BPRS observed). That means taupet0 cannot explain any between-patient 
-differences after Year 2 and coefficients for those years are not estimable. 
-We should not use taupet0 from year 3 as this variable would not provide information on growth trajectories from here onwards.
-
-
-```{r taupet0-zero-variance-summary}
-# For each BPRS year, compute variability of baseline taupet0 among patients
-# lets add abpet0
-taupet0_var_by_year <- data.table::rbindlist(lapply(0:6, function(y) {
-  outcome <- paste0("bprs", y)
-  d <- alzheimer_data[!is.na(get(outcome)), .(
-    n_patients          = .N,
-    n_unique_taupet0    = uniqueN(taupet0, na.rm = TRUE),
-    n_unique_abet0      = uniqueN(abpet0, na.rm = TRUE),
-    sd_taupet0          = sd(taupet0, na.rm = TRUE),
-    sd_abet0            = sd(abpet0, na.rm = TRUE)
-  )]
-  d[, year := y]
-  d[, zero_variance := sd_taupet0 < 1e-12 | n_unique_taupet0 <= 1]
-  d
-}))[order(year)]
-
-knitr::kable(
-  taupet0_var_by_year,
-  format = "latex",
-  caption = "Baseline taupet0 variability among patients
-   with observed BPRS at each year",
-  booktabs = TRUE,
-  align = "lrrrc"
-) |>
-  kableExtra::kable_styling(latex_options = "hold_position")
-```
-
-
-```{r taupet0-zero-variance-plot, fig.width=6.5, fig.height=3.5, eval=F}
-ggplot(taupet0_var_by_year, aes(x = year, y = sd_taupet0)) +
-  geom_line() +
-  geom_point(aes(color = zero_variance), size = 2) +
-  scale_color_manual(
-    values = c(`TRUE` = "red", `FALSE` = "black"),
-    na.value = "grey50", name = "Zero variance"
-  ) +
-  labs(
-    title = "SD of baseline taupet0 among
-     patients contributing to each BPRS year",
-    x = "Follow-up year",
-    y = "SD of taupet0"
-  ) +
-  theme_minimal()
-```
 
 #### Average loess smoothing 
 
@@ -509,6 +451,7 @@ ggplot(taupet0_var_by_year, aes(x = year, y = sd_taupet0)) +
 
 
 ```{r loess-smoothing}
+#| label: loess-smoothing
 #  LOESS model
 
 loess_fit <- loess(bprs ~ time,
@@ -545,13 +488,19 @@ simple_avg_plot <- ggplot(alzheimer_long, aes(x = time, y = bprs)) +
 ```
 
 
-#### Categorical Variables
+##### Categorical Variables
 
-To explore potential subgroup differences and to see how various variables are associated with the evolution of BPRS, we create LOESS smoothed plots of BPRS over time stratified by  categorical variables: sex, education, job status, living situation, and clinical center.
+To explore potential subgroup differences and to see how various variables are associated with the evolution of BPRS, we create LOESS smoothed plots (@fig-loess-by-categorical-vars) of BPRS over time stratified by  categorical variables: sex, education, job status, living situation, and clinical center.
 Across these variables, BPRS increases over time. Most subgroup curves are roughly parallel, showing main effects without interactions for variables like sex, job status, and living situation.
 The four education categories overlap almost completely and there is no difference in trend. This means there is unlikely a significant effect of education on BPRS trajectory.
 
-```{r loess-by-subgroups, fig.width=10.3, fig.height=9}
+```{r}
+#| label: fig-loess-by-categorical-vars
+#| fig-width: 10.3
+#| fig-height: 8
+#| fig-cap: "LOESS Smoothed BPRS Over Time by Subgroups. Overall average (top),  sex, education, job status, living situation, and clinical center."
+
+
 library(gridExtra)
 
 subgroup_vars <- c("sex", 
@@ -662,22 +611,26 @@ bottom_caption <- grid::textGrob(
 
 grid.arrange(
   grobs = glist,
-  layout_matrix = layout_mat,
-  bottom = bottom_caption
+  layout_matrix = layout_mat
+  #bottom = bottom_caption
 )
 ```
 
 
 
-#### Continuous Variables
+##### Continuous Variables
 
-To explore continuous predictors, we plotted LOESS-smoothed BPRS against age, BMI and baseline CDR-SB (cdrsb0) and abept0
+To explore continuous predictors, we plotted (@fig-loess-by-time-cross-section) LOESS-smoothed BPRS against age, BMI and baseline CDR-SB (cdrsb0) and abept0
 using separate curves for each follow-up year. Higher age is associated with higher BPRS at every visit. BMI shows a curved pattern that peaks in the mid-20s, suggesting that a non-linear term would
 describe it better than a straight line. Baseline CDR-SB shows only a weak and slightly curved association with BPRS.
 The LOESS plot of BPRS versus ABPET0 by visit year shows an unstable curved pattern, with peak at year 3 that is not repeated at other visits, which might be because of high missingness of this variable in follow up years
 
 
-```{r loess-by-time-cross-section, fig.width=10.3, fig.height=8}
+```{r}
+#| label: fig-loess-by-time-cross-section
+#| fig-width: 10.3
+#| fig-height: 8
+#| fig-cap: "LOESS Smoothed BPRS Over Continuous Predictors by Visit Year. Age, BMI, baseline BPRS (bprs0), and baseline CDR-SB (cdrsb0)."
 
 continuous_vars <- c(
   "age", "bmi", 
@@ -727,23 +680,22 @@ grid.arrange(
 ```
 
 
-#### Trial Centers Plot
+##### Trial Centers Plot
 
-To check whether clinical center (trial) affects the mean structure, we plot(figure 4) LOESS-smoothed BPRS over time separately by trial centre. We see clear separate 
+To check whether clinical center (trial) affects the mean structure, we plot(@fig-trial-centersplot) LOESS-smoothed BPRS over time separately by trial centre. We see clear separate 
 curves between centers, indicating that trial should be included as a random effect in the model to account for between center variability.
 
 
-```{r trial-centersplot, fig.width=7, fig.height=4.5}
+```{r}
+#| label: fig-trial-centersplot
+#| fig-width: 7
+#| fig-height: 4.5
+#| fig-cap: "LOESS Smoothed BPRS Over Time by Clinical Center."
+
 # use grid extra to display trial centers plot alone
 #trial_centers_plot
 grid.arrange(
-  trial_centers_plot,
-  bottom = grid::textGrob(
-    "Figure 4: LOESS Smoothed BPRS Over Time by Clinical Center.",
-    gp = grid::gpar(fontsize = 10),
-    x = 0.5,
-    hjust = 0.5
-  )
+  trial_centers_plot
 )
 
 ```
@@ -759,6 +711,7 @@ and become less similar as the gap widens. These pattern indicates a  within-pat
 
 
 ```{r variance-structure}
+#| label: variance-structure
 
 alzheimer_long_full <- alzheimer_long[!is.na(bprs)]
 mean_model <- lm(bprs ~ factor(time), data = alzheimer_long_full)
@@ -786,7 +739,11 @@ var_function_plot <- ggplot(
 
 
 
-```{r correlation-structure, fig.width=8, fig.height=3.5}
+```{r}
+#| label: fig-correlation-structure
+#| fig-width: 8
+#| fig-height: 3.5
+#| fig-cap: "Smoothed Variance Function (left) and Semi-variogram (right) of BPRS Residuals."
 
 library(dplyr)
 library(ggplot2)
@@ -863,14 +820,7 @@ coor_plot <- ggplot() +
 # use grid arrange for variance and correlation plots
 grid.arrange(var_function_plot,
   coor_plot,
-  ncol = 2,
-  bottom = grid::textGrob(
-    "Figure 5: Smoothed Variance Function (left) and 
-    Semi-variogram (right) of BPRS Residuals.",
-    gp = grid::gpar(fontsize = 10),
-    x = 0.5,
-    hjust = 0.5
-  )
+  ncol = 2
 )
 
 ```
@@ -883,7 +833,7 @@ grid.arrange(var_function_plot,
 vertical shifts by clinical center; education shows little separation.
 * For continuous variables age, showed a straight line pattern while BMI showed non linear relationship with BPRS.
 * Variance structure: The smoothed squared-residual function is roughly flat across visits (no  visual heteroscedasticity observed). We will fit 
-a model with un assumed heterogeneous variance and compare this with a constant variance model using AIC.
+a model with  assumed heterogeneous variance and compare this with a constant variance model using AIC.
 * Correlation structure: The semivariogram increases with time lag, indicating strong within-patient correlation at short lags that decays as visits are farther apart.
 * Missingness: Dropout increases over time and is more common for patients with higher baseline BPRS, so simple time-point averages would be biased
 * Modeling implications: For population-average inference, we will fit repeated measures model  with unstructured covariance structure and compare with AR(1) correlation
@@ -896,9 +846,10 @@ a model with un assumed heterogeneous variance and compare this with a constant 
 
 #### Individual profiles & per-patient slopes
 
-To visualise heterogeneity in longitudinal evolution, BPRS trajectories of 40 random patients were plotted. These individual profiles show variation in baseline symptom severity, together with increasing trends over time. The profiles also illustrate the unbalanced nature of the data, as subjects contribute different numbers of observations. These observations help justify the choice of summary statistics for longitudinal data.
+To visualise heterogeneity in longitudinal evolution, BPRS trajectories of 40 random patients were plotted (@fig-per-patient-slope). These individual profiles show variation in baseline symptom severity, together with increasing trends over time. The profiles also illustrate the unbalanced nature of the data, as subjects contribute different numbers of observations. These observations help justify the choice of summary statistics for longitudinal data.
 
 ```{r}
+#| label: individual-profiles
 uniqu_ppid <- alzheimer_data[, unique(patid)]
 set.seed(200)
 random_ppid <- sample(uniqu_ppid, 50)
@@ -935,60 +886,68 @@ spaggheti_plot <- ggplot(
 
 
 
-```{r per-patient-slope, fig.width=8, fig.height=4.5}
+```{r}
+#| label: fig-per-patient-slope
+#| fig-width: 8
+#| fig-height: 3.5
+#| fig-cap: "Individual BPRS Profiles (left) and Distribution of Per-Patient Slopes (right)."
+
 # Calculate per-patient slopes
 slopes <- alzheimer_long[!is.na(bprs), .(
-  slope = if (.N > 1) {
-    coef(lm(bprs ~ time))[2]
-  } else {
-    NA_real_
-  }
+    slope = if (.N > 1) {
+        coef(lm(bprs ~ time))[2]
+    } else {
+        NA_real_
+    }
 ), by = patid]
 # Plot histogram of slopes
 per_patient_slope <- ggplot(slopes, aes(x = slope)) +
-  geom_histogram(
-    binwidth = 0.5,
-    color = "black",
-    alpha = 0.7
-  ) +
-  labs(
-    title = "Distribution of Per-Patient BPRS Slopes",
-    x = "Slope of BPRS over Time",
-    y = "Number of Patients"
-  ) +
-  theme_minimal()
+    geom_histogram(
+        binwidth = 0.5,
+        color = "black",
+        alpha = 0.7
+    ) +
+    labs(
+        title = "Distribution of Per-Patient BPRS Slopes",
+        x = "Slope of BPRS over Time",
+        y = "Number of Patients"
+    ) +
+    theme_minimal()
 
 grid.arrange(
-  spaggheti_plot,
-  per_patient_slope,
-  ncol = 2,
-  bottom = grid::textGrob(
-    "Figure 6: Individual BPRS Profiles (left) and
-     Distribution of Per-Patient Slopes (right).",
-    gp = grid::gpar(fontsize = 10),
-    x = 0.5,
-    hjust = 0.5
-  )
+    spaggheti_plot,
+    per_patient_slope,
+    ncol = 2
 )
+
 
 ```
 
 
 
 #### Increment Analysis
+
 Increment analysis examines the year-to-year changes in BPRS scores. We calculate the increments (differences) between consecutive years for each patient and then summarize these increments across all patients at each time point. 
 
 ##### Motivation
-This approach is motivated by the goal of understanding how BPRS evolves over time and by the amount of baseline heterogeneity observed in the data; differencing removes these baseline differences and focuses on the rate of change. Increments were estimated by sorting each patient's measurements by time and subtracting BPRS<sub>t-1</sub> from BPRS<sub>t</sub>. 
+
+This approach is motivated by the goal of understanding how BPRS evolves over time and by the amount of baseline heterogeneity observed in the data; differencing removes these baseline differences and focuses on the rate of change. Increments were estimated by sorting each patient's measurements by time and subtracting $BPRS_{t-1}$ from $BPRS_{t}$. 
 
 ##### Assumptions and limitations
+
 This method assumes that the measurement intervals are comparable across subjects and that the change between two visits is meaningful even in the presence of unbalanced follow-up. It has the advantage of being model-free and directly interpretable in terms of annual worsening, although it uses only patients with consecutive measurements and can be influenced by measurement error at a single visit.
 
 ##### Results
-The resulting plot shows that, the mean year-to-year increment in BPRS is roughly constant across all follow-up years, with an average change of about seven points per year. The error bars represent the standard deviation of these increments, indicating that the variability in annual change is also relatively constant over time. This consistency suggests that, on average, patients deteriorate at a steady rate during the follow-up.
+
+The resulting plot(@fig-increment-analysis) shows that, the mean year-to-year increment in BPRS is roughly constant across all follow-up years, with an average change of about seven points per year. The error bars represent the standard deviation of these increments, indicating that the variability in annual change is also relatively constant over time. This consistency suggests that, on average, patients deteriorate at a steady rate during the follow-up.
 
 
-```{r increment-analysis}
+```{r}
+#| label: fig-increment-analysis
+#| fig-cap: "Year-to-Year Change in BPRS. Mean increments with standard deviation bars."
+#| fig.width: 6.3
+#| fig.height: 3.5
+
 # Summary statistics of increments
 alz_incr <- alzheimer_long %>%
   arrange(patid, time) %>%
@@ -1013,7 +972,7 @@ ggplot(incr_summary, aes(time, mean_increment)) +
   geom_errorbar(aes(ymin = mean_increment - sd_increment,
                     ymax = mean_increment + sd_increment),
                 width = 0.15, colour = "grey30") +
-  theme_minimal(base_size = 14) +
+  theme_minimal() +
   labs(
     title = "Year-to-Year Change in BPRS",
     subtitle = "Mean increments with standard deviation bars",
@@ -1051,14 +1010,17 @@ where, for each fixed year $t$:
 - $\alpha_{6t}$ is the difference at year $t$ for Nursing Home vs Lives at Home.
 - $\alpha_{7t}$ is the change at year $t$ per 1-unit increase in baseline CDR-SB (cdrsb0).
 - $\alpha_{8t}$ is the change at year $t$ per 1-unit increase in baseline Amyloid PET (abpet0).
-- $\alpha_{9t}$ is the change at year $t$ per 1-unit increase in baseline Tau PET (taupet0).
+- $\alpha_{9t}$ is the change at year $t" per 1-unit increase in baseline Tau PET (taupet0).
 - $\varepsilon_{it}$ is the error term at year $t$.
 
 
-```{r separate-analyses}
+```{r}
+#| label: tbl-separate-analyses
+#| tbl-cap: "Separate Linear Models for Each Follow-up Year"
 
 baseline_covariates_str <- "sex + age + bmi + job + adl + wzc +
 cdrsb0 + abpet0 + taupet0"
+
 # Split the string into a vector of predictor names
 all_predictors <- trimws(strsplit(baseline_covariates_str, "\\+")[[1]])
 
@@ -1184,7 +1146,6 @@ summary_dt <- summary_dt %>%
 #setnames(summary_dt, "covariate", "Baseline covariate")
 kable(summary_dt,
   format = "latex",
-  caption = "Separate Linear Models for Each Follow-up Year",
   booktabs = TRUE,
   align = "lrrrrrrr", # l=left, r=right alignment for columns
   linesep = ""
@@ -1193,15 +1154,19 @@ kable(summary_dt,
 ```
 
 ##### Motivation
+
 This approach treats each follow-up visit as a cross-sectional outcome and regresses the BPRS score at that year on baseline demographic variables and clinical/bio-marker measures. While a full multivariate model may be difficult to specify, analysing each time point separately provides a simple way to study whether the effects of baseline covariates vary over time; making this technique appropriate. Each model uses all patients who remained under observation at that specific time, making the method suitable with unbalanced longitudinal designs.
 
 ##### Assumptions and limitations
+
 The estimates were obtained using standard least squares for each year, assuming independent errors within each year-specific regression, and assuming that baseline covariates affect follow-up BPRS levels cumulatively. A limitation is that subjects with missing biomarker values are excluded for the affected years, and predictors that show no variation within a given year (e.g., taupet0 from year 3 onwards) cannot be included in that year's model. This leads to different sample sizes and covariate sets across years, complicating direct comparisons of effects over time.
 
 ##### Results
+
 Across all years, several patterns emerged. Age, BMI, and ADL showed consistent positive associations with BPRS at each follow-up, and the magnitude of these effects remained constant over time. Patients living in a nursing home at baseline consistently had higher BPRS scores. Employment status also showed a persistent effect, with patients in paid jobs having lower BPRS scores at every follow-up point. CDR-SB at baseline had a small but consistent negative association with later BPRS. By contrast, ABPET and TAUPET displayed large uncertainty and no consistent effect across years.
 
 ##### Conclusion
+
 Across both analyses, patients show a steady increase in psychiatric symptoms, with BPRS scores rising by roughly seven points each year on average. This rate of worsening symptoms remains stable throughout the six-year follow-up, with no evidence that it accelerates or slows down as the disease progresses.
 
 Patients who begin with greater functional impairement, older age, or who reside in a nursing home demonstrate higher BPRS scores throughout follow-up. In contrast, employed individuals at baseline tend to have consistently lower symptom severity over time. Baseline amyloid and tau biomarkers do not show consistent associations with BPRS trajectories.
@@ -1216,56 +1181,56 @@ These findings suggest that the baseline factors associated with higher psychiat
 
 #### Motivation Repeated-Measures Model
 
-In Question 2, In Question 2, we analysed each year separately and presented yearly results (Table 2). While this approach is simple, it has limitations. Running separate models for each year means repeating the same hypothesis test multiple times, which increases the risk of Type I error. It also reduces statistical power, because each model uses only one year of data instead of leveraging all observations together. Additionally, separate analyses do not address the main research question: how BPRS scores changes over time and how baseline characteristics influence that change. They also ignore the fact that repeated measurements from the same patient are correlated, which can lead to misleading conclusions.
+ In Question 2, we analysed each year separately and presented yearly results (@tbl-separate-analyses). While this approach is simple, it has limitations. Running separate models for each year means repeating the same hypothesis test multiple times, which increases the risk of Type I error. It also reduces statistical power, because each model uses only one year of data instead of leveraging all observations together. Additionally, separate analyses do not address the main research question: how BPRS scores changes over time and how baseline characteristics influence that change. They also ignore the fact that repeated measurements from the same patient are correlated, which can lead to misleading conclusions.
 
-To overcome these limitations when estimating the population effects, we use a repeated-measures multivariate model. This approach treats each patient’s yearly BPRS readings dependent. A normal multivariate linear model assumes all observations are independent, which is not realistic here because the same patient BPRS measurements are taken yearly up to year 6. The repeated measures model correctly handles the correlation within a person, the uneven follow-up due to dropout, and the changing variability across visits.This model uses all available data and gives more reliable averages and standard errors.
+To overcome these limitations when estimating the population effects, we use a repeated-measures multivariate model.  A normal multiple linear model assumes all observations are independent, which is not realistic here because the same patient BPRS measurements are taken yearly up to year 6. The repeated measures model correctly handles the correlation within a person, by the specification of a covariance structure for the within-patient errors.
+
 We start from a saturated repeated measures model where time, all baseline characteristics, and their interactions with time are included. This gives us a way to assess how the variable  affect both the starting BPRS level and the change over time,  so that we do not miss important effects when we later simplify the model. For the repeated measurements within a patient, we allow a very flexible pattern for how BPRS scores at different visits are correlated to each other, without forcing a specific correlation pattern in advance. We do not use this saturated model to report final clinical results, we use it as a screening model and then simplify the mean structure.
 
+We start from the following marginal mean model:
 
 $$
 \begin{aligned}
-E[Y_{ij} | \boldsymbol{X}_i] = & \beta_0 + \beta_1 \cdot \text{time}_{j} + \beta_2 \cdot \text{edu}_i + \beta_3 \cdot \text{sex}_i + \beta_4 \cdot \text{age}_i + \beta_5 \cdot \text{bmi}_i + \beta_6 \cdot \text{job}_i \\
-& + \beta_7 \cdot \text{adl}_i + \beta_8 \cdot \text{wzc}_i + \beta_9 \cdot \text{cdrsb0}_i + \beta_{10} \cdot \text{abpet0}_i \\
-& + \beta_{11} \cdot (\text{time}_{j} \times \text{sex}_i) + \beta_{12} \cdot (\text{time}_{j} \times \text{age}_i) + \beta_{13} \cdot (\text{time}_{j} \times \text{bmi}_i) \\
-& + \beta_{14} \cdot (\text{time}_{j} \times \text{job}_i) + \beta_{15} \cdot (\text{time}_{j} \times \text{adl}_i) + \beta_{16} \cdot (\text{time}_{j} \times \text{wzc}_i) \\
-& + \beta_{17} \cdot (\text{time}_{j} \times \text{cdrsb0}_i) + \beta_{18} \cdot (\text{time}_{j} \times \text{abpet0}_i)
+Y_{ij} = & \; \beta_0 + \beta_1 \,\text{time}_j
+          + \beta_2 \,\text{edu}_i + \beta_3 \,\text{sex}_i
+          + \beta_4 \,\text{age}_i + \beta_5 \,\text{bmi}_i \\
+        & + \beta_6 \,\text{job}_i + \beta_7 \,\text{adl}_i
+          + \beta_8 \,\text{wzc}_i
+          + \beta_9 \,\text{cdrsb0}_i + \beta_{10} \,\text{abpet0}_i \\
+        & + \beta_{11} (\text{time}_j \cdot \text{sex}_i)
+          + \beta_{12} (\text{time}_j \cdot \text{age}_i)
+          + \beta_{13} (\text{time}_j \cdot \text{bmi}_i)
+          + \beta_{14} (\text{time}_j \cdot \text{job}_i) \\
+        & + \beta_{15} (\text{time}_j \cdot \text{adl}_i)
+          + \beta_{16} (\text{time}_j \cdot \text{wzc}_i)
+          + \beta_{17} (\text{time}_j \cdot \text{cdrsb0}_i)
+          + \beta_{18} (\text{time}_j \cdot \text{abpet0}_i)
+          + \varepsilon_{ij}
 \end{aligned}
 $$
 
-where:
+\begin{itemize}
+  \item $Y_{ij}$ is the BPRS score for patient $i$ at time $j$.
+  \item $\beta_0$ is the mean BPRS at time 0 for the reference patient (male, primary education, no paid job, living at home, with baseline continuous covariates at their reference value).
+  \item $\beta_1$ is the average yearly change in BPRS for this reference patient.
+  \item The main-effect terms $\beta_2,\dots,\beta_{10}$ describe how the BPRS level at time 0 shifts with each baseline covariate.
+  \item The interaction terms $\beta_{11},\dots,\beta_{18}$ multiply time and show how the yearly change in BPRS depends on baseline covariates. For example, $\beta_{17}$ for $\text{time}_j \cdot \text{cdrsb0}_i$ is the change in the annual BPRS slope per 1-unit higher baseline CDR-SB.
+\end{itemize}
 
-- $Y_{ij}$ is the BPRS score for patient $i$ at time $j$.
-- $\beta_0$ is the intercept: expected BPRS at time 0 for the reference patient (Male, Primary education, No Paid Job, Lives at Home), with continuous covariates at 0.
-- $\beta_1$ is the main effect of time: average yearly change in BPRS for the reference patient.
-- $\beta_2$ is the (vector of) main effect(s) of education: contrasts for Lower secondary, Upper secondary, and Higher vs Primary (written compactly as $\beta_2\,\text{edu}_i$).
-- $\beta_3$ is the main effect of sex: Female vs Male at time 0.
-- $\beta_4$ is the main effect of age: per 1-year increase at baseline.
-- $\beta_5$ is the main effect of BMI: per 1-unit increase at baseline.
-- $\beta_6$ is the main effect of job: Paid Job vs No Paid Job at time 0.
-- $\beta_7$ is the main effect of ADL: per 1-unit increase at baseline.
-- $\beta_8$ is the main effect of living situation (wzc): Nursing Home vs Lives at Home at time 0.
-- $\beta_9$ is the main effect of baseline CDR-SB (cdrsb0): per 1-unit increase at baseline.
-- $\beta_{10}$ is the main effect of baseline Amyloid PET (abpet0): per 1-unit increase at baseline.
-- $\beta_{11}$ is the time-by-sex interaction: additional yearly change for Female vs Male.
-- $\beta_{12}$ is the time-by-age interaction: modification of yearly change per 1-year increase in age.
-- $\beta_{13}$ is the time-by-BMI interaction: modification of yearly change per 1-unit increase in BMI.
-- $\beta_{14}$ is the time-by-job interaction: additional yearly change for Paid Job vs No Paid Job.
-- $\beta_{15}$ is the time-by-ADL interaction: modification of yearly change per 1-unit increase in ADL.
-- $\beta_{16}$ is the time-by-living situation (wzc) interaction: additional yearly change for Nursing Home vs Lives at Home.
-- $\beta_{17}$ is the time-by-cdrsb0 interaction: modification of yearly change per 1-unit increase in baseline CDR-SB.
-- $\beta_{18}$ is the time-by-abpet0 interaction: modification of yearly change per 1-unit increase in baseline Amyloid PET.
 
-Notes: Categorical predictors (sex, edu, job, wzc) are encoded as factors in R. Their coefficients represent contrasts relative to the reference levels shown above; for education, the single symbol $\beta_2$ denotes a vector of three contrasts (levels 2–4 versus Primary).
+
+Categorical predictors (sex, edu, job, wzc) are encoded as factors in R. Their coefficients represent contrasts relative to the reference levels shown above; for education, the single symbol $\beta_2$ denotes a vector of three contrasts (levels 2–4 versus Primary).
 
 The within-patient errors $\boldsymbol{e}_i = (e_{i1}, \dots, e_{in_i})^T$ are assumed to follow a multivariate normal distribution, $\boldsymbol{e}_i \sim N(\boldsymbol{0}, \boldsymbol{\Sigma}_i)$, where $\boldsymbol{\Sigma}_i$ is a covariance matrix that accounts for correlation and heteroscedasticity. 
 In this model, we use an unstructured correlation matrix (`corSymm`) and allow for different variances at each time point (`varIdent`).
 
-Note: taupet0 terms (main effect and time interaction) were intentionally excluded from this model due to near-zero variability at later follow-up waves (see earlier diagnostic section), which prevents stable estimation of their effects in a marginal mean model.
+Note: taupet0 terms (main effect and time interaction) were  excluded from this model due to near-zero variability at later follow-up years.  Which prevents stable estimation of their effects in a marginal mean model.
 
 
-The complex repeated-measures model that includes time, all baseline characteristics, and all their interactions with time, while allowing for unstructured covariance structure. This complex model confirms that BPRS increases over time and that age, BMI, ADL, job status, and living in a nursing home are all  associated to BPRS levels. However, most of interactions between time and other covariates  are not significant, which tells us we can safely move to a simpler mean structure without losing important clinical information.
+The complex repeated-measures model that includes time, all baseline characteristics, and all their interactions with time, while allowing for unstructured covariance structure. This complex model(@tbl-question-3) confirms that BPRS increases over time and that age, BMI, ADL, job status, and living in a nursing home are all  associated to BPRS levels. However, most of interactions between time and other covariates  are not significant, which tells us we can safely move to a simpler mean structure without losing important clinical information.
 
-```{r question-3}
+```{r}
+
 library(dplyr)
 library(nlme)
 library(emmeans)
@@ -1285,21 +1250,22 @@ gls_full_mean_structure <- gls(fm_adj_full,
 
 #summary(gls_full_mean_structure)
 
-tidy_with_ci(gls_full_mean_structure) |>
-  kable(
-    format = "latex",
-    caption = "Gls Full Model Results",
-    booktabs = TRUE,
-    #longtable = TRUE,
-    align = "lrrrr"
-  ) |>
-  column_spec(2, width = "5cm") |>
-  kable_styling(font_size = 9)   # removed scale_down
+# tidy_with_ci(gls_full_mean_structure) |>
+#   kable(
+#     format = "latex",
+#     booktabs = TRUE,
+#     #longtable = TRUE,
+#     align = "lrrrr"
+#   ) |>
+#   column_spec(2, width = "5cm") |>
+#   # add hold position to keep table close to text
+#   kable_styling(font_size = 9, position = "center")   |>
+#   kable_styling(latex_options = c("hold_position", "scale_down"))
 ```
 
 
 
-\newpage
+
 
 ##### Simplified Mean Structure
 
@@ -1308,29 +1274,33 @@ For this step we fit a repeated-measures model with a simplified mean structure 
 
 
 
+We use the following simplified mean structure:
+
 $$
 \begin{aligned}
-E[Y_{ij} | \boldsymbol{X}_i] = & \beta_0 + \beta_1 \cdot \text{time}_{j} + \beta_2 \cdot \text{sex}_i + \beta_3 \cdot \text{age}_i + \beta_4 \cdot \text{bmi}_i + \beta_5 \cdot \text{job}_i \\
-& + \beta_6 \cdot \text{adl}_i + \beta_7 \cdot \text{wzc}_i + \beta_8 \cdot \text{cdrsb0}_i + \beta_{9} \cdot \text{taupet0}_i + \beta_{10} \cdot \text{abpet0}_i \\
-& + \beta_{11} \cdot (\text{time}_{j} \times \text{cdrsb0}_i)
+Y_{ij} =\; & \beta_0 + \beta_1 \,\text{time}_{j}
+          + \beta_2 \,\text{sex}_i
+          + \beta_3 \,\text{age}_i
+          + \beta_4 \,\text{bmi}_i
+          + \beta_5 \,\text{job}_i \\
+        & + \beta_6 \,\text{adl}_i
+          + \beta_7 \,\text{wzc}_i
+          + \beta_8 \,\text{cdrsb0}_i
+          + \beta_9 \,\text{taupet0}_i
+          + \beta_{10} \,\text{abpet0}_i \\
+        & + \beta_{11} \,(\text{time}_{j}\cdot \text{cdrsb0}_i),
 \end{aligned}
 $$
 
-where:
 
-- $Y_{ij}$ is the BPRS score for patient $i$ at time $j$.
-- $\beta_0$ is the intercept: expected BPRS at time 0 for the reference patient (Male, No Paid Job, Lives at Home), with continuous covariates at 0.
-- $\beta_1$ is the main effect of time: average yearly change in BPRS for the reference patient.
-- $\beta_2$ is the main effect of sex: Female vs Male at time 0.
-- $\beta_3$ is the main effect of age: per 1-year increase at baseline.
-- $\beta_4$ is the main effect of BMI: per 1-unit increase at baseline.
-- $\beta_5$ is the main effect of job: Paid Job vs No Paid Job at time 0.
-- $\beta_6$ is the main effect of ADL: per 1-unit increase at baseline.
-- $\beta_7$ is the main effect of living situation (wzc): Nursing Home vs Lives at Home at time 0.
-- $\beta_8$ is the main effect of baseline CDR-SB (cdrsb0): per 1-unit increase at baseline.
-- $\beta_9$ is the main effect of baseline Tau PET (taupet0): per 1-unit increase at baseline.
-- $\beta_{10}$ is the main effect of baseline Amyloid PET (abpet0): per 1-unit increase at baseline.
-- $\beta_{11}$ is the time-by-cdrsb0 interaction: modification of yearly change per 1-unit increase in baseline CDR-SB.
+\begin{itemize}
+  \item $Y_{ij}$ is the BPRS score for patient $i$ at time $j$.
+  \item $\beta_0$ is the mean BPRS at baseline for the reference patient (male, primary education, no paid job, living at home, with baseline continuous covariates at their reference value).
+  \item $\beta_1$ is the average yearly change in BPRS for this reference patient.
+  \item The main-effect terms $\beta_2,\dots,\beta_{10}$ describe how the BPRS level at time 0 shifts with each baseline covariate.
+  \item The interaction terms $\beta_{11},\dots,\beta_{18}$ multiply time and show how the yearly change in BPRS depends on baseline covariates; for example, $\beta_{17}$ for $\text{time}_j \cdot \text{cdrsb0}_i$ is the change in the annual BPRS slope per 1-unit higher baseline CDR-SB.
+\end{itemize}
+
 
 The covariance structure remains the same as in the full model.
 
@@ -1338,7 +1308,9 @@ The covariance structure remains the same as in the full model.
 
 
 
-```{r question-3-model}
+```{r}
+#| label: tbl-question-3-model
+#| tbl-cap: "Simplfied mean structiure Unstructured Covariance Results"
 
 fm_adj <- bprs ~ time +  sex + 
   age + bmi + job + adl + wzc +  cdrsb0 + 
@@ -1357,7 +1329,6 @@ gls_reduced_mean_structure <- gls(fm_adj,
 tidy_with_ci(gls_reduced_mean_structure) |>
   kable(
     format = "latex",
-    caption = "Simplfied mean structiure Unstructured Covariance Results",
     booktabs = TRUE,
     #longtable = TRUE,
     align = "lrrrr"
@@ -1379,38 +1350,39 @@ This shows the simpler mean structure explains the data just as well as the satu
 so we will keep the reduced model as our working mean structure.
 
 
-```{r lr-test}
+```{r}
+#| label: tbl-lr-test
+#| tbl-cap: "Likelihood Ratio Test between Full and Reduced Mean Structure Models"
+
 lr_test <- anova(
   gls_full_mean_structure,
   gls_reduced_mean_structure
 ) |> tidy_anova_compare()
 
-lr_test |>
-  kable(
-    format = "latex",
-    caption = "Likelihood Ratio Test between Full and 
-    Reduced Mean Structure Models",
-    booktabs = TRUE,
-    #longtable = TRUE,
-    align = "lrrrr"
-  ) |>
-  column_spec(2, width = "5cm") |>
-  kable_styling(font_size = 9, position = "left")   |>
-  kable_styling(latex_options = c("hold_position", "scale_down"))
+# lr_test |>
+#   kable(
+#     format = "latex",
+#     booktabs = TRUE,
+#     #longtable = TRUE,
+#     align = "lrrrr"
+#   ) |>
+#   column_spec(2, width = "5cm") |>
+#   kable_styling(font_size = 9, position = "left")   |>
+#   kable_styling(latex_options = c("hold_position", "scale_down"))
 
 ```
 
 
 #### Reduced Covariance Structure
 
-
-For this step, we keep the same simplified mean structure and only change how we model the correlation over time. The aim is to check whether a simpler covariance structure is sufficient. We fit a repeated-measures model with an AR(1) correlation structure, where each visit is highly correlated with the previous one and the correlation weakens as the time gap increases. We still allow variability to differ by visit. This means BPRS measurements taken close in time tend to be similar, and later visits show more spread.
-
-When we compare this AR(1) model to the more flexible model with a unstructured covariance structure, the likelihood ratio test shows (L.Ratio $\approx 1233$, $p < 0.0001$) and AIC/BIC worsen for AR(1). This indicates that the data pattern is too complex to be captured by this AR(1) correlation structure, so for population-average inference we keep the unstructured covariance from the previous model.
+As a sensitivity check, we refitted the reduced mean model with a simpler AR(1) covariance, where each visit is mainly correlated with the previous one. The likelihood ratio test clearly favoured the unstructured covariance $(L.Ratio \approx 1233$, $p < 0.0001)$ and AIC/BIC were much worse for AR(1). This confirms the lecture notes, with our unbalanced  follow-up and dropout, simple covariance patterns such as AR(1) are too restrictive, so we keep the unstructured covariance.
 
 
 
-```{r reduce-covariance-structure}
+```{r}
+#| label: tbl-reduce-covariance-structure
+#| tbl-cap: "Marginal Model with AR(1) Covariance Results"
+
 gls_reduced_cov_structure <- gls(fm_adj,
   data = alzheimer_long,
   correlation = corAR1(form = ~ time | patid),
@@ -1418,61 +1390,127 @@ gls_reduced_cov_structure <- gls(fm_adj,
   method = "ML", na.action = na.exclude
 )
 
-#summary(gls_reduced_cov_structure )
+# #summary(gls_reduced_cov_structure )
 
-tidy_with_ci(gls_reduced_cov_structure) |>
-  kable(
-    format = "latex",
-    caption = "Marginal Model with AR(1) Covariance Results",
-    booktabs = TRUE,
-    #longtable = TRUE,
-    align = "lrrrr"
-  ) |>
-  kable_styling(font_size = 9, position = "left")   |>
-  kable_styling(latex_options = c("hold_position", "scale_down"))
+# tidy_with_ci(gls_reduced_cov_structure) |>
+#   kable(
+#     format = "latex",
+#     booktabs = TRUE,
+#     #longtable = TRUE,
+#     align = "lrrrr"
+#   ) |>
+#   kable_styling(font_size = 9, position = "left")   |>
+#   kable_styling(latex_options = c("hold_position", "scale_down"))
 ```
 
 
 
 
-##### Reduced mean structure vs reduced covariance structure
 
 
+```{r}
+#| label: tbl-lr-test-covariance
+#| tbl-cap: "Likelihood Ratio Test between Reduced Mean Structure and Reduced Covariance Structure Models"
 
-```{r lr-test-covariance}
 lr_test_cov <- anova(
   gls_reduced_mean_structure,
   gls_reduced_cov_structure
 ) |> tidy_anova_compare() 
 
 
-lr_test_cov |>
-  kable(
-    format = "latex",
-    caption = "Likelihood Ratio Test between Reduced Mean 
-    Structure and Reduced Covariance Structure Models",
-    booktabs = TRUE,
-    #longtable = TRUE,
-    align = "lrrrr"
-  ) |>
-  column_spec(2, width = "5cm") |>
-  kable_styling(font_size = 9, position = "left")   |>
-  kable_styling(latex_options = c("hold_position", "scale_down"))
+# lr_test_cov |>
+#   kable(
+#     format = "latex",
+#     booktabs = TRUE,
+#     #longtable = TRUE,
+#     align = "lrrrr"
+#   ) |>
+#   column_spec(2, width = "5cm") |>
+#   kable_styling(font_size = 9, position = "left")   |>
+#   kable_styling(latex_options = c("hold_position", "scale_down"))
+
+```
+
+#### Residual Diagnostics for Reduced Mean Structure Model
+
+The residual diagnostics(@fig-gls-reduced-residual-diagnostics) for the reduced mean model are  acceptable. The QQ-plot shows residuals close to the straight line, the normality assumption is  satisfied, and the residuals vs fitted plot gives a symmetric points around zero without clear structure, suggesting the mean structure is well specified. Residuals by time are centred near zero with similar spread across visits, indicating variance homogeneity over time. Overall, these diagnostics support the adequacy of the reduced mean structure model with unstructured covariance for our data.
+
+
+```{r}
+#| label: fig-gls-reduced-residual-diagnostics
+#| fig-cap: "GLS Reduced Mean Structure Diagnostics: QQ plot, Residuals vs Fitted, Residuals vs Time."
+#| fig-width: 9
+#| fig-height: 4.8
+
+library(ggplot2)
+library(gridExtra)
+
+# Use Pearson (standardized) residuals
+res_df <- data.frame(
+  fitted    = fitted(gls_reduced_mean_structure),
+  resid_raw = residuals(gls_reduced_mean_structure, type = "response"),
+  resid_pearson = residuals(gls_reduced_mean_structure, type = "pearson"),
+  time      = alzheimer_long$time
+)
+
+# QQ plot of Pearson residuals
+p_qq <- ggplot(res_df, aes(sample = resid_pearson)) +
+  stat_qq(alpha = 0.6) +
+  stat_qq_line(color = "red") +
+  labs(title = "QQ Plot (Pearson Residuals)",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  theme_minimal()
+
+# Residuals vs Fitted
+p_rvf <- ggplot(res_df, aes(x = fitted, y = resid_pearson)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_smooth(method = "loess", se = FALSE, color = "blue") +
+  labs(title = "Pearson Residuals vs Fitted",
+       x = "Fitted Values",
+       y = "Pearson Residuals") +
+  theme_minimal()
+
+# Residuals vs Time (scatter + smooth)
+p_rvt <- ggplot(res_df, aes(x = time, y = resid_pearson)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0, color = "red") +
+  geom_smooth(method = "loess", se = FALSE, color = "blue") +
+  labs(title = "Pearson Residuals vs Time",
+       x = "Time (Years)",
+       y = "Pearson Residuals") +
+  theme_minimal()
+
+# Optional: boxplot by time
+p_box <- ggplot(res_df, aes(x = factor(time), y = resid_pearson)) +
+  geom_boxplot(outlier.alpha = 0.4) +
+  geom_hline(yintercept = 0, color = "red") +
+  labs(title = "Residuals by Time (Boxplot)",
+       x = "Time",
+       y = "Pearson Residuals") +
+  theme_minimal()
+
+# Arrange (choose 3 or 4 panels)
+grid.arrange(p_qq, p_rvf, p_rvt, p_box, ncol = 2)
 
 ```
 
 
 
-
 #### Discussion of Question 3 Results
 
-For Question 3, our final repeated-measures model uses a reduced mean structure with a unstructured covariance. On the mean side, BPRS increases on average by about 7 points per year. After adjustment, higher age, higher BMI, worse ADL, job status, and living in a nursing home are all associated with higher BPRS levels, while women have slightly lower BPRS than men. The interaction of  time and CDR-SB term is is significant meaning  patients who start with better cognition tend to show a faster increase in BPRS, whereas those who already have worse cognition at baseline worsen more slowly. This directly answers our main question at the population level: BPRS worsens over time, and the speed of worsening is associated with baseline cognitive status.
 
-For the biomarkers, we focus on ABPET0 and CDR-SB. ABPET0 is retained in the marginal model, but its coefficient is small and the confidence interval is wide, so its association with BPRS is uncertain. The LOESS plot of BPRS versus ABPET0 by visit year shows an unstable curved pattern, with a peak  at year 3 that is not repeated at other visits. This could be due to data missingness. TAUPET0, on the other hand, was dropped because from year 3 onwards it has no variability, so it cannot  explain differences in BPRS. 
+For Question 3 (@tbl-question-3-model), our final repeated-measures model uses a reduced mean structure with an unstructured covariance. On the mean side, BPRS rises on average by about $7.2$ points per year (time effect $\hat\beta_{\text{time}} \approx 7.22$). After adjustment, older age, higher BMI, worse ADL, not having a paid job, and living in a nursing home are all linked to higher BPRS: for example, a paid job is associated with about $18.7$ points lower BPRS (jobPaid Job $\approx -18.69$), each unit of ADL with about $2.1$ points higher BPRS (ADL $\approx 2.08$), BMI with about $0.5$ points higher BPRS (BMI $\approx 0.51$), and living in a nursing home with about $1.8$ points higher BPRS (WZC $\approx 1.84$). Women have slightly lower scores than men (sexFemale $\approx -0.27$). The time–CDR-SB interaction is clearly negative (time:CDRSB0 $\approx -0.02$), so patients who start with better cognition tend to show a faster increase in BPRS, whereas those with worse baseline cognition worsen more slowly. This answers the main question at the population level: BPRS worsens over time, and the speed of worsening is linked to baseline cognitive status.
 
-The covariance part of the model lets each visit have its own variability and allows all time points within a patient to be correlated without imposing a correlation structure. This matches what we saw in the exploratory plots repeated BPRS measurements from the same patient are strongly correlated, especially when visits are close in time, and the spread increases over follow-up. Using this unstructured structure gives more realistic standard errors for the population averages.
+#### Model Limitations
 
-Finally, this marginal model has some limitations compared with a mixed-effects model. It provides population-average effects but not patient-specific trajectories, and it does not explicitly model differences between clinical centres. The LOESS plot by centre shows centres with roughly parallel but clearly non overlapping  curves for majority of centres, suggesting  centre level differences in BPRS levels over time. In the current model, this extra variation is absorbed into the residual covariance rather than being separated out. In Question 5 we therefore move to a mixed-effects model with random intercepts and slopes for patients, and a random intercept for trial, to better describe individual and centre-specific disease trajectories while still addressing the main objective of how BPRS changes over time, and how those changes relate to baseline clinical characteristics, cognition, and biomarkers.
+In Question 3 we use a multivariate repeated-measures model. This type of model is mainly suitable when each subject is measured at a small number of fixed time points. Our study fits this setting: BPRS is planned at seven yearly visits, and the software (REPEATED in SAS or `time | patid` in R) can handle that some of these visits are missing for a given patient.
+
+When the number of follow-up times becomes large, multivariate regression is only workable under very specific choices for the mean and covariance; unstructured means and unstructured covariances would otherwise require too many parameters. For unbalanced data with irregular or missing visits, some standard covariance patterns (such as Toeplitz or AR(1)) are not meaningful unless time points are equally spaced, and compound symmetry would impose very strong assumptions by forcing the same correlation for all pairs of visits.
+
+In our data, we have seven fixed annual measurements but substantial dropout. This is still a small number of time points to allow an unstructured covariance. We therefore combined a reduced mean structure with an unstructured covariance over the seven visits, which keeps the model manageable and matches the correlation pattern seen in the exploratory plots.
+
 
 
 ### Question 4
@@ -1491,7 +1529,10 @@ where:
 - $e_{ij}$ are the individual error terms, assumed to be independent with mean zero.
 
 
-```{r two-stage-stage1, fig.width=8, fig.height=3.5}
+```{r, fig.width=8, fig.height=3.5}
+
+#| label: fig-two-stage-stage1
+#| fig-cap: "Individual BPRS Profiles (left) and Distribution of Individual Intercepts and Slopes (right)."
 
 # We fit patient with more than one observation
 stage1_results <- alzheimer_long[!is.na(bprs),
@@ -1525,17 +1566,8 @@ two_stage <- ggplot(stage1_results_melt, aes(x = estimate)) +
   ) +
   theme_minimal()
 
-grid.arrange(
-  two_stage,
-  ncol = 1,
-  bottom = grid::textGrob(
-    "Figure 7: Individual BPRS Profiles (left) and
-     Distribution of Individual Intercepts and Slopes (right).",
-    gp = grid::gpar(fontsize = 10),
-    x = 0.5,
-    hjust = 0.5
-  )
-)
+two_stage
+
 ```
 
 
@@ -1570,7 +1602,10 @@ where:
 - $\gamma_{09}$ is the intercept change per 1-unit increase in baseline Tau PET (taupet0).
 - $\epsilon_{0i}$ is the error term.
 
-```{r two-stage-stage2}
+```{r}
+#| label: tbl-two-stage-stage2
+#| tbl-cap: "Two-Stage Intercept Model Results"
+
 # Merge the Stage 1 results with the baseline data
 stage2_data <- merge(stage1_results,
   alzheimer_data,
@@ -1593,7 +1628,6 @@ intercept_model <- lm(intercept_formula,
 tidy_with_ci(intercept_model) |>
   kable(
     format = "latex",
-    caption = "Two-Stage Intercept Model Results",
     booktabs = TRUE,
     align = "lrrrr",
     # l=left, r=right alignment for columns
@@ -1633,7 +1667,10 @@ where:
 - $\gamma_{19}$ is the slope change per 1-unit increase in baseline Tau PET (taupet0).
 - $\epsilon_{1i}$ is the error term.
 
-```{r slope-model}
+```{r}
+#| label: tbl-slope-model
+#| tbl-cap: "Two-Stage Slope Model Results"
+
 slope_formula <- as.formula(paste(
   "slope ~",
   baseline_covariates
@@ -1645,7 +1682,6 @@ slope_model <- lm(slope_formula,
 tidy_with_ci(slope_model) |>
   kable(
     format = "latex",
-    caption = "Two-Stage Slope Model Results",
     booktabs = TRUE,
     align = "lrrrr", # l=left, r=right alignment for columns
     linesep = ""
@@ -1668,8 +1704,9 @@ We model the longitudinal BPRS scores using a linear mixed-effects model with ra
 
 $$
 \begin{aligned}
-\text{BPRS}_{it} &= (\beta_0 + b_{0i} + u_{0j}) + (\beta_1 + b_{1i})\,\text{time}_{it} + \beta_2 \text{sex}_i + \beta_3 \text{age}_i + \beta_4 \text{bmi}_i \\
-&\quad + \beta_5 \text{job}_i + \beta_6 \text{adl}_i + \beta_7 \text{wzc}_i + \beta_8 \text{cdrsb0}_i + \beta_9 (\text{time}_{it} \cdot \text{cdrsb0}_i) + \epsilon_{it}
+\text{BPRS}_{it} = (\beta_0 + b_{0i} + u_{0j}) + (\beta_1 + b_{1i})\,\text{time}_{it} + \beta_2 \text{sex}_i
++ \beta_3 \text{age}_i + \beta_4 \text{bmi}_i \\
++ \beta_5 \text{job}_i + \beta_6 \text{adl}_i + \beta_7 \text{wzc}_i + \beta_8 \text{cdrsb0}_i + \beta_9 (\text{time}_{it} \cdot \text{cdrsb0}_i) + \epsilon_{it}
 \end{aligned}
 $$
 
@@ -1748,8 +1785,13 @@ The model was fitted using Restricted Maximum Likelihood (REML), which provides 
 5) MAR assumption cannot be fully verified.The model assumes missing data are Missing At Random, but this assumption is untestable and can lead to biased results if dropout relates to unobserved outcomes.
 
 
-```{r lmer-reduced-mean-structure}
-# random effects with reduce mean structure 
+```{r}
+
+
+#| label: tbl-lmer-reduced-mean-structure
+#| tbl-cap: "Mixed Model with Random Intercept and Slope Results"
+#| tbl-pos: "H"
+
 
 library(lme4 )
 fm_adj <- bprs ~ time + sex + 
@@ -1762,18 +1804,18 @@ lmer_reduced_mean_structure <- lmer(fm_adj,
 )
 
 #summary(lmer_reduced_mean_structure)
-# tidy_with_ci(lmer_reduced_mean_structure) |>
-#  kable(
-  #  format = "latex",
-  #  caption = "Mixed Model with Random Intercept
-   #  and Slope Results",
-   # booktabs = TRUE,
-    # longtable = TRUE,
-   # align = "lrrrr"
- # ) |>
- # column_spec(2, width = "5cm") |>
- # kable_styling(font_size = 9, position = "center") |>
-  # kable_styling(latex_options = c("hold_position", "scale_down"))
+tidy_with_ci(lmer_reduced_mean_structure) |>
+ kable(
+   format = "latex",
+   caption = "Mixed Model with Random Intercept
+    and Slope Results",
+   booktabs = TRUE,
+    longtable = TRUE,
+   align = "lrrrr"
+ ) |>
+ column_spec(2, width = "5cm") |>
+ kable_styling(font_size = 9, position = "center") |>
+  kable_styling(latex_options = c("hold_position", "scale_down"))
 
 ```
 
@@ -1788,9 +1830,14 @@ Figure 8 (right plot) presents the Normal Q–Q plot which compares the distribu
 
 
 ```{r}
-library(ggplot2)
-library(gridExtra)
-library(grid)
+
+#| label: fig-residual-diagnostics
+#| fig-cap: "Residual Diagnostics: Residuals vs Fitted (left) and Normal Q–Q Plot (right)."
+#| fig-pos: "H"
+#| fig.width = 9
+#| fig.height= 4.5
+
+
 
 resid_re  <- resid(lmer_reduced_mean_structure)
 fitted_re <- fitted(lmer_reduced_mean_structure)
@@ -1812,12 +1859,7 @@ p2 <- ggplot(data.frame(resid = resid_re), aes(sample = resid)) +
 # ---- Arrange with caption ----
 grid.arrange(
   p1, p2,
-  ncol = 2,
-  bottom = textGrob(
-    "Figure 8: Residual Diagnostics: Residuals vs Fitted (left) and Normal Q–Q Plot (right).",
-    gp = gpar(fontsize = 10),
-    x = 0.5, hjust = 0.5
-  )
+  ncol = 2
 )
 
 ```
@@ -1829,9 +1871,17 @@ Figure 8(right) plot assesses whether residuals are randomly distributed around 
 
 **Distribution of Patient-Specific Intercepts and Slopes**
 
-To evaluate whether the random-effects model appropriately captured differences between patients, we examined the distribution of the estimated subject-specific intercepts (patients’ baseline BPRS scores) and subject-specific slopes (their rates of symptom change over time)(Figure 9). The random intercepts(Figure 9: left Q-Q plot) follow the theoretical normal line very closely, with only minor deviations at the extreme upper and lower tails. This suggests that the normality assumption for the random intercepts is well satisfied. The distribution is symmetric and shows no major outliers, indicating that patient-level baseline differences in BPRS are reasonably captured by a normal random intercept.The random slopes(Figure 9:Middle Q-Q plot) also align closely with the diagonal reference line, again with only slight deviations in the two tails. This indicates that the random slopes are approximately normally distributed, supporting the assumption that individual differences in rate of change over time follow a normal pattern. No strong violations or heavy-tailed behavior are present. The scatterplot of random intercepts versus random slopes (Figure 9: Scatterplot) shows cloud of points with no strong linear relationship. This implies that patients’ baseline BPRS levels are not strongly associated with their rate of change over time. In other words, starting severity does not systematically predict whether a patient improves faster or slower. The spread is balanced around zero for both intercepts and slopes, confirming that the random-effects structure is behaving as expected.
+To evaluate whether the random-effects model appropriately captured differences between patients, we examined the distribution of the estimated subject-specific intercepts (patients’ baseline BPRS scores) and subject-specific slopes (their rates of symptom change over time)(Figure 9). The random intercepts(Figure 9: left Q-Q plot) follow the theoretical normal line very closely, with only minor deviations at the extreme upper and lower tails. This suggests that the normality assumption for the random intercepts is well satisfied. The distribution is symmetric and shows no major outliers, indicating that patient-level baseline differences in BPRS are reasonably captured by a normal random intercept.The random slopes(Figure 9:Middle Q-Q plot) also align closely with the diagonal reference line, again with only slight deviations in the two tails. This indicates that the random slopes are approximately normally distributed, supporting the assumption that individual differences in rate of change follow a normal pattern. No strong violations or heavy-tailed behavior are present. The scatterplot of random intercepts versus random slopes (Figure 9: Scatterplot) shows cloud of points with no strong linear relationship. This implies that patients’ baseline BPRS levels are not strongly associated with their rate of change over time. In other words, starting severity does not systematically predict whether a patient improves faster or slower. The spread is balanced around zero for both intercepts and slopes, confirming that the random-effects structure is behaving as expected.
 
 ```{r}
+
+#| label: fig-random-effects-diagnostics
+#| fig-cap: "Diagnostics of Random Effects: Q–Q plots for random intercepts (left) and random slopes (middle), and their joint distribution (right)."
+#| fig-pos: "H"
+#| fig.width=9
+#| fig.height=4.5
+
+
 library(ggplot2)
 library(gridExtra)
 library(grid)
@@ -1882,11 +1932,6 @@ grid.arrange(
 
 #### Comparison With the Two-Stage Analysis
 
-To better understand how each patient’s symptoms (BPRS scores) changed over time, we estimated individual starting points (intercepts) and rates of change (slopes) using two different approaches.
-First, in Question 4, we applied a two-stage method, fitting a separate linear regression for each patient to obtain individual intercepts and slopes.
-Second, we used a random-effects mixed model, which estimates all patient-specific intercepts and slopes simultaneously. We then compared the two methods to see whether the advanced mixed model provides meaningful improvement.
-
-
 To compare the two-stage approach with the mixed-effects model, we examined patient-specific intercepts and slopes estimated by each method. The intercepts showed very strong agreement between the two approaches (Figure 10, left), with a correlation of r = 0.94 and points closely following the 45-degree line. This indicates that baseline BPRS levels are estimated consistently in both methods. In contrast, the agreement for slopes was moderate (Figure 10, right; r = 0.77), and the two-stage estimates displayed greater variability and several extreme values. This pattern reflects the inherent instability of estimating individual change rates from limited per-patient data. The mixed-effects model, by using all availabledata simultaneously, shrinks extreme slopes toward the population mean and produces more stable and reliable estimates. Overall, the mixed model provides a clearer and less noisy picture of individual symptom trajectories, particularly for the rate of change over time.
 
 
@@ -1894,21 +1939,12 @@ Overall, the two methods give broadly similar patient-specific results, but the 
 
 
 ```{r}
-re_coefs <- coef(lmer_reduced_mean_structure)$patid |>
-  tibble::rownames_to_column("patid") |>
-  rename(
-    intercept_mixed = `(Intercept)`,
-    slope_mixed     = time
-  )
 
-```
+#| label: fig-two-stage-vs-mixed
+#| fig-cap: "Comparison of Patient-Specific Intercepts and Slopes from the Two-Stage and Mixed-Model methods."
+#| fig-subcap: c("Intercepts", "Slopes")
+#| fig-pos: "H"
 
-
-
-
-**Subject-specific intercepts and slopes from mixed model vs two-stage estimates**
-
-```{r subject-specific-int-slope, fig.width=9, fig.height=4.5}
 
 # Build per-patient newdata at time 0 and 1 (baseline covariates)
 base_covs <- alzheimer_data[, .(
@@ -1990,12 +2026,7 @@ p_slope <- ggplot(comp, aes(slope, slope_mixed)) +
 gridExtra::grid.arrange(
   p_int,
   p_slope,
-  ncol = 2,
-  bottom = grid::textGrob(
-    "Figure 10: Comparison of Patient-Specific Intercepts and Slopes from the Two-Stage and Mixed-Model methods",
-    gp = grid::gpar(fontsize = 10),
-    x = 0.5, hjust = 0.5
-  )
+  ncol = 2
 )
 
 
@@ -2059,7 +2090,12 @@ kable(
 
 ##### Variance components from mixed model
 
-```{r variance-components-table}
+The variance components show that, besides differences between patients, there is a big between-centre (trial) variance, with trial-level $SD \approx 2.8$, much larger than the patient-level SD. This means average outcomes differ substantially across centres.
+
+```{r }
+#| label: random-effects-variance-components
+#| tbl-cap: "Random Effects: Variance Components from Mixed Model"
+
 # Helper to tidy random-effects variance/correlation like lmer summary
 tidy_re_varcorr <- function(model, digits = 3) {
   vc <- lme4::VarCorr(model)
@@ -2130,7 +2166,7 @@ display_random_effects <- function(
     df,
     format = "latex",
     booktabs = TRUE,
-    caption = caption,
+    #caption = caption,
     align = c("l", "l", "r", "r", "r")
   ) |>
     kableExtra::kable_styling(latex_options = "hold_position")
@@ -2145,7 +2181,7 @@ display_random_effects(lmer_reduced_mean_structure,
 ```
 
 
-The linear mixed-effects model was fitted to 6,220 observations from 1,253 patients across 25 trials. The REML criterion at convergence was 27,121.3, and scaled residuals ranged from −3.64 to 3.32.The random-effects structure included patient-level random intercepts and random slopes for time. These patient-specific intercepts and slopes were correlated. The model also included trial-level random intercepts to account for differences across trials, in addition to a residual variance component. The full set of estimated variances, standard deviations, and correlations for all random-effect terms is presented in Table 5.
+The linear mixed-effects model was fitted to 6,220 observations from 1,253 patients across 25 trials. The REML criterion at convergence was 27,121.3, and scaled residuals ranged from −3.64 to 3.32.The random-effects structure included patient-level random intercepts and random slopes for time. These patient-specific intercepts and slopes were correlated. The model also included trial-level random intercepts to account for between-trial variation. The full set of estimated variances, standard deviations, and correlations for all random-effect terms is presented in Table 5.
 
 Several fixed effects were statistically significant, including the intercept, time, age, BMI, job status, WZC category, and the time-by-cdrsb0 interaction, all with (p<0.001). The effects of sex, ADL, and the main effect of cdrsb0 were not statistically significant. Full estimates, standard errors, and significance levels for all fixed effects are presented in Table 4.
 
@@ -2181,8 +2217,6 @@ Based on what we observed in the exploratory plots and models, we suggest the fo
 
 1. Address informative dropout and missingness
   -  Patients with higher baseline BPRS missed more follow-up visits, and overall missingness rose above 40% by Year 6. This shows that dropout is related to disease severity, and is unlikely to be completely random.
-
-
     - At enrolment, consider whether including patients with extremely severe psychiatric symptoms at baseline will lead to very early dropout. If this subgroup is retained, plan in advance how their missing data will be handled in the analysis.
     - Record reasons for dropout in a structured way (death, institutionalisation, moving away, withdrawal of consent, adverse events). This will help future analyses distinguish between random and informative missingness and allow sensitivity analyses.
 
@@ -2199,3 +2233,22 @@ Based on what we observed in the exploratory plots and models, we suggest the fo
   - Tau PET (taupet0) showed almost no variability from about Year 3 onwards, which made it uninformative for explaining changes in BPRS. This limits its use in longitudinal models.
     - Review and standardise biomarker measurement protocols across centres to avoid ceiling or floor effects.
     - Where possible, broaden the range of biomarkers collected, and ensure they are measured with enough precision and variability over time to be useful in explaining clinical trajectories.
+
+
+### Appendix
+
+```{r, echo=FALSE}
+#| label: tbl-question-3
+#| tbl-cap: "Gls Full Model Results"
+tidy_with_ci(gls_full_mean_structure) |>
+  kable(
+    format = "latex",
+    booktabs = TRUE,
+    #longtable = TRUE,
+    align = "lrrrr"
+  ) |>
+  column_spec(2, width = "5cm") |>
+  # add hold position to keep table close to text
+  kable_styling(font_size = 9, position = "center")   |>
+  kable_styling(latex_options = c("hold_position", "scale_down"))
+```
