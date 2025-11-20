@@ -2,9 +2,9 @@
 title: "LDA Homework 1 (2025-2026)"
 author: 
   - Anita Kerubo Ogero (2469491)  
-  - Student B (student number)  
+  - Okolie Tess Eucharia (2468507)  
   - Moses Mburu (2469300)  
-  - Student D (student number)
+  - Dorothy Chepkoech (2469284)
 
 format:
   pdf:
@@ -1515,6 +1515,13 @@ In our data, we have seven fixed annual measurements but substantial dropout. Th
 
 ### Question 4
 
+#### Motivation for Two-stage Analysis
+
+We noticed from the Alzheimer dataset, patients’symptoms did not all commence simultaneously with intensity and neither varied at uniform rate even though followed over time having their psychiatric symptoms (BPRS) assessed repeatedly. The two-stage method enables us to firstly summarize each patient-specific progression using their baseline estimation (intercept) and their progression rate (slope). When we obtain these individual summaries, we will then assess the impact of baseline characteristics like age, BMI, ADL, employment status, or biomarker levels and make possible suggestions for the individual differences in baseline severity and progression rate of symptoms. We distinguish the stages for easier interpretation and also prevent mixing up the variability in the within-patients and between patients. This effectively allows us to infer a proper comprehension of the general patterns and the effects of covariates on these patterns.
+
+
+#### Diagnostic Plots Overview
+
 In the first stage of a two-stage analysis, we fit a separate linear regression model for each patient to estimate their individual intercept and slope over time. For each patient $i$, the model is:
 
 $$
@@ -1527,6 +1534,14 @@ where:
 - $\beta_{0i}$ is the patient-specific intercept (estimated baseline BPRS).
 - $\beta_{1i}$ is the patient-specific slope (estimated rate of change in BPRS).
 - $e_{ij}$ are the individual error terms, assumed to be independent with mean zero.
+
+
+The graph demonstrates the distribution of individual incepts and slopes calculated for each patient at stage 1 of the two stage analysis. On the left panel, the intercept signifies each individual's predicted initial BPRS scores at the beginning of the study. Additionally, the histogram displayed a wide spread with majority of the patients commencing among 50 and 85 while others commenced at either lower or higher. This inferred the initial severity of psychiatric symptoms differed significantly between individuals.
+On the right panel, the slope shows the annual rate of change per patient in BRPS. The majority of the patients were observed to be between 4 and 8, explaining on average patients' symptoms show positive increase over time. The grouping of trends near the positive value shows that for majority of the patients, symptoms tend to get worse across time, however, between the individuals, the exact rate differs
+
+
+
+
 
 
 ```{r, fig.width=8, fig.height=3.5}
@@ -1602,6 +1617,13 @@ where:
 - $\gamma_{09}$ is the intercept change per 1-unit increase in baseline Tau PET (taupet0).
 - $\epsilon_{0i}$ is the error term.
 
+
+Based on this second stage analysis with regards to its intercepts; we found strong baseline predictors of higher initial BPRS which indicated more severe psychiatric symptoms at study entry. Amongst these strong predictors included age. We saw elderly patients often began the study with more severe psychiatric symptoms; with each additional year of age being associated with an increase of 2.36 BPRS units at baseline. Individuals with marginally higher BMI exhibit slightly severe symptoms upon the study enrollment having each additional unit of BMI associated with an increase of 0.51 BPRS units at baseline. We also observed that having a job is linked to milder symptoms at study baseline as employed patients had 18.28 units lower BPRS at baseline in contrast to the unemployed.  Another strong predictor were the individuals with more impaired daily function that had more severe symptoms initially, implying for every additional ADL scale point correlates with an increase of 2.03 BPRS units at baseline. In addition, the nursing home residents’ commerce with slightly worse psychiatric symptoms, the residents at nursing homes had 1.54 units higher BPRS at baseline in contrast to those living at home. The trend displayed generally demonstrated that most patients’ psychiatric symptoms deteriorate over time, but the rate of decline varies individually. Furthermore, we also noticed that predictors such as sex, cdrsb0, abpet0 and taupet0 of baseline BPRS were not strong predictors. These predictors had confidence intervals spanning from zero, indicating unreliable baseline effects.
+
+
+
+
+
 ```{r}
 #| label: tbl-two-stage-stage2
 #| tbl-cap: "Two-Stage Intercept Model Results"
@@ -1667,6 +1689,10 @@ where:
 - $\gamma_{19}$ is the slope change per 1-unit increase in baseline Tau PET (taupet0).
 - $\epsilon_{1i}$ is the error term.
 
+
+With regards to the second stage for the slope, we assessed which entry characteristics were related with how rapidly psychiatric symptoms varied over time. The majority of the predictors demonstrated little or unclear effects on the yearly rate of change in BPRS. The patients in a nursing home (WZC) were linked with a slightly higher rate of decline of symptoms, leading to an increased rate of annual change of BPRS by about 0.19 units.  The Baseline CDR-SB also demonstrated a little effect but modest effect where each additional point was related to a 0.02-unit decrease in the annual BPRS change. We observed for other predictors (age, sex, BMI, employment status, ADL score, ABPET, and age, sex, BMI, employment status, ADL score, ABPET, and TAUPET) not strong predictors as they had their estimated slope with confidence intervals crossing zero and also these predictors symptoms rapidly changed over time. Generally, the model linked to slope gives suggestions that the speed at which symptoms progress differs between patients, however the majority of the baseline’s characteristics are not strong predictors of the speed of deterioration.
+
+
 ```{r}
 #| label: tbl-slope-model
 #| tbl-cap: "Two-Stage Slope Model Results"
@@ -1690,6 +1716,12 @@ tidy_with_ci(slope_model) |>
   kable_styling(latex_options = c("hold_position", "scale_down"))
 
 ```
+
+
+
+#### Limitations  two stage analysis
+
+The two stage analysis would lose efficiency as individual intercept and slopes in stage 1 are estimated separately. The estimates from individuals with less observations may produce less reliable stage 2.
 
 
 ### Question 5
@@ -1826,7 +1858,7 @@ To ensure that the linear mixed-effects model is statistically reliable, several
 
 **Normality of Residuals (Q–Q Plot)**
 
-Figure 8 (right plot) presents the Normal Q–Q plot which compares the distribution of the model residuals (errors) to what would be expected if they followed a normal distribution, which is an underlying assumption of linear mixed-effects models.The residuals aligned closely with the expected diagonal line, showing two deviations at each tail.The assumption of normally distributed residuals is largely satisfied. This supports the reliability of the estimated effects.
+(@fig-residual-diagnostics) right plot presents the Normal Q–Q plot which compares the distribution of the model residuals (errors) to what would be expected if they followed a normal distribution, which is an underlying assumption of linear mixed-effects models.The residuals aligned closely with the expected diagonal line, showing two deviations at each tail.The assumption of normally distributed residuals is largely satisfied. This supports the reliability of the estimated effects.
 
 
 ```{r}
@@ -1867,11 +1899,11 @@ grid.arrange(
 
 **Residuals vs. Fitted Values Plot**
 
-Figure 8(right) plot assesses whether residuals are randomly distributed around zero, which reflects the assumption of constant variability ("homoscedasticity").Residuals are spread evenly around zero with no funnel shape or curvature. This indicates Variance is stable across time, the model does not systematically under or over predict symptoms and the linearity assumption is appropriate. The model fits the data well and the variability is appropriately captured.
+(@fig-residual-diagnostics) left plot assesses whether residuals are randomly distributed around zero, which reflects the assumption of constant variability ("homoscedasticity").Residuals are spread evenly around zero with no funnel shape or curvature. This indicates Variance is stable across time, the model does not systematically under or over predict symptoms and the linearity assumption is appropriate. The model fits the data well and the variability is appropriately captured.
 
 **Distribution of Patient-Specific Intercepts and Slopes**
 
-To evaluate whether the random-effects model appropriately captured differences between patients, we examined the distribution of the estimated subject-specific intercepts (patients’ baseline BPRS scores) and subject-specific slopes (their rates of symptom change over time)(Figure 9). The random intercepts(Figure 9: left Q-Q plot) follow the theoretical normal line very closely, with only minor deviations at the extreme upper and lower tails. This suggests that the normality assumption for the random intercepts is well satisfied. The distribution is symmetric and shows no major outliers, indicating that patient-level baseline differences in BPRS are reasonably captured by a normal random intercept.The random slopes(Figure 9:Middle Q-Q plot) also align closely with the diagonal reference line, again with only slight deviations in the two tails. This indicates that the random slopes are approximately normally distributed, supporting the assumption that individual differences in rate of change follow a normal pattern. No strong violations or heavy-tailed behavior are present. The scatterplot of random intercepts versus random slopes (Figure 9: Scatterplot) shows cloud of points with no strong linear relationship. This implies that patients’ baseline BPRS levels are not strongly associated with their rate of change over time. In other words, starting severity does not systematically predict whether a patient improves faster or slower. The spread is balanced around zero for both intercepts and slopes, confirming that the random-effects structure is behaving as expected.
+To evaluate whether the random-effects model appropriately captured differences between patients, we examined the distribution of the estimated subject-specific intercepts (patients’ baseline BPRS scores) and subject-specific slopes (their rates of symptom change over time)(Figure 9). The random intercepts (@fig-random-effects-diagnostics) left Q-Q plot follow the theoretical normal line very closely, with only minor deviations at the extreme upper and lower tails. This suggests that the normality assumption for the random intercepts is well satisfied. The distribution is symmetric and shows no major outliers, indicating that patient-level baseline differences in BPRS are reasonably captured by a normal random intercept.The random slopes (@fig-random-effects-diagnostics) Middle Q-Q plot also align closely with the diagonal reference line, again with only slight deviations in the two tails. This indicates that the random slopes are approximately normally distributed, supporting the assumption that individual differences in rate of change follow a normal pattern. No strong violations or heavy-tailed behavior are present. The scatterplot of random intercepts versus random slopes (@fig-random-effects-diagnostics) Scatterplot shows cloud of points with no strong linear relationship. This implies that patients’ baseline BPRS levels are not strongly associated with their rate of change over time. In other words, starting severity does not systematically predict whether a patient improves faster or slower. The spread is balanced around zero for both intercepts and slopes, confirming that the random-effects structure is behaving as expected.
 
 ```{r}
 
@@ -1932,7 +1964,7 @@ grid.arrange(
 
 #### Comparison With the Two-Stage Analysis
 
-To compare the two-stage approach with the mixed-effects model, we examined patient-specific intercepts and slopes estimated by each method. The intercepts showed very strong agreement between the two approaches (Figure 10, left), with a correlation of r = 0.94 and points closely following the 45-degree line. This indicates that baseline BPRS levels are estimated consistently in both methods. In contrast, the agreement for slopes was moderate (Figure 10, right; r = 0.77), and the two-stage estimates displayed greater variability and several extreme values. This pattern reflects the inherent instability of estimating individual change rates from limited per-patient data. The mixed-effects model, by using all availabledata simultaneously, shrinks extreme slopes toward the population mean and produces more stable and reliable estimates. Overall, the mixed model provides a clearer and less noisy picture of individual symptom trajectories, particularly for the rate of change over time.
+To compare the two-stage approach with the mixed-effects model, we examined patient-specific intercepts and slopes estimated by each method. The intercepts showed very strong agreement between the two approaches (@fig-two-stage-vs-mixed) left with a correlation of r = 0.94 and points closely following the 45-degree line. This indicates that baseline BPRS levels are estimated consistently in both methods. In contrast, the agreement for slopes was moderate (@fig-two-stage-vs-mixed) right with r = 0.77, and the two-stage estimates displayed greater variability and several extreme values. This pattern reflects the inherent instability of estimating individual change rates from limited per-patient data. The mixed-effects model, by using all available data simultaneously, shrinks extreme slopes toward the population mean and produces more stable and reliable estimates. Overall, the mixed model provides a clearer and less noisy picture of individual symptom trajectories, particularly for the rate of change over time.
 
 
 Overall, the two methods give broadly similar patient-specific results, but the mixed model provides a clearer and more stable representation of individual symptom trajectories, particularly for the rate of change over time
@@ -2181,9 +2213,9 @@ display_random_effects(lmer_reduced_mean_structure,
 ```
 
 
-The linear mixed-effects model was fitted to 6,220 observations from 1,253 patients across 25 trials. The REML criterion at convergence was 27,121.3, and scaled residuals ranged from −3.64 to 3.32.The random-effects structure included patient-level random intercepts and random slopes for time. These patient-specific intercepts and slopes were correlated. The model also included trial-level random intercepts to account for between-trial variation. The full set of estimated variances, standard deviations, and correlations for all random-effect terms is presented in Table 5.
+The linear mixed-effects model was fitted to 6,220 observations from 1,253 patients across 25 trials. The REML criterion at convergence was 27,121.3, and scaled residuals ranged from −3.64 to 3.32.The random-effects structure included patient-level random intercepts and random slopes for time. These patient-specific intercepts and slopes were correlated. The model also included trial-level random intercepts to account for between-trial variation. The full set of estimated variances, standard deviations, and correlations for all random-effect terms is presented in (@random-effects-variance-components).
 
-Several fixed effects were statistically significant, including the intercept, time, age, BMI, job status, WZC category, and the time-by-cdrsb0 interaction, all with (p<0.001). The effects of sex, ADL, and the main effect of cdrsb0 were not statistically significant. Full estimates, standard errors, and significance levels for all fixed effects are presented in Table 4.
+Several fixed effects were statistically significant, including the intercept, time, age, BMI, job status, WZC category, and the time-by-cdrsb0 interaction, all with (p<0.001). The effects of sex, ADL, and the main effect of cdrsb0 were not statistically significant. Full estimates, standard errors, and significance levels for all fixed effects are presented in (@tbl-lmer-reduced-mean-structure).
 
 ##### Discussion
 
