@@ -3,7 +3,7 @@ title: "LDA Homework 1 (2025-2026)"
 author: 
   - Anita Kerubo Ogero (2469491)  
   - Okolie Tess Eucharia (2468507)  
-  - Moses Mburu (2469300)  
+  - Moses Mburu (2469245)  
   - Dorothy Chepkoech (2469284)
 
 format:
@@ -629,55 +629,52 @@ The LOESS plot of BPRS versus ABPET0 by visit year shows an unstable curved patt
 ```{r}
 #| label: fig-loess-by-time-cross-section
 #| fig-width: 10.3
-#| fig-height: 8
-#| fig-cap: "LOESS Smoothed BPRS Over Continuous Predictors by Visit Year. Age, BMI, baseline BPRS (bprs0), and baseline CDR-SB (cdrsb0)."
+#| fig-height: 5
+#| fig-cap: "LOESS-smoothed BPRS vs continuous predictors by visit year."
 
-continuous_vars <- c(
-  "age", "bmi", 
-  "cdrsb0", "abpet0"
+library(data.table)
+library(ggplot2)
+
+# Select and melt via data.table
+continuous_vars <- c("age", "bmi", "cdrsb0", "abpet0")
+
+dt_long_cs <- melt(
+  alzheimer_long[!is.na(bprs)],
+  id.vars = c("patid", "time", "bprs"),
+  measure.vars = continuous_vars,
+  variable.name = "predictor",
+  value.name = "xval",
+  variable.factor = TRUE
+)[!is.na(xval)]
+
+# Nice facet labels
+label_map <- c(
+  age    = "Age (years)",
+  bmi    = "Body Mass Index (kg/m²)",
+  cdrsb0 = "Baseline CDR-SB",
+  abpet0 = "Baseline Amyloid PET"
 )
+dt_long_cs[, predictor_label :=
+  factor(as.character(predictor),
+         levels = names(label_map),
+         labels = unname(label_map))]
 
-plot_list_cross_section <- list()
-
-# Loop to create plots
-for (var in continuous_vars) {
-  p <- ggplot(
-    data = alzheimer_long[!is.na(bprs)],
-    aes_string(x = var, y = "bprs", color = "factor(time)")
+ggplot(dt_long_cs, aes(x = xval, y = bprs, color = factor(time))) +
+  geom_smooth(method = "loess", se = FALSE, span = 0.8) +
+  # geom_point(alpha = 0.15, size = 0.6) +   # uncomment to show points
+  labs(
+    title = "BPRS vs Continuous Predictors by Visit Year",
+    x = NULL,
+    y = "BPRS Score",
+    color = "Time (Year)"
   ) +
-    geom_smooth(method = "loess", se = FALSE) +
-    # geom_point()+
-    labs(
-      title = paste("BPRS vs.", var, "by Visit Year"),
-      x = var,
-      y = "BPRS Score",
-      color = "Time (Year)"
-    ) +
-    theme_minimal() +
-    scale_color_manual(name = "", values = mycolors) +
-    theme(legend.position = "bottom") +
-    guides(color = guide_legend(ncol = 6, byrow = TRUE))
-
-  plot_list_cross_section[[var]] <- p
-}
-
-# Arrange the plots in a grid
-# add figure 3 caption
-bottom_caption_cs <- grid::textGrob(
-  "Figure 3: LOESS Smoothed BPRS Over Continuous Predictors by Visit Year.
-  Age, BMI, baseline BPRS (bprs0), and baseline CDR-SB (cdrsb0).",
-  gp = grid::gpar(fontsize = 10),
-  x = 0.5,
-  hjust = 0.5
-)
-
-grid.arrange(
-  grobs = plot_list_cross_section,
-  ncol = 2,
-  bottom = bottom_caption_cs
-)
-
+  scale_color_manual(values = mycolors, guide = guide_legend(ncol = 7)) +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  facet_wrap(~ predictor_label, scales = "free_x", ncol = 2)
 ```
+
+
 
 
 ##### Trial Centers Plot
@@ -689,13 +686,16 @@ curves between centers, indicating that trial should be included as a random eff
 ```{r}
 #| label: fig-trial-centersplot
 #| fig-width: 7
-#| fig-height: 4.5
+#| fig-height: 3.0
 #| fig-cap: "LOESS Smoothed BPRS Over Time by Clinical Center."
 
 # use grid extra to display trial centers plot alone
-#trial_centers_plot
+trial_centers_plot <- trial_centers_plot +
+    theme(
+        legend.position = "none"
+    )
 grid.arrange(
-  trial_centers_plot
+    trial_centers_plot
 )
 
 ```
@@ -742,7 +742,7 @@ var_function_plot <- ggplot(
 ```{r}
 #| label: fig-correlation-structure
 #| fig-width: 8
-#| fig-height: 3.5
+#| fig-height: 3.0
 #| fig-cap: "Smoothed Variance Function (left) and Semi-variogram (right) of BPRS Residuals."
 
 library(dplyr)
@@ -838,7 +838,7 @@ a model with  assumed heterogeneous variance and compare this with a constant va
 * Missingness: Dropout increases over time and is more common for patients with higher baseline BPRS, so simple time-point averages would be biased
 * For population average inference, we will fit repeated measures model with unstructured covariance structure because the data is imbalanced.
 * For subject-specific inference, we will fit a mixed model with patient random intercept and slope and  include a random intercept for clinical center, because there is a clear clinical site differences 
-* We don't recommend using taupet 0 as a covariate in longitudinal models as it has zero variance from year 3 onwards, for the participants who's BPRS measurement were taken at year 3 and beyond. Hence it will not show how taupet0 affects BPRS over the years. When we visually inspect Abept0 we also note that it has an inconsistent pattern with BPRS and we alsorecommend to not include it in longitudinal models.
+* We don't recommend using taupet 0 as a covariate in longitudinal models as it has zero variance from year 3 onwards, for the participants who's BPRS measurement were taken at year 3 and beyond. Hence it will not show how taupet0 affects BPRS over the years. When we visually inspect Abept0 we also note that it has an inconsistent pattern with BPRS and we also recommend to not include it in longitudinal models.
 
 
 
@@ -1179,7 +1179,7 @@ These findings suggest that the baseline factors associated with higher psychiat
 
 #### Motivation Repeated-Measures Model
 
- In Question 2, we analysed each year separately and presented yearly results (@tbl-separate-analyses). While this approach is simple, it has limitations. Running separate models for each year means repeating the same hypothesis test multiple times, which increases the risk of Type I error. It also reduces statistical power, because each model uses only one year of data instead of  all observations together. Additionally, separate analyses do not address the main research question: how BPRS scores changes over time and how baseline characteristics influence that change. They also ignore the fact that repeated measurements from the same patient are correlated, which can lead to misleading conclusions.
+ In Question 2, we analysed each year separately and presented yearly results (@tbl-separate-analyses). While this approach is simple, it has limitations. Running separate models for each year means repeating the same hypothesis test multiple times, which increases the risk of Type I error. It also reduces statistical power, because each model uses only one year of data instead of  all observations together. Additionally, separate analyses do not address the main research question, that is how BPRS scores changes over time and how baseline characteristics influence that change. They also ignore the fact that repeated measurements from the same patient are correlated, which can lead to misleading conclusions.
 
 To overcome these limitations when estimating the population effects, we use a repeated-measures multivariate model.  A normal multiple linear model assumes all observations are independent, which is not the case here because the same patient BPRS measurements are taken yearly up to year 6. The repeated measures model correctly handles the correlation within a person, by the specification of a covariance structure for the within-patient errors.
 
@@ -1225,7 +1225,7 @@ In this model, we use an unstructured correlation matrix (`corSymm`) and allow f
 Note: taupet0 terms (main effect and time interaction) were  excluded from this model due to near-zero variability at later follow-up years.  Which prevents stable estimation of their effects in a marginal mean model.
 
 
-The complex repeated-measures model that includes time, all baseline characteristics, and all their interactions with time, while allowing for unstructured covariance structure. This complex model(@tbl-question-3) confirms that BPRS increases over time and that age, BMI, ADL, job status, and living in a nursing home are all  associated to BPRS levels. However, most of interactions between time and other covariates  are not significant, which tells us we can safely move to a simpler mean structure without losing important clinical information.
+The complex repeated-measures model that includes time, all baseline characteristics, and all their interactions with time, while allowing for unstructured covariance structure was used as a starting point to find a simplified mean structure. This complex model(@tbl-question-3) confirms that BPRS increases over time and that age, BMI, ADL, job status, and living in a nursing home are all  associated to BPRS levels. However, most of interactions between time and other covariates  are not significant, which tells us we can safely move to a simpler mean structure without losing important clinical information.
 
 ```{r}
 
@@ -1284,26 +1284,21 @@ Y_{ij} =\; & \beta_0 + \beta_1 \,\text{time}_{j}
         & + \beta_6 \,\text{adl}_i
           + \beta_7 \,\text{wzc}_i
           + \beta_8 \,\text{cdrsb0}_i
-          + \beta_9 \,\text{taupet0}_i
-          + \beta_{10} \,\text{abpet0}_i \\
-        & + \beta_{11} \,(\text{time}_{j}\cdot \text{cdrsb0}_i),
+          + \beta_9 \,(\text{time}_{j}\cdot \text{cdrsb0}_i) + \varepsilon_{ij}
 \end{aligned}
 $$
 
 
 \begin{itemize}
   \item $Y_{ij}$ is the BPRS score for patient $i$ at time $j$.
-  \item $\beta_0$ is the mean BPRS at baseline for the reference patient (male, primary education, no paid job, living at home, with baseline continuous covariates at their reference value).
+  \item $\beta_0$ is the mean BPRS at baseline for the reference patient (male, no paid job, living at home, with baseline continuous covariates at their reference value).
   \item $\beta_1$ is the average yearly change in BPRS for this reference patient.
-  \item The main-effect terms $\beta_2,\dots,\beta_{10}$ describe how the BPRS level at time 0 shifts with each baseline covariate.
-  \item The interaction terms $\beta_{11},\dots,\beta_{18}$ multiply time and show how the yearly change in BPRS depends on baseline covariates; for example, $\beta_{17}$ for $\text{time}_j \cdot \text{cdrsb0}_i$ is the change in the annual BPRS slope per 1-unit higher baseline CDR-SB.
+  \item The main-effect terms $\beta_2,\dots,\beta_{8}$ describe how the BPRS level at time 0 shifts with each baseline covariate.
+  \item The interaction term $\beta_{9}$ for $\text{time}_j \cdot \text{cdrsb0}_i$ is the change in the annual BPRS slope per 1-unit higher baseline CDR-SB.
+  \item $\varepsilon_{ij}$ is the residual error term.
 \end{itemize}
 
-
 The covariance structure remains the same as in the full model.
-
-
-
 
 
 ```{r}
@@ -1485,7 +1480,7 @@ p_rvt <- ggplot(res_df, aes(x = time, y = resid_pearson)) +
 p_box <- ggplot(res_df, aes(x = factor(time), y = resid_pearson)) +
   geom_boxplot(outlier.alpha = 0.4) +
   geom_hline(yintercept = 0, color = "red") +
-  labs(title = "Residuals by Time (Boxplot)",
+  labs(title = "Residuals by Time",
        x = "Time",
        y = "Residuals") +
   theme_minimal()
