@@ -1582,6 +1582,13 @@ two_stage <- ggplot(stage1_results_melt, aes(x = estimate)) +
 
 two_stage
 
+## save the plot in  results/
+ggsave(here("results/fig-two-stage-stage2.png"),
+  plot = two_stage,
+  width = 8,
+  height = 3
+)
+
 ```
 
 
@@ -1836,7 +1843,9 @@ lmer_reduced_mean_structure <- lmer(fm_adj,
 )
 
 #summary(lmer_reduced_mean_structure)
-tidy_with_ci(lmer_reduced_mean_structure) |>
+lmer_tidy <-tidy_with_ci(lmer_reduced_mean_structure) 
+
+lmer_tidy |>
  kable(
    format = "latex",
    caption = "Mixed Model with Random Intercept
@@ -1849,6 +1858,12 @@ tidy_with_ci(lmer_reduced_mean_structure) |>
  kable_styling(font_size = 9, position = "center") |>
   kable_styling(latex_options = c("hold_position", "scale_down"))
 
+# save lmer_tidy as csv in results with row.names()
+
+write.csv(lmer_tidy,
+  file = here("results/lmer_reduced_mean_structure_results.csv"),
+  row.names = FALSE
+)
 ```
 
 
@@ -1870,29 +1885,46 @@ The right plot (@fig-residual-diagnostics) presents the Normal Q-Q plot which co
 
 
 
-resid_re  <- resid(lmer_reduced_mean_structure)
+resid_re <- resid(lmer_reduced_mean_structure)
 fitted_re <- fitted(lmer_reduced_mean_structure)
 
 # ---- ggplot version of Residuals vs Fitted ----
-p1 <- ggplot(data.frame(fitted = fitted_re, resid = resid_re),
-             aes(x = fitted, y = resid)) +
-  geom_point() +
-  geom_hline(yintercept = 0, colour = "red") +
-  labs(title="Residuals vs Fitted Values") +
-  labs(x = "Fitted values", y = "Residuals") + theme_minimal()
+p1_diag_q5 <- ggplot(
+    data.frame(fitted = fitted_re, resid = resid_re),
+    aes(x = fitted, y = resid)
+) +
+    geom_point() +
+    geom_hline(yintercept = 0, colour = "red") +
+    labs(title = "Residuals vs Fitted Values") +
+    labs(x = "Fitted values", y = "Residuals") +
+    theme_minimal()
 
 # ---- ggplot version of QQ plot ----
-p2 <- ggplot(data.frame(resid = resid_re), aes(sample = resid)) +
-  stat_qq() +
-  stat_qq_line(colour = "red") +
-  labs(title = "Normal Q-Q Plot") + theme_minimal()
+p2_diag_q5 <- ggplot(data.frame(resid = resid_re), aes(sample = resid)) +
+    stat_qq() +
+    stat_qq_line(colour = "red") +
+    labs(title = "Normal Q-Q Plot") +
+    theme_minimal()
 
 # ---- Arrange with caption ----
 grid.arrange(
-  p1, p2,
-  ncol = 2
+    p1_diag_q5, p2_diag_q5,
+    ncol = 2
 )
 
+# save grid
+#
+png(here("results/fig-residual-diagnostics.png"),
+    width = 8, height = 6,
+    units = "in", res = 100
+)
+
+grid.arrange(
+    p1_diag_q5, p2_diag_q5,
+    ncol = 2
+)
+
+dev.off()
 ```
 
 
@@ -2202,6 +2234,14 @@ display_random_effects(lmer_reduced_mean_structure,
                         variance components (lmer)",
   digits = 3
 )
+
+var_comp <- tidy_re_varcorr(lmer_reduced_mean_structure,
+ digits = 3)
+
+ ## save csv 
+write.csv(var_comp,
+  file = here("results/lmer_random_effects_variance_components.csv"),
+  row.names = FALSE)
 ```
 
 
