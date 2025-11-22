@@ -1,5 +1,5 @@
 ---
-title: "Longitudinal Analysis of Psychiatric Symptoms in Alzheimer's Disease"
+title: "Longitudinal Analysis of BPRS  in Alzheimer's Disease"
 author: 
   - Anita Kerubo Ogero
   - Moses Mburu
@@ -131,11 +131,9 @@ kable(summary_dt,
 #### Conclusions and modeling implications
 
 
-* BPRS increases steadily over time; subgroups mainly differ by level (sex, job, living situation, centre), not by shape of the curve.
-* Age shows a roughly linear relation with BPRS, while BMI has a curved (non-linear) relation.
+
 * Dropout is higher in patients with worse baseline BPRS.
 * For population averages we use a repeated-measures model with an unstructured covariance; for patient-specific effects we use a mixed model with patient random intercept and slope plus a trial random intercept.
-* We do not recommend including TAUPET0 or ABPET0 in longitudinal models: TAUPET0 has almost no variation after year 3, and ABPET0 shows an unstable pattern with BPRS over time.
 
 ---
 
@@ -237,7 +235,7 @@ gridExtra::grid.arrange(
 
 Based on what we observed in the exploratory plots and models, we suggest the following design and data collection improvements for future work on BPRS in Alzheimer patients.
 
-1. Address informative dropout and missingness: Correlation of missngness and baseline BPRS
-2. Standardise clinical site procedures High variability between sites
+1. Address informative dropout and missingness: Correlation of missingness and baseline BPRS: Enroll comparable patients(severity bracket)
+2. Standardize clinical site procedures High variability between sites: Also introduce a patient subgroup to indicate severity
 
 ---
