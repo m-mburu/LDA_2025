@@ -319,7 +319,7 @@ alzheimer_long2 <- alzheimer_long2 |>
 
 
 ```{r}
-View(alzheimer_long2)
+#View(alzheimer_long2)
 ```
 
 step 2 : Adjust for sex, age, BMI (baseline confounders)
@@ -420,6 +420,7 @@ ggplot(semivar_df, aes(x = lag, y = semivariance)) +
 We model the longitudinal binary outcome \(Y_{it} = \mathrm{CDRSBbin}_{it}\) for patient \(i\) at visit \(t\).
 
 The marginal mean is
+
 \[
 \pi_{it} = \mathbb{E}(Y_{it} \mid X_{it})
 = \Pr(Y_{it} = 1 \mid X_{it}),
@@ -677,6 +678,7 @@ ggplot(patient_re, aes(b0i_intercept)) +
   theme_minimal()
 
 ```
+
 The histogram of patient-specific random intercepts shows large variability in baseline probability of having severe CDRSB impairment.
 Some patients start much lower (large negative intercepts), while others start much higher (large positive intercepts).
 This indicates substantial heterogeneity in baseline disease severity that is not explained by sex, age, BMI, ADL, ABPET, or TAUPET.
