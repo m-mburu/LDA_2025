@@ -276,8 +276,8 @@ for (col_name in names(factor_info)) {
 ```{r reshape-data}
 
 id_vars <- c("patid", "trial", "sex", "age", 
-             "edu", "bmi", "inkomen", "job", "adl", "wzc",
-             "cdrsb0",  "abpet0", "taupet0")
+             "edu", "bmi", "inkomen", "job", "adl", "wzc")
+             #"cdrsb0",  "abpet0", "taupet0")
 
 
 
