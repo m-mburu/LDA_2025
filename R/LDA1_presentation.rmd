@@ -1,0 +1,241 @@
+---
+title: "Longitudinal Analysis of BPRS  in Alzheimer's Disease"
+author: 
+  - Anita Kerubo Ogero
+  - Moses Mburu
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+fontsize: 8pt 
+output:
+  beamer_presentation:
+    incremental: false
+    latex_engine: xelatex
+  slidy_presentation:
+    incremental: false
+  github_document:
+    df_print: kable
+  ioslides_presentation:
+    widescreen: true
+    css: style.css
+    self_contained: true
+    incremental: false
+header-includes:
+- \usepackage{longtable}
+- \usepackage{tabu}
+- \usepackage{xcolor}
+- \usepackage{bookmark}
+- \usepackage{booktabs}
+- \usepackage{xcolor}
+- \setbeamercolor{item}{fg=black}
+- \setbeamercolor{subitem}{fg=black}
+- \setbeamercolor{subsubitem}{fg=black}
+- \usetheme{Hannover} #- \usetheme{Boadilla}
+- \usepackage{lmodern}          # Latin Modern (clean, scalable)
+- \usepackage{microtype}        # Improves spacing & kerning subtly
+- \setbeamertemplate{sidebar left}{}
+- \setbeamertemplate{navigation symbols}{}
+
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, eval = TRUE, 
+                      warning = FALSE, message = FALSE,
+                      fig.width = 8, fig.height = 4.5)
+
+library(here)
+library(tidyverse)
+library(data.table)
+library(haven)
+library(janitor)
+library(knitr)
+library(nlme)
+library(gridExtra)
+library(kableExtra)
+# source(here("R","lda_homework1_2025.R"))
+# save.image(here("R","LDA1.RData"))
+load(here("R","LDA1.RData"))
+```
+
+
+---
+
+### Study description
+
+- **Population:** 1,253 patients with Alzheimer’s disease enrolled in **25 clinical trials**.  
+- **Outcome:** Brief Psychiatric Rating Scale (BPRS), measured annually from baseline to year 6  
+  - Up to **7 measurements per patient** (baseline + 6 follow-up years)  
+  - Higher BPRS = more severe psychiatric symptoms  
+- **Design:** Unbalanced longitudinal data  
+  - Not all patients are observed at all time points  
+  - Total number of BPRS observations: **6,220**  
+- **Baseline covariates:**
+  - Demographic: sex, age, education  
+  - Clinical: BMI, ADL score, living situation (home vs nursing home), job status (paid vs no paid job)  
+  - Disease severity / biomarkers: baseline CDR-SB, amyloid PET (ABPET0), tau PET (TAUPET0)
+
+---
+
+#### Missing data analysis
+
+```{r graph_1, fig.cap = "Missingness Analysis: Baseline BPRS by Number of Missed Visits (left) and Percentage Missing Over Time (right)",  fig.width = 8.5, fig.height = 4.5}
+
+grid.arrange(boxplot_meanbprso0,
+             missing_by_time_plot,
+             ncol = 2)
+
+```
+
+---
+
+#### BPRS over time
+
+```{r simple_avg_plots, fig.cap = "Average BPRS Scores Over Time", fig.width = 6.5, fig.height = 3}
+
+simple_avg_plot
+
+```
+
+
+
+### Individual profiles
+
+```{r spaghetti_plots, fig.cap = "Spaghetti Plots of BPRS Over Time by Clinical Center", fig.width = 5.5, fig.height =2.9}
+
+spaggheti_plot
+
+```
+
+- These 50 individual profiles show that patients start at very different BPRS levels but almost all worsen over time, with broadly similar upward slopes.
+
+---
+
+#### Separate Linear Models for Each Follow-up Year
+
+```{r}
+kable(summary_dt,
+  format = "latex",
+  booktabs = TRUE,
+  caption = "Separate Linear Models for Each Follow-up Year",
+  align = "lrrrrrrr", # l=left, r=right alignment for columns
+  linesep = "",
+  font.size = 9
+) |>
+  kable_styling(latex_options = c("hold_position", "scale_down"))
+```
+
+- The biomarker effects (amyloid and tau PET) jump around from year to year and their CIs are often wide or include zero.
+- The other variables shows more consistent effects across years.
+
+---
+
+#### Conclusions and modeling implications
+
+
+
+* Dropout is higher in patients with worse baseline BPRS.
+* For population averages we use a repeated-measures model with an unstructured covariance; for patient-specific effects we use a mixed model with patient random intercept and slope plus a trial random intercept.
+
+---
+
+### Two-Stage Model Results
+
+
+```{r, fig.cap = "Distribution of Individual Intercepts and Slopes from two stage analysis", fig.width = 6, fig.height = 2.8}
+two_stage
+```
+
+* Starting levels vary a lot Intercepts are widely spread (20–100 BPRS), showing big differences in baseline severity between patients.
+* Progression rates are similar Slopes are tightly clustered around  6- 7 points/year, so most patients worsen at a similar rate.
+* Bias Patients with higher BPRS are more likely to drop out, the slopes mainly reflect those who stay in follow-up.
+
+---
+
+```{r}
+tidy_with_ci(slope_model) |>
+  kable(
+    format = "latex",
+    booktabs = TRUE,
+    caption = "Two-Stage Model Results for Individual Slopes",
+    align = "lrrrr", # l=left, r=right alignment for columns
+    linesep = ""
+  ) |>
+  column_spec(2, width = "5cm") |> # Set the width of the 2nd column (estimate)
+  kable_styling(latex_options = c("hold_position", "scale_down"))
+```
+
+
+
+* Only two baseline factors show an association with the rate of change patients living in a nursing home worsen slightly faster (about $0.2$ points more per year), while those with higher baseline CDR-SB show a slightly slower increase in BPRS (about $0.02$ points less per year per CDR-SB point).
+
+---
+
+### Mixed Model with Random Intercept and Slope Results
+
+```{r}
+
+# summary(lmer_reduced_mean_structure)
+lmer_tidy <- tidy_with_ci(lmer_reduced_mean_structure)
+
+lmer_tidy |>
+  kable(
+    format = "latex",
+    caption = "Mixed Model with Random Interceptand Slope Results",
+    booktabs = TRUE,
+    longtable =FALSE,
+    align = "lrrrr"
+  ) |>
+  column_spec(2, width = "5cm") |>
+  kable_styling(font_size = 8, position = "center") |>
+  kable_styling(latex_options = c("hold_position", "scale_down"))
+
+```
+
+* On average, BPRS increases by about $\approx 7.2$ points per year (time effect), confirming steady worsening over follow-up.
+* Higher age, higher BMI, living in a nursing home, and not having a paid job are all associated with higher BPRS levels at any given time.
+* The interaction $\text{time} \times \text{cdrsb0}$ is negative: patients with worse baseline cognition (higher CDR-SB) show a slightly slower yearly increase in BPRS.
+
+
+---
+
+
+#### Diagnostics Plots
+
+```{r diagnostics_plots, fig.cap = "Mixed Model Residual Diagnostics", fig.width = 8, fig.height = 3}
+grid.arrange(
+    p1_diag_q5, p2_diag_q5,
+    ncol = 2
+)
+
+```
+
+* Residuals are scattered evenly around zero with no clear pattern, so the linear fit and constant variance look reasonable.
+* In the Q–Q plot, points lie close to the straight line, so the normality assumption for residuals is roughly satisfied (only small deviations in the tails).
+
+
+---
+
+#### Comparing with Two Stage Results
+
+```{r compare_two_stage_mixed, fig.cap = "Comparison of Two-Stage and Mixed Model Estimates", fig.width = 8, fig.height = 3}
+
+gridExtra::grid.arrange(
+  p_int,
+  p_slope,
+  ncol = 2
+)
+
+```
+
+* Intercepts from the two-stage and mixed models are highly correlated ( r = 0.94), so both approaches give almost the same starting BPRS level.
+* Slopes  correlate well but less strongly (r = 0.77); the mixed model pulls extreme slopes towards the average.
+
+---
+
+### Recommendations for future similar studies
+
+Based on what we observed in the exploratory plots and models, we suggest the following design and data collection improvements for future work on BPRS in Alzheimer patients.
+
+1. Address informative dropout and missingness: Correlation of missingness and baseline BPRS: Enroll comparable patients(severity bracket)
+2. Standardize clinical site procedures High variability between sites: Also introduce a patient subgroup to indicate severity
+
+---

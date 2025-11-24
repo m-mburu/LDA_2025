@@ -3,7 +3,7 @@ title: "LDA Homework 1 (2025-2026)"
 author: 
   - Anita Kerubo Ogero (2469491)  
   - Okolie Tess Eucharia (2468507)  
-  - Moses Mburu (2469300)  
+  - Moses Mburu (2469245)  
   - Dorothy Chepkoech (2469284)
 
 format:
@@ -11,6 +11,7 @@ format:
     pdf-engine: xelatex
     fig-pos: "H"
     tbl-pos: "H"
+    number-depth: 6
     include-in-header:
       text: |
         \renewcommand{\baselinestretch}{1.1}
@@ -307,18 +308,15 @@ alzheimer_long[, time := as.integer(time)]
 
 #####  Data description 
 
-At baseline, all 1253 patients contribute BPRS, with a mean around 75; this increases to about 107 by the last visit, but by year 6 only 511 patients remain, the later years summary statistics such as mean are based on less than half of the original group. Over time, those who stay in the study tend to be younger, more often male, more likely to have a paid job, with higher ADL scores, and more often living at home rather than in a nursing home. ABPET0 also tends to be lower in later years, and TAUPET0 loses almost all variability from year 4 onward. Together this shows that dropout is not random, and long-term averages mostly reflect a healthier, more selected subset of patients.
+At baseline (@tbl-q1-baseline-summary-tables) in the appendix, all 1253 patients contribute BPRS, with a mean around 75; this increases to about 107 by the last visit, but by year 6 only 511 patients remain, the later years summary statistics such as mean are based on less than half of the original group. Over time, those who stay in the study tend to be younger, more often male, more likely to have a paid job, with higher ADL scores, and more often living at home rather than in a nursing home. ABPET0 also tends to be lower in later years, and TAUPET0 loses almost all variability from year 4 onward. Together this shows that dropout is not random, and long-term averages mostly reflect a healthier, more selected subset of patients.
 
 
 ```{r}
-#| label: tbl-q1-baseline-summary-tables
-#| tbl-cap: "Baseline Patient Characteristics"
 
 library(table1)
 
 # Use the original wide-format data for a true baseline summary
-baseline_data <- copy(alzheimer_long) |>
-  as.data.frame()
+baseline_data <- copy(alzheimer_long) 
 
 # Define a named list of labels for clarity
 var_labels <- list(
@@ -346,7 +344,7 @@ for (var in names(var_labels)) {
 tab1_summary <- table1(
   ~ bprs + age + sex + edu + bmi + job + adl +
     wzc  + cdrsb0 + abpet0 + taupet0 | time,
-  data = baseline_data,
+  data = baseline_data[!is.na(bprs)],
   caption = "Baseline Patient Characteristics",
   footnote = "Continuous variables are presented as Mean (SD);
         Categorical variables as n (%)."
@@ -375,14 +373,16 @@ tab1_summary$Overall <- NULL  # Remove overall column if present
 
 ####  Check if Data is Balanced
 
-To confirm results from summary statistics describe above. We plot @fig-missingness_analysis to show that patients with higher baseline BPRS are more likely to miss later visits, and the percentage missing rises to above 40% by year 6, so the number of patients contributing to the later means becomes much smaller. Simple averages by time point would then mainly reflect the patients who stay in the study and under-represent those who drop out (often the sicker ones), and can therefore give a biased trend. Because this pattern of missing causes an imbalanced data set, we use smoothing methods that are better suited for to investigate mean, variance and correlation structure over time.
+To confirm results from summary statistics described above(@tbl-q1-baseline-summary-tables). We plotted @fig-missingness-analysis to show that patients with higher baseline BPRS are more likely to miss later visits, and the percentage missing rises to above 40% by year 6, so the number of patients contributing to the later means becomes much smaller. Simple averages by time point would then mainly reflect the patients who stay in the study and under-represent those who drop out (often the sicker ones), and can therefore give a biased trend. Because this pattern of missing causes an imbalanced data set, we use smoothing methods that are better suited for to investigate mean, variance and correlation structure over time.
 
 
 
 
-```{r, fig.width = 8.5, fig.height = 4.5}
-#| label: fig-missingness_analysis
+```{r}
+#| label: fig-missingness-analysis
 #| fig-cap: "Missingness Analysis: Baseline BPRS by Number of Missed Visits (left) and Percentage Missing Over Time (right)"
+#| fig.width: 8.5
+#| fig.height: 3.5
 
 bprs_cols <- paste0("bprs", 0:6)
 alzheimer_data[, n_missing := rowSums(is.na(.SD)), .SDcols = bprs_cols]
@@ -450,7 +450,7 @@ grid.arrange(boxplot_meanbprso0,
 
 
 
-```{r loess-smoothing}
+```{r}
 #| label: loess-smoothing
 #  LOESS model
 
@@ -629,55 +629,52 @@ The LOESS plot of BPRS versus ABPET0 by visit year shows an unstable curved patt
 ```{r}
 #| label: fig-loess-by-time-cross-section
 #| fig-width: 10.3
-#| fig-height: 8
-#| fig-cap: "LOESS Smoothed BPRS Over Continuous Predictors by Visit Year. Age, BMI, baseline BPRS (bprs0), and baseline CDR-SB (cdrsb0)."
+#| fig-height: 5
+#| fig-cap: "LOESS-smoothed BPRS vs continuous predictors by visit year."
 
-continuous_vars <- c(
-  "age", "bmi", 
-  "cdrsb0", "abpet0"
+library(data.table)
+library(ggplot2)
+
+# Select and melt via data.table
+continuous_vars <- c("age", "bmi", "cdrsb0", "abpet0")
+
+dt_long_cs <- melt(
+  alzheimer_long[!is.na(bprs)],
+  id.vars = c("patid", "time", "bprs"),
+  measure.vars = continuous_vars,
+  variable.name = "predictor",
+  value.name = "xval",
+  variable.factor = TRUE
+)[!is.na(xval)]
+
+# Nice facet labels
+label_map <- c(
+  age    = "Age (years)",
+  bmi    = "Body Mass Index (kg/m²)",
+  cdrsb0 = "Baseline CDR-SB",
+  abpet0 = "Baseline Amyloid PET"
 )
+dt_long_cs[, predictor_label :=
+  factor(as.character(predictor),
+         levels = names(label_map),
+         labels = unname(label_map))]
 
-plot_list_cross_section <- list()
-
-# Loop to create plots
-for (var in continuous_vars) {
-  p <- ggplot(
-    data = alzheimer_long[!is.na(bprs)],
-    aes_string(x = var, y = "bprs", color = "factor(time)")
+ggplot(dt_long_cs, aes(x = xval, y = bprs, color = factor(time))) +
+  geom_smooth(method = "loess", se = FALSE, span = 0.8) +
+  # geom_point(alpha = 0.15, size = 0.6) +   # uncomment to show points
+  labs(
+    title = "BPRS vs Continuous Predictors by Visit Year",
+    x = NULL,
+    y = "BPRS Score",
+    color = "Time (Year)"
   ) +
-    geom_smooth(method = "loess", se = FALSE) +
-    # geom_point()+
-    labs(
-      title = paste("BPRS vs.", var, "by Visit Year"),
-      x = var,
-      y = "BPRS Score",
-      color = "Time (Year)"
-    ) +
-    theme_minimal() +
-    scale_color_manual(name = "", values = mycolors) +
-    theme(legend.position = "bottom") +
-    guides(color = guide_legend(ncol = 6, byrow = TRUE))
-
-  plot_list_cross_section[[var]] <- p
-}
-
-# Arrange the plots in a grid
-# add figure 3 caption
-bottom_caption_cs <- grid::textGrob(
-  "Figure 3: LOESS Smoothed BPRS Over Continuous Predictors by Visit Year.
-  Age, BMI, baseline BPRS (bprs0), and baseline CDR-SB (cdrsb0).",
-  gp = grid::gpar(fontsize = 10),
-  x = 0.5,
-  hjust = 0.5
-)
-
-grid.arrange(
-  grobs = plot_list_cross_section,
-  ncol = 2,
-  bottom = bottom_caption_cs
-)
-
+  scale_color_manual(values = mycolors, guide = guide_legend(ncol = 7)) +
+  theme_minimal() +
+  theme(legend.position = "bottom") +
+  facet_wrap(~ predictor_label, scales = "free_x", ncol = 2)
 ```
+
+
 
 
 ##### Trial Centers Plot
@@ -689,13 +686,16 @@ curves between centers, indicating that trial should be included as a random eff
 ```{r}
 #| label: fig-trial-centersplot
 #| fig-width: 7
-#| fig-height: 4.5
+#| fig-height: 3.0
 #| fig-cap: "LOESS Smoothed BPRS Over Time by Clinical Center."
 
 # use grid extra to display trial centers plot alone
-#trial_centers_plot
+trial_centers_plot <- trial_centers_plot +
+    theme(
+        legend.position = "none"
+    )
 grid.arrange(
-  trial_centers_plot
+    trial_centers_plot
 )
 
 ```
@@ -710,7 +710,7 @@ The semi-variogram also rises with the time gap between measurements, showing th
 and become less similar as the gap widens. These pattern indicates a  within-patient correlation that weakens with distance in time therefore, the models we fit need to allow  correlation structure that decays over time. The plots are shown in figure 5 below.
 
 
-```{r variance-structure}
+```{r}
 #| label: variance-structure
 
 alzheimer_long_full <- alzheimer_long[!is.na(bprs)]
@@ -742,7 +742,7 @@ var_function_plot <- ggplot(
 ```{r}
 #| label: fig-correlation-structure
 #| fig-width: 8
-#| fig-height: 3.5
+#| fig-height: 3.0
 #| fig-cap: "Smoothed Variance Function (left) and Semi-variogram (right) of BPRS Residuals."
 
 library(dplyr)
@@ -836,9 +836,9 @@ vertical shifts by clinical center; education shows little separation.
 a model with  assumed heterogeneous variance and compare this with a constant variance model using AIC.
 * Correlation structure: The semivariogram increases with time lag, indicating strong within-patient correlation at short lags that decays as visits are farther apart.
 * Missingness: Dropout increases over time and is more common for patients with higher baseline BPRS, so simple time-point averages would be biased
-* Modeling implications: For population-average inference, we will fit repeated measures model  with unstructured covariance structure and compare with AR(1) correlation
+* For population average inference, we will fit repeated measures model with unstructured covariance structure because the data is imbalanced.
 * For subject-specific inference, we will fit a mixed model with patient random intercept and slope and  include a random intercept for clinical center, because there is a clear clinical site differences 
-* we don't recommend using taupet 0 as a covariate in longitudinal models as it has zero variance from year 3 onwards, for the participants who's BPRS measurement were taken at year 3 and beyond. Hence it will not show how taupet0 affects BPRS over the years
+* We don't recommend using taupet 0 as a covariate in longitudinal models as it has zero variance from year 3 onwards, for the participants who's BPRS measurement were taken at year 3 and beyond. Hence it will not show how taupet0 affects BPRS over the years. When we visually inspect Abept0 we also note that it has an inconsistent pattern with BPRS and we also recommend to not include it in longitudinal models.
 
 
 
@@ -846,7 +846,7 @@ a model with  assumed heterogeneous variance and compare this with a constant va
 
 #### Individual profiles & per-patient slopes
 
-To visualise heterogeneity in longitudinal evolution, BPRS trajectories of 40 random patients were plotted (@fig-per-patient-slope). These individual profiles show variation in baseline symptom severity, together with increasing trends over time. The profiles also illustrate the unbalanced nature of the data, as subjects contribute different numbers of observations. These observations help justify the choice of summary statistics for longitudinal data.
+To visualise heterogeneity in longitudinal evolution, BPRS trajectories of 50 random patients were plotted (@fig-per-patient-slope). These individual profiles show variation in baseline symptom severity, together with increasing trends over time. The profiles also illustrate the unbalanced nature of the data, as subjects contribute different numbers of observations. These observations help justify the choice of summary statistics for longitudinal data.
 
 ```{r}
 #| label: individual-profiles
@@ -925,13 +925,13 @@ grid.arrange(
 
 
 
-#### Increment Analysis
+#### Analysis of increments
 
-Increment analysis examines the year-to-year changes in BPRS scores. We calculate the increments (differences) between consecutive years for each patient and then summarize these increments across all patients at each time point. 
+Increment analysis examines the year-to-year changes in BPRS scores shown in plot (@fig-increment-analysis). We calculate the increments (differences) between consecutive years for each patient and then summarize these increments across all patients at each time point. 
 
 ##### Motivation
 
-This approach is motivated by the goal of understanding how BPRS evolves over time and by the amount of baseline heterogeneity observed in the data; differencing removes these baseline differences and focuses on the rate of change. Increments were estimated by sorting each patient's measurements by time and subtracting $BPRS_{t-1}$ from $BPRS_{t}$. 
+This approach is motivated by the goal of understanding how BPRS evolves over time and by the amount of baseline heterogeneity observed in the data (@fig-per-patient-slope); differencing removes these baseline differences and focuses on the rate of change. Increments were estimated by sorting each patient's measurements by time and subtracting $BPRS_{t-1}$ from $BPRS_{t}$. 
 
 ##### Assumptions and limitations
 
@@ -945,7 +945,7 @@ The resulting plot(@fig-increment-analysis) shows that, the mean year-to-year in
 ```{r}
 #| label: fig-increment-analysis
 #| fig-cap: "Year-to-Year Change in BPRS. Mean increments with standard deviation bars."
-#| fig.width: 6.3
+#| fig.width: 5.3
 #| fig.height: 3.5
 
 # Summary statistics of increments
@@ -967,8 +967,8 @@ incr_summary <- alz_incr %>%
 #incr_summary
 
 ggplot(incr_summary, aes(time, mean_increment)) +
-  geom_line(size = 1.3, colour = "#1b9e77") +
-  geom_point(size = 4, colour = "#d95f02") +
+  geom_line( colour = "#1b9e77") +
+  geom_point(size = 1, colour = "#d95f02") +
   geom_errorbar(aes(ymin = mean_increment - sd_increment,
                     ymax = mean_increment + sd_increment),
                 width = 0.15, colour = "grey30") +
@@ -977,7 +977,7 @@ ggplot(incr_summary, aes(time, mean_increment)) +
     title = "Year-to-Year Change in BPRS",
     subtitle = "Mean increments with standard deviation bars",
     x = "Time",
-    y = "Mean increment (ΔBPRS)"
+    y = "Mean increment (BPRS)"
   ) +
   theme(
     plot.title = element_text(face = "bold"),
@@ -994,7 +994,7 @@ For each follow-up year $t \in \{1,\dots,6\}$, we fit an ordinary linear model r
 
 $$
 \begin{aligned}
-  ext{BPRS}_{it} = &\; \alpha_{0t} + \alpha_{1t} \cdot \text{sex}_i + \alpha_{2t} \cdot \text{age}_i + \alpha_{3t} \cdot \text{bmi}_i + \alpha_{4t} \cdot \text{job}_i + \alpha_{5t} \cdot \text{adl}_i \\
+  BPRS_{it} = &\; \alpha_{0t} + \alpha_{1t} \cdot \text{sex}_i + \alpha_{2t} \cdot \text{age}_i + \alpha_{3t} \cdot \text{bmi}_i + \alpha_{4t} \cdot \text{job}_i + \alpha_{5t} \cdot \text{adl}_i \\
 & + \alpha_{6t} \cdot \text{wzc}_i + \alpha_{7t} \cdot \text{cdrsb0}_i + \alpha_{8t} \cdot \text{abpet0}_i + \alpha_{9t} \cdot \text{taupet0}_i + \varepsilon_{it} .
 \end{aligned}
 $$
@@ -1010,8 +1010,8 @@ where, for each fixed year $t$:
 - $\alpha_{6t}$ is the difference at year $t$ for Nursing Home vs Lives at Home.
 - $\alpha_{7t}$ is the change at year $t$ per 1-unit increase in baseline CDR-SB (cdrsb0).
 - $\alpha_{8t}$ is the change at year $t$ per 1-unit increase in baseline Amyloid PET (abpet0).
-- $\alpha_{9t}$ is the change at year $t" per 1-unit increase in baseline Tau PET (taupet0).
-- $\varepsilon_{it}$ is the error term at year $t$.
+- $\alpha_{9t}$ is the change at year $t$ per 1-unit increase in baseline Tau PET (taupet0).
+- $\varepsilon_{it}$ is the error term at year $t$; distributed as $N(0, \sigma_t^2)$.
 
 
 ```{r}
@@ -1167,9 +1167,7 @@ Across all years, several patterns emerged. Age, BMI, and ADL showed consistent 
 
 ##### Conclusion
 
-Across both analyses, patients show a steady increase in psychiatric symptoms, with BPRS scores rising by roughly seven points each year on average. This rate of worsening symptoms remains stable throughout the six-year follow-up, with no evidence that it accelerates or slows down as the disease progresses.
-
-Patients who begin with greater functional impairement, older age, or who reside in a nursing home demonstrate higher BPRS scores throughout follow-up. In contrast, employed individuals at baseline tend to have consistently lower symptom severity over time. Baseline amyloid and tau biomarkers do not show consistent associations with BPRS trajectories.
+Across both analyses, patients show a steady increase in psychiatric symptoms, with BPRS scores rising by roughly seven points each year on average. Patients who begin with greater functional impairement, older age, or who reside in a nursing home demonstrate higher BPRS scores throughout follow-up. In contrast, employed individuals at baseline tend to have consistently lower symptom severity over time. Baseline amyloid and tau biomarkers do not show consistent associations with BPRS trajectories.
 
 These findings suggest that the baseline factors associated with higher psychiatric severity remain consistent at all later points in follow-up. The effect sizes do not appear to change considerably over time, suggesting that the influence of these baseline characteristics on BPRS levels is stable rather than time-dependent. This supports the idea that demographic and functional status factors at baseline could be useful markers for identifying patients who are likely to experience more severe psychiatric symptoms throughout their disease course. This information can help anticipate the likely trajectory of symptom worsening and plan follow-up and supportive care accordingly. 
 
@@ -1181,9 +1179,9 @@ These findings suggest that the baseline factors associated with higher psychiat
 
 #### Motivation Repeated-Measures Model
 
- In Question 2, we analysed each year separately and presented yearly results (@tbl-separate-analyses). While this approach is simple, it has limitations. Running separate models for each year means repeating the same hypothesis test multiple times, which increases the risk of Type I error. It also reduces statistical power, because each model uses only one year of data instead of leveraging all observations together. Additionally, separate analyses do not address the main research question: how BPRS scores changes over time and how baseline characteristics influence that change. They also ignore the fact that repeated measurements from the same patient are correlated, which can lead to misleading conclusions.
+ In Question 2, we analysed each year separately and presented yearly results (@tbl-separate-analyses). While this approach is simple, it has limitations. Running separate models for each year means repeating the same hypothesis test multiple times, which increases the risk of Type I error. It also reduces statistical power, because each model uses only one year of data instead of  all observations together. Additionally, separate analyses do not address the main research question, that is how BPRS scores changes over time and how baseline characteristics influence that change. They also ignore the fact that repeated measurements from the same patient are correlated, which can lead to misleading conclusions.
 
-To overcome these limitations when estimating the population effects, we use a repeated-measures multivariate model.  A normal multiple linear model assumes all observations are independent, which is not realistic here because the same patient BPRS measurements are taken yearly up to year 6. The repeated measures model correctly handles the correlation within a person, by the specification of a covariance structure for the within-patient errors.
+To overcome these limitations when estimating the population effects, we use a repeated-measures multivariate model.  A normal multiple linear model assumes all observations are independent, which is not the case here because the same patient BPRS measurements are taken yearly up to year 6. The repeated measures model correctly handles the correlation within a person, by the specification of a covariance structure for the within-patient errors.
 
 We start from a saturated repeated measures model where time, all baseline characteristics, and their interactions with time are included. This gives us a way to assess how the variable  affect both the starting BPRS level and the change over time,  so that we do not miss important effects when we later simplify the model. For the repeated measurements within a patient, we allow a very flexible pattern for how BPRS scores at different visits are correlated to each other, without forcing a specific correlation pattern in advance. We do not use this saturated model to report final clinical results, we use it as a screening model and then simplify the mean structure.
 
@@ -1227,7 +1225,7 @@ In this model, we use an unstructured correlation matrix (`corSymm`) and allow f
 Note: taupet0 terms (main effect and time interaction) were  excluded from this model due to near-zero variability at later follow-up years.  Which prevents stable estimation of their effects in a marginal mean model.
 
 
-The complex repeated-measures model that includes time, all baseline characteristics, and all their interactions with time, while allowing for unstructured covariance structure. This complex model(@tbl-question-3) confirms that BPRS increases over time and that age, BMI, ADL, job status, and living in a nursing home are all  associated to BPRS levels. However, most of interactions between time and other covariates  are not significant, which tells us we can safely move to a simpler mean structure without losing important clinical information.
+The complex repeated-measures model that includes time, all baseline characteristics, and all their interactions with time, while allowing for unstructured covariance structure was used as a starting point to find a simplified mean structure. This complex model(@tbl-question-3) confirms that BPRS increases over time and that age, BMI, ADL, job status, and living in a nursing home are all  associated to BPRS levels. However, most of interactions between time and other covariates  are not significant, which tells us we can safely move to a simpler mean structure without losing important clinical information.
 
 ```{r}
 
@@ -1286,31 +1284,27 @@ Y_{ij} =\; & \beta_0 + \beta_1 \,\text{time}_{j}
         & + \beta_6 \,\text{adl}_i
           + \beta_7 \,\text{wzc}_i
           + \beta_8 \,\text{cdrsb0}_i
-          + \beta_9 \,\text{taupet0}_i
-          + \beta_{10} \,\text{abpet0}_i \\
-        & + \beta_{11} \,(\text{time}_{j}\cdot \text{cdrsb0}_i),
+          + \beta_9 \,(\text{time}_{j}\cdot \text{cdrsb0}_i) + \varepsilon_{ij}
 \end{aligned}
 $$
 
 
 \begin{itemize}
   \item $Y_{ij}$ is the BPRS score for patient $i$ at time $j$.
-  \item $\beta_0$ is the mean BPRS at baseline for the reference patient (male, primary education, no paid job, living at home, with baseline continuous covariates at their reference value).
+  \item $\beta_0$ is the mean BPRS at baseline for the reference patient (male, no paid job, living at home, with baseline continuous covariates at their reference value).
   \item $\beta_1$ is the average yearly change in BPRS for this reference patient.
-  \item The main-effect terms $\beta_2,\dots,\beta_{10}$ describe how the BPRS level at time 0 shifts with each baseline covariate.
-  \item The interaction terms $\beta_{11},\dots,\beta_{18}$ multiply time and show how the yearly change in BPRS depends on baseline covariates; for example, $\beta_{17}$ for $\text{time}_j \cdot \text{cdrsb0}_i$ is the change in the annual BPRS slope per 1-unit higher baseline CDR-SB.
+  \item The main-effect terms $\beta_2,\dots,\beta_{8}$ describe how the BPRS level at time 0 shifts with each baseline covariate.
+  \item The interaction term $\beta_{9}$ for $\text{time}_j \cdot \text{cdrsb0}_i$ is the change in the annual BPRS slope per 1-unit higher baseline CDR-SB.
+  \item $\varepsilon_{ij}$ is the residual error term.
 \end{itemize}
 
-
 The covariance structure remains the same as in the full model.
-
-
-
 
 
 ```{r}
 #| label: tbl-question-3-model
 #| tbl-cap: "Simplfied mean structiure Unstructured Covariance Results"
+#| tbl-pos: "H"
 
 fm_adj <- bprs ~ time +  sex + 
   age + bmi + job + adl + wzc +  cdrsb0 + 
@@ -1375,7 +1369,7 @@ lr_test <- anova(
 
 #### Reduced Covariance Structure
 
-As a sensitivity check, we refitted the reduced mean model with a simpler AR(1) covariance, where each visit is mainly correlated with the previous one. The likelihood ratio test clearly favoured the unstructured covariance $(L.Ratio \approx 1233$, $p < 0.0001)$ and AIC/BIC were much worse for AR(1). This confirms the lecture notes, with our unbalanced  follow-up and dropout, simple covariance patterns such as AR(1) are too restrictive, so we keep the unstructured covariance.
+As a sensitivity check, we refitted the reduced mean model with a simpler AR(1) covariance, where each visit is mainly correlated with the previous one. The likelihood ratio test shows that the unstructured covariance is a better fit $(L.Ratio \approx 1233$, $p < 0.0001)$ and AIC/BIC were much worse for AR(1). This confirms that AR(1) is not applicable here because of the  unbalanced nature of the dataset.
 
 
 
@@ -1457,7 +1451,7 @@ res_df <- data.frame(
 p_qq <- ggplot(res_df, aes(sample = resid_pearson)) +
   stat_qq(alpha = 0.6) +
   stat_qq_line(color = "red") +
-  labs(title = "QQ Plot (Pearson Residuals)",
+  labs(title = "QQ Plot",
        x = "Theoretical Quantiles",
        y = "Sample Quantiles") +
   theme_minimal()
@@ -1467,9 +1461,9 @@ p_rvf <- ggplot(res_df, aes(x = fitted, y = resid_pearson)) +
   geom_point(alpha = 0.5) +
   geom_hline(yintercept = 0, color = "red") +
   geom_smooth(method = "loess", se = FALSE, color = "blue") +
-  labs(title = "Pearson Residuals vs Fitted",
+  labs(title = "Residuals vs Fitted",
        x = "Fitted Values",
-       y = "Pearson Residuals") +
+       y = "Residuals") +
   theme_minimal()
 
 # Residuals vs Time (scatter + smooth)
@@ -1477,18 +1471,18 @@ p_rvt <- ggplot(res_df, aes(x = time, y = resid_pearson)) +
   geom_point(alpha = 0.5) +
   geom_hline(yintercept = 0, color = "red") +
   geom_smooth(method = "loess", se = FALSE, color = "blue") +
-  labs(title = "Pearson Residuals vs Time",
+  labs(title = "Residuals vs Time",
        x = "Time (Years)",
-       y = "Pearson Residuals") +
+       y = "Residuals") +
   theme_minimal()
 
 # Optional: boxplot by time
 p_box <- ggplot(res_df, aes(x = factor(time), y = resid_pearson)) +
   geom_boxplot(outlier.alpha = 0.4) +
   geom_hline(yintercept = 0, color = "red") +
-  labs(title = "Residuals by Time (Boxplot)",
+  labs(title = "Residuals by Time",
        x = "Time",
-       y = "Pearson Residuals") +
+       y = "Residuals") +
   theme_minimal()
 
 # Arrange (choose 3 or 4 panels)
@@ -1501,15 +1495,21 @@ grid.arrange(p_qq, p_rvf, p_rvt, p_box, ncol = 2)
 #### Discussion of Question 3 Results
 
 
-For Question 3 (@tbl-question-3-model), our final repeated-measures model uses a reduced mean structure with an unstructured covariance. On the mean side, BPRS rises on average by about $7.2$ points per year (time effect $\hat\beta_{\text{time}} \approx 7.22$). After adjustment, older age, higher BMI, worse ADL, not having a paid job, and living in a nursing home are all linked to higher BPRS: for example, a paid job is associated with about $18.7$ points lower BPRS (jobPaid Job $\approx -18.69$), each unit of ADL with about $2.1$ points higher BPRS (ADL $\approx 2.08$), BMI with about $0.5$ points higher BPRS (BMI $\approx 0.51$), and living in a nursing home with about $1.8$ points higher BPRS (WZC $\approx 1.84$). Women have slightly lower scores than men (sexFemale $\approx -0.27$). The time–CDR-SB interaction is clearly negative (time:CDRSB0 $\approx -0.02$), so patients who start with better cognition tend to show a faster increase in BPRS, whereas those with worse baseline cognition worsen more slowly. This answers the main question at the population level: BPRS worsens over time, and the speed of worsening is linked to baseline cognitive status.
+For Question 3 (@tbl-question-3-model), our final repeated-measures model uses a reduced mean structure with an unstructured covariance. On the mean side, BPRS rises on average by about $7.2$ points per year (time effect $\hat\beta_{\text{time}} \approx 7.22$). After adjustment, older age, higher BMI, worse ADL, not having a paid job, and living in a nursing home are all linked to higher BPRS. For instance, a paid job is associated with about $18.7$ points lower BPRS (jobPaid Job $\approx -18.69$), each unit of ADL with about $2.1$ points higher BPRS (ADL $\approx 2.08$), BMI with about $0.5$ points higher BPRS (BMI $\approx 0.51$), and living in a nursing home with about $1.8$ points higher BPRS (WZC $\approx 1.84$). Women have slightly lower scores than men (sexFemale $\approx -0.27$). The time–CDR-SB interaction is clearly negative (time:CDRSB0 $\approx -0.02$), so patients who start with better cognition tend to show a faster increase in BPRS, whereas those with worse baseline cognition worsen more slowly. This answers the main question at the population level: BPRS worsens over time, and the speed of worsening is linked to baseline cognitive status.
 
 #### Model Limitations
 
-In Question 3 we use a multivariate repeated-measures model. This type of model is mainly suitable when each subject is measured at a small number of fixed time points. Our study fits this setting: BPRS is planned at seven yearly visits, and the software (REPEATED in SAS or `time | patid` in R) can handle that some of these visits are missing for a given patient.
+This marginal model has some limitations compared with a mixed-effects model. It provides population-average effects but not patient-specific trajectories, and it does not  model differences between clinical centres. The LOESS plot by centre shows centres with roughly parallel but clearly non overlapping  curves for majority of centres, suggesting  centre level differences in BPRS levels over time. In the current model, this extra variation is absorbed into the residual covariance rather than being separated out. In Question 5 we therefore move to a mixed-effects model with random intercepts and slopes for patients, and a random intercept for trial, to better describe individual and centre-specific disease trajectories while still addressing the main objective of how BPRS changes over time, and how those changes relate to baseline clinical characteristics, cognition, and biomarkers.
 
-When the number of follow-up times becomes large, multivariate regression is only workable under very specific choices for the mean and covariance; unstructured means and unstructured covariances would otherwise require too many parameters. For unbalanced data with irregular or missing visits, some standard covariance patterns (such as Toeplitz or AR(1)) are not meaningful unless time points are equally spaced, and compound symmetry would impose very strong assumptions by forcing the same correlation for all pairs of visits.
 
-In our data, we have seven fixed annual measurements but substantial dropout. This is still a small number of time points to allow an unstructured covariance. We therefore combined a reduced mean structure with an unstructured covariance over the seven visits, which keeps the model manageable and matches the correlation pattern seen in the exploratory plots.
+#### Reflection on parameterisation
+
+For the marginal model in Question 3, the parameterisation has two parts.  The mean structure and the covariance structure.
+
+On the mean side, we specified a linear effect of time and adjusted for sex, age, BMI, job status, ADL, nursing home residence (WZC) and baseline CDR-SB, plus the interaction between time and CDR-SB: $bprs ~ time + sex + age + bmi + job + adl + wzc + cdrsb0 + time:cdrsb0$.
+We  removed education and the PET biomarkers from the mean structure because they did not improve fit. 
+
+For the covariance structure, we used a unstructured  covariance structure with visit-specific variances. This choice is chosen because of what we saw in the data, repeated BPRS scores within a patient are strongly correlated, especially for close visits, and missingness increase on follow up years. We wanted a structure that does not force equal correlations or equal variances over time because of data imbalance. A simpler AR(1) structure was tried as a sensitivity check and  fitted worse, confirming that the unstructured covariance is more appropriate for these unbalanced longitudinal data.
 
 
 
@@ -1517,8 +1517,7 @@ In our data, we have seven fixed annual measurements but substantial dropout. Th
 
 #### Motivation for Two-stage Analysis
 
-We noticed from the Alzheimer dataset, patients’symptoms did not all commence simultaneously with intensity and neither varied at uniform rate even though followed over time having their psychiatric symptoms (BPRS) assessed repeatedly. The two-stage method enables us to firstly summarize each patient-specific progression using their baseline estimation (intercept) and their progression rate (slope). When we obtain these individual summaries, we will then assess the impact of baseline characteristics like age, BMI, ADL, employment status, or biomarker levels and make possible suggestions for the individual differences in baseline severity and progression rate of symptoms. We distinguish the stages for easier interpretation and also prevent mixing up the variability in the within-patients and between patients. This effectively allows us to infer a proper comprehension of the general patterns and the effects of covariates on these patterns.
-
+We noticed from the Alzheimer dataset, patients' baseline BPRS varied (@fig-per-patient-slope) and rate of progression during  follow up was different. The two-stage method enables us to first summarize each patient-specific progression using their baseline estimation (intercept) and their progression rate (slope). When we obtain these individual summaries, we will then assess the impact of baseline characteristics like age, BMI, ADL, employment status and biomarker levels on these estimated intercepts and slopes in the second stage. This approach helps us understand how these baseline factors influence both the starting severity of psychiatric symptoms and the rate at which these symptoms worsen over time,
 
 #### Diagnostic Plots Overview
 
@@ -1536,18 +1535,18 @@ where:
 - $e_{ij}$ are the individual error terms, assumed to be independent with mean zero.
 
 
-The graph demonstrates the distribution of individual incepts and slopes calculated for each patient at stage 1 of the two stage analysis. On the left panel, the intercept signifies each individual's predicted initial BPRS scores at the beginning of the study. Additionally, the histogram displayed a wide spread with majority of the patients commencing among 50 and 85 while others commenced at either lower or higher. This inferred the initial severity of psychiatric symptoms differed significantly between individuals.
-On the right panel, the slope shows the annual rate of change per patient in BRPS. The majority of the patients were observed to be between 4 and 8, explaining on average patients' symptoms show positive increase over time. The grouping of trends near the positive value shows that for majority of the patients, symptoms tend to get worse across time, however, between the individuals, the exact rate differs
+In the two-stage plots (@fig-two-stage-stage2), the intercepts are much more spread out than the slopes, meaning patients differ a lot in their starting BPRS level but less in their estimated rate of change over time. We also saw (@fig-missingness-analysis) that the most severe patients (high intercepts) tend to drop out early, so their slopes are either missing or based on very few visits. This dropout pattern likely makes the slope distribution look narrower than it really is and may underestimate how much progression rates differ between patients.
 
 
 
 
 
-
-```{r, fig.width=8, fig.height=3.5}
-
-#| label: fig-two-stage-stage1
+```{r}
+#| label: fig-two-stage-stage2
 #| fig-cap: "Individual BPRS Profiles (left) and Distribution of Individual Intercepts and Slopes (right)."
+#| fig.width: 8
+#| fig.height: 3
+#| fig.pos: "H"
 
 # We fit patient with more than one observation
 stage1_results <- alzheimer_long[!is.na(bprs),
@@ -1582,6 +1581,13 @@ two_stage <- ggplot(stage1_results_melt, aes(x = estimate)) +
   theme_minimal()
 
 two_stage
+
+## save the plot in  results/
+ggsave(here("results/fig-two-stage-stage2.png"),
+  plot = two_stage,
+  width = 8,
+  height = 3
+)
 
 ```
 
@@ -1618,15 +1624,15 @@ where:
 - $\epsilon_{0i}$ is the error term.
 
 
-Based on this second stage analysis with regards to its intercepts; we found strong baseline predictors of higher initial BPRS which indicated more severe psychiatric symptoms at study entry. Amongst these strong predictors included age. We saw elderly patients often began the study with more severe psychiatric symptoms; with each additional year of age being associated with an increase of 2.36 BPRS units at baseline. Individuals with marginally higher BMI exhibit slightly severe symptoms upon the study enrollment having each additional unit of BMI associated with an increase of 0.51 BPRS units at baseline. We also observed that having a job is linked to milder symptoms at study baseline as employed patients had 18.28 units lower BPRS at baseline in contrast to the unemployed.  Another strong predictor were the individuals with more impaired daily function that had more severe symptoms initially, implying for every additional ADL scale point correlates with an increase of 2.03 BPRS units at baseline. In addition, the nursing home residents’ commerce with slightly worse psychiatric symptoms, the residents at nursing homes had 1.54 units higher BPRS at baseline in contrast to those living at home. The trend displayed generally demonstrated that most patients’ psychiatric symptoms deteriorate over time, but the rate of decline varies individually. Furthermore, we also noticed that predictors such as sex, cdrsb0, abpet0 and taupet0 of baseline BPRS were not strong predictors. These predictors had confidence intervals spanning from zero, indicating unreliable baseline effects.
+#### Two-stage results for baseline BPRS (intercepts)
 
-
-
+In the second-stage intercept model we look at which baseline factors explain average BPRS at study entry. We see that (@tbl-two-stage-stage2) baseline severity is mainly associated with  clinical characteristics. While holding the other variables constant, older patients start higher (about 2.4 BPRS points per extra year of age), those with higher BMI have slightly higher scores (about 0.5 points per BMI unit), patients with more impaired daily functioning also start with higher BPRS (about 2 points per extra ADL point), those without a paid job have a much more higher baseline BPRS (around 18 points higher than those working), and nursing-home residents start about 1–2 points higher than patients living at home. In contrast, sex, baseline CDR-SB and the PET biomarkers have confidence intervals which include zero, so in this two-stage analysis they add little beyond these clinical variables for explaining the average BPRS level at baseline.
 
 
 ```{r}
 #| label: tbl-two-stage-stage2
 #| tbl-cap: "Two-Stage Intercept Model Results"
+#| tbl-pos: "H"
 
 # Merge the Stage 1 results with the baseline data
 stage2_data <- merge(stage1_results,
@@ -1690,12 +1696,14 @@ where:
 - $\epsilon_{1i}$ is the error term.
 
 
-With regards to the second stage for the slope, we assessed which entry characteristics were related with how rapidly psychiatric symptoms varied over time. The majority of the predictors demonstrated little or unclear effects on the yearly rate of change in BPRS. The patients in a nursing home (WZC) were linked with a slightly higher rate of decline of symptoms, leading to an increased rate of annual change of BPRS by about 0.19 units.  The Baseline CDR-SB also demonstrated a little effect but modest effect where each additional point was related to a 0.02-unit decrease in the annual BPRS change. We observed for other predictors (age, sex, BMI, employment status, ADL score, ABPET, and age, sex, BMI, employment status, ADL score, ABPET, and TAUPET) not strong predictors as they had their estimated slope with confidence intervals crossing zero and also these predictors symptoms rapidly changed over time. Generally, the model linked to slope gives suggestions that the speed at which symptoms progress differs between patients, however the majority of the baseline’s characteristics are not strong predictors of the speed of deterioration.
+In the two-stage slopes model(@tbl-slope-model) we look at which baseline factors are associated to the rate of BPRS changes per year. On average, the annual increase in BPRS is about 6–7 points for the reference patient (estimate 6.37), and most baseline covariates (sex, age, BMI, job, ADL, ABPET0, TAUPET0) have confidence intervals that include 0, so they do not clearly affect this yearly change. Two variables have a significant association with rate of change at ($\alpha = 0.05$). These are patients living in a nursing home have a slightly faster worsening of BPRS (about 0.2 points more per year), while higher baseline CDR-SB is linked with a  slower increase (about 0.02 points less per year for each extra CDR-SB point).
+
 
 
 ```{r}
 #| label: tbl-slope-model
 #| tbl-cap: "Two-Stage Slope Model Results"
+#| tbl-pos: "H"
 
 slope_formula <- as.formula(paste(
   "slope ~",
@@ -1731,7 +1739,7 @@ The two stage analysis would lose efficiency as individual intercept and slopes 
 
 To understand how psychiatric symptoms evolve over time in Alzheimer’s disease, we developed a statistical model that accounts for repeated measurements in each patient. This model allows each patient to have their own starting level of symptoms and their own rate of change over time. The outcome of interest was the Brief Psychiatric Rating Scale (BPRS), measured annually over six years.
 
-We model the longitudinal BPRS scores using a linear mixed-effects model with random effects at both the patient and trial level:
+We fit  the longitudinal BPRS scores using a linear mixed-effects model with random effects at both the patient and trial level. The model is specified as follows:
 
 
 $$
@@ -1785,7 +1793,8 @@ $$
 
 #### Model Motivation and Justification
 
-Here, We chose to fit  linear mixed effects model because our dataset contains repeated BPRS measurements for the same patients over 6 years and across multiple clinical trials, with clear variability both in baseline symptom severity and rate of change between patients. An unstructured covariance matrix was used for the random effects, allowing the intercept and slope to be correlated. The model included:
+We fitted a linear mixed effects model because our dataset contains repeated BPRS measurements for the same patients over 6 years and across multiple clinical trials, with clear variability both in baseline symptom severity and rate of change between patients(@fig-per-patient-slope). 
+The model included:
 
 1) Random intercepts and random slopes for each patient, reflecting that individuals differ both in their baseline psychiatric symptom severity and their rate of change over time.
 2) A random intercept for trial was added to account for systematic differences across the 25 clinical trials.
@@ -1794,7 +1803,7 @@ Here, We chose to fit  linear mixed effects model because our dataset contains r
 
 #### Estimation Method
 
-The model was fitted using Restricted Maximum Likelihood (REML), which provides more reliable and less biased estimates of variance components, especially because our dataset had many clusters (patients, trials).Because our model includes random intercepts for both patients and trials, REML is appropriate to ensure stable estimates of these random effect variances.
+The model was fitted using Restricted Maximum Likelihood (REML), which provides more reliable and less biased estimates of variance components, because our dataset had many clusters (patients, trials). Also our model includes random intercepts for both patients and trials and slopes for patients.  REML is appropriate to ensure stable estimates of these random effect variances.
 
 
 #### Assumptions made
@@ -1804,22 +1813,20 @@ The model was fitted using Restricted Maximum Likelihood (REML), which provides 
 3) Independence: After accounting for random effects, residuals are independent.
 3) Homoscedasticity: The residual errors have constant variance across time and subjects.
 4) Missing data (dropout) are at least missing at random (MAR) conditional on the covariates and random effects.
-5) Correct Covariance Structure: The specified random-effects structure (random intercepts and slopes) appropriately captures within-subject and within-trial correlation.
+5) Correct Covariance Structure: The specified random-effects structure (random intercepts and slopes) appropriately captures within-patients and within-trial variance.
 
 
 
 #### Limitations
 
-1) More complex to interpret for non-statisticians.The presence of fixed effects, random effects, and correlation structures makes interpretation harder compared to ordinary regression
-2) Results depend on correct specification of random-effects structure. Misspecifying random intercepts/slopes or the covariance structure can lead to biased estimates or incorrect standard errors.
-3) Convergence issues can arise with complex models. Models with multiple random effects, unstructured covariance matrices, or small sample sizes may fail to converge or produce unreliable estimates.
+1) More complex to interpret for non-statisticians; the presence of fixed effects, random effects, and correlation structures makes interpretation harder compared to ordinary regression
+2) Results depend on correct specification of random-effects structure; misspecifying random intercepts/slopes or the covariance structure can lead to biased estimates or incorrect standard errors.
+3) Convergence issues can arise with complex models; models with multiple random effects, unstructured covariance matrices, or small sample sizes may fail to converge or produce unreliable estimates.
 4) Assumptions such as normality of random effects and linearity may not fully hold in real data. Although LME models are robust, violation of assumptions especially the normality of random effects can affect estimates, particularly with small sample sizes.
 5) MAR assumption cannot be fully verified.The model assumes missing data are Missing At Random, but this assumption is untestable and can lead to biased results if dropout relates to unobserved outcomes.
 
 
 ```{r}
-
-
 #| label: tbl-lmer-reduced-mean-structure
 #| tbl-cap: "Mixed Model with Random Intercept and Slope Results"
 #| tbl-pos: "H"
@@ -1836,7 +1843,9 @@ lmer_reduced_mean_structure <- lmer(fm_adj,
 )
 
 #summary(lmer_reduced_mean_structure)
-tidy_with_ci(lmer_reduced_mean_structure) |>
+lmer_tidy <-tidy_with_ci(lmer_reduced_mean_structure) 
+
+lmer_tidy |>
  kable(
    format = "latex",
    caption = "Mixed Model with Random Intercept
@@ -1849,6 +1858,12 @@ tidy_with_ci(lmer_reduced_mean_structure) |>
  kable_styling(font_size = 9, position = "center") |>
   kable_styling(latex_options = c("hold_position", "scale_down"))
 
+# save lmer_tidy as csv in results with row.names()
+
+write.csv(lmer_tidy,
+  file = here("results/lmer_reduced_mean_structure_results.csv"),
+  row.names = FALSE
+)
 ```
 
 
@@ -1856,62 +1871,77 @@ tidy_with_ci(lmer_reduced_mean_structure) |>
 
 To ensure that the linear mixed-effects model is statistically reliable, several diagnostic checks were performed. These checks help determine whether the model's assumptions are met, and whether the results are reliable.
 
-**Normality of Residuals (Q–Q Plot)**
+**Normality of Residuals (Q-Q Plot)**
 
-(@fig-residual-diagnostics) right plot presents the Normal Q–Q plot which compares the distribution of the model residuals (errors) to what would be expected if they followed a normal distribution, which is an underlying assumption of linear mixed-effects models.The residuals aligned closely with the expected diagonal line, showing two deviations at each tail.The assumption of normally distributed residuals is largely satisfied. This supports the reliability of the estimated effects.
+The right plot (@fig-residual-diagnostics) presents the Normal Q-Q plot which compares the distribution of the model residuals (errors) to what would be expected if they followed a normal distribution, which is an underlying assumption of linear mixed-effects models.The residuals aligned closely with the expected diagonal line, showing two deviations at each tail.The assumption of normally distributed residuals is largely satisfied. This supports the reliability of the estimated effects.
 
 
 ```{r}
-
 #| label: fig-residual-diagnostics
-#| fig-cap: "Residual Diagnostics: Residuals vs Fitted (left) and Normal Q–Q Plot (right)."
+#| fig-cap: "Residual Diagnostics: Residuals vs Fitted (left) and Normal Q-Q Plot (right)."
 #| fig-pos: "H"
-#| fig.width = 9
-#| fig.height= 4.5
+#| fig.width: 9
+#| fig.height: 3
 
 
 
-resid_re  <- resid(lmer_reduced_mean_structure)
+resid_re <- resid(lmer_reduced_mean_structure)
 fitted_re <- fitted(lmer_reduced_mean_structure)
 
 # ---- ggplot version of Residuals vs Fitted ----
-p1 <- ggplot(data.frame(fitted = fitted_re, resid = resid_re),
-             aes(x = fitted, y = resid)) +
-  geom_point() +
-  geom_hline(yintercept = 0, colour = "red") +
-  labs(title="Residuals vs Fitted Values") +
-  labs(x = "Fitted values", y = "Residuals") + theme_minimal()
+p1_diag_q5 <- ggplot(
+    data.frame(fitted = fitted_re, resid = resid_re),
+    aes(x = fitted, y = resid)
+) +
+    geom_point() +
+    geom_hline(yintercept = 0, colour = "red") +
+    labs(title = "Residuals vs Fitted Values") +
+    labs(x = "Fitted values", y = "Residuals") +
+    theme_minimal()
 
 # ---- ggplot version of QQ plot ----
-p2 <- ggplot(data.frame(resid = resid_re), aes(sample = resid)) +
-  stat_qq() +
-  stat_qq_line(colour = "red") +
-  labs(title = "Normal Q–Q Plot") + theme_minimal()
+p2_diag_q5 <- ggplot(data.frame(resid = resid_re), aes(sample = resid)) +
+    stat_qq() +
+    stat_qq_line(colour = "red") +
+    labs(title = "Normal Q-Q Plot") +
+    theme_minimal()
 
 # ---- Arrange with caption ----
 grid.arrange(
-  p1, p2,
-  ncol = 2
+    p1_diag_q5, p2_diag_q5,
+    ncol = 2
 )
 
+# save grid
+#
+png(here("results/fig-residual-diagnostics.png"),
+    width = 8, height = 6,
+    units = "in", res = 100
+)
+
+grid.arrange(
+    p1_diag_q5, p2_diag_q5,
+    ncol = 2
+)
+
+dev.off()
 ```
 
 
 **Residuals vs. Fitted Values Plot**
 
-(@fig-residual-diagnostics) left plot assesses whether residuals are randomly distributed around zero, which reflects the assumption of constant variability ("homoscedasticity").Residuals are spread evenly around zero with no funnel shape or curvature. This indicates Variance is stable across time, the model does not systematically under or over predict symptoms and the linearity assumption is appropriate. The model fits the data well and the variability is appropriately captured.
+The left plot (@fig-residual-diagnostics) assesses whether residuals are randomly distributed around zero, which reflects the assumption of constant variability ("homoscedasticity").Residuals are spread evenly around zero with no funnel shape or curvature. This indicates Variance is stable across time, the model does not systematically under or over predict symptoms and the linearity assumption is appropriate. The model fits the data well and the variability is appropriately captured.
 
 **Distribution of Patient-Specific Intercepts and Slopes**
 
-To evaluate whether the random-effects model appropriately captured differences between patients, we examined the distribution of the estimated subject-specific intercepts (patients’ baseline BPRS scores) and subject-specific slopes (their rates of symptom change over time)(Figure 9). The random intercepts (@fig-random-effects-diagnostics) left Q-Q plot follow the theoretical normal line very closely, with only minor deviations at the extreme upper and lower tails. This suggests that the normality assumption for the random intercepts is well satisfied. The distribution is symmetric and shows no major outliers, indicating that patient-level baseline differences in BPRS are reasonably captured by a normal random intercept.The random slopes (@fig-random-effects-diagnostics) Middle Q-Q plot also align closely with the diagonal reference line, again with only slight deviations in the two tails. This indicates that the random slopes are approximately normally distributed, supporting the assumption that individual differences in rate of change follow a normal pattern. No strong violations or heavy-tailed behavior are present. The scatterplot of random intercepts versus random slopes (@fig-random-effects-diagnostics) Scatterplot shows cloud of points with no strong linear relationship. This implies that patients’ baseline BPRS levels are not strongly associated with their rate of change over time. In other words, starting severity does not systematically predict whether a patient improves faster or slower. The spread is balanced around zero for both intercepts and slopes, confirming that the random-effects structure is behaving as expected.
+To evaluate whether the random-effects model appropriately captured differences between patients, we examined the distribution of the estimated subject-specific intercepts (patients’ baseline BPRS scores) and subject-specific slopes (their rates of symptom change over time)(@fig-random-effects-diagnostics). The random intercepts shown(@fig-random-effects-diagnostics) on the left Q-Q plot follow the theoretical normal line very closely, with only minor deviations at the extreme upper and lower tails. This suggests that the normality assumption for the random intercepts is well satisfied. The distribution is symmetric and shows no major outliers, indicating that patient-level baseline differences in BPRS are reasonably captured by a normal random intercept.The random slopes (@fig-random-effects-diagnostics) ; the middle Q-Q plot also align closely with the diagonal reference line, again with only slight deviations in the two tails. This indicates that the random slopes are approximately normally distributed, supporting the assumption that individual differences in rate of change follow a normal pattern. No strong violations or heavy-tailed behavior are present. The scatterplot of random intercepts versus random slopes (@fig-random-effects-diagnostics) scatterplot shows cloud of points with no strong linear relationship. This implies that patients’ baseline BPRS levels are not strongly associated with their rate of change over time. In other words, starting severity does not systematically predict whether a patient improves faster or slower. The spread is balanced around zero for both intercepts and slopes, confirming that the random-effects structure is behaving as expected.
 
 ```{r}
-
 #| label: fig-random-effects-diagnostics
-#| fig-cap: "Diagnostics of Random Effects: Q–Q plots for random intercepts (left) and random slopes (middle), and their joint distribution (right)."
+#| fig-cap: "Diagnostics of Random Effects: Q-Q plots for random intercepts (left) and random slopes (middle), and their joint distribution (right)."
 #| fig-pos: "H"
-#| fig.width=9
-#| fig.height=4.5
+#| fig.width: 9
+#| fig.height: 4.5
 
 
 library(ggplot2)
@@ -1927,14 +1957,14 @@ re_df <- data.frame(
 p1 <- ggplot(re_df, aes(sample = intercept)) +
   stat_qq() +
   stat_qq_line(colour = "red") +
-  labs(title = "Q–Q Plot: Random Intercepts",
+  labs(title = "Q-Q Plot Random Intercepts",
        x = "Theoretical Quantiles", 
        y = "Sample Quantiles") + theme_minimal()
 
 p2 <- ggplot(re_df, aes(sample = slope)) +
   stat_qq() +
   stat_qq_line(colour = "red") +
-  labs(title = "Q–Q Plot: Random Slopes",
+  labs(title = "Q-Q Plot Random Slopes",
        x = "Theoretical Quantiles", 
        y = "Sample Quantiles") + theme_minimal()
 
@@ -1948,13 +1978,7 @@ p3 <- ggplot(re_df, aes(x = intercept, y = slope)) +
 
 grid.arrange(
   p1, p2, p3,
-  ncol = 2,
-  bottom = textGrob(
-    "Figure 9: Diagnostics of Random Effects:
-    Q–Q plots for random intercepts (left) and random slopes (middle), and their joint distribution (right).",
-    gp = gpar(fontsize = 10),
-    x = 0.5, hjust = 0.5
-  )
+  ncol = 2
 )
 
 ```
@@ -1964,18 +1988,17 @@ grid.arrange(
 
 #### Comparison With the Two-Stage Analysis
 
-To compare the two-stage approach with the mixed-effects model, we examined patient-specific intercepts and slopes estimated by each method. The intercepts showed very strong agreement between the two approaches (@fig-two-stage-vs-mixed) left with a correlation of r = 0.94 and points closely following the 45-degree line. This indicates that baseline BPRS levels are estimated consistently in both methods. In contrast, the agreement for slopes was moderate (@fig-two-stage-vs-mixed) right with r = 0.77, and the two-stage estimates displayed greater variability and several extreme values. This pattern reflects the inherent instability of estimating individual change rates from limited per-patient data. The mixed-effects model, by using all available data simultaneously, shrinks extreme slopes toward the population mean and produces more stable and reliable estimates. Overall, the mixed model provides a clearer and less noisy picture of individual symptom trajectories, particularly for the rate of change over time.
-
-
+To compare the two-stage approach with the mixed-effects model, we examined patient-specific intercepts and slopes estimated by each method. The intercepts showed very strong agreement between the two approaches (@fig-two-stage-vs-mixed) on the left with a correlation of r = 0.94 and points closely following the 45-degree line. This indicates that baseline BPRS levels are estimated consistently in both methods. In contrast, the agreement for slopes was moderate (@fig-two-stage-vs-mixed) on the right with r = 0.77, and the two-stage estimates displayed greater variability and several extreme values. This pattern reflects the inherent instability of estimating individual change rates from limited per-patient data. The mixed-effects model, by using all available data simultaneously, shrinks extreme slopes toward the population mean and produces more stable and reliable estimates. Overall, the mixed model provides a clearer and less noisy picture of individual symptom trajectories, particularly for the rate of change over time.
 Overall, the two methods give broadly similar patient-specific results, but the mixed model provides a clearer and more stable representation of individual symptom trajectories, particularly for the rate of change over time
 
 
 ```{r}
-
 #| label: fig-two-stage-vs-mixed
 #| fig-cap: "Comparison of Patient-Specific Intercepts and Slopes from the Two-Stage and Mixed-Model methods."
 #| fig-subcap: c("Intercepts", "Slopes")
 #| fig-pos: "H"
+#| fig.width: 8
+#| fig.height: 3.5
 
 
 # Build per-patient newdata at time 0 and 1 (baseline covariates)
@@ -2122,11 +2145,12 @@ kable(
 
 ##### Variance components from mixed model
 
-The variance components show that, besides differences between patients, there is a big between-centre (trial) variance, with trial-level $SD \approx 2.8$, much larger than the patient-level SD. This means average outcomes differ substantially across centres.
+The variance components(@tbl-random-effects-variance-components) show that, besides differences between patients, there is a big between-centre (trial) variance, with trial-level $SD \approx 2.8$, much larger than the patient-level SD. This means average outcomes differ substantially across centres.
 
 ```{r }
-#| label: random-effects-variance-components
+#| label: tbl-random-effects-variance-components
 #| tbl-cap: "Random Effects: Variance Components from Mixed Model"
+#| tbl-pos: "H"
 
 # Helper to tidy random-effects variance/correlation like lmer summary
 tidy_re_varcorr <- function(model, digits = 3) {
@@ -2210,10 +2234,18 @@ display_random_effects(lmer_reduced_mean_structure,
                         variance components (lmer)",
   digits = 3
 )
+
+var_comp <- tidy_re_varcorr(lmer_reduced_mean_structure,
+ digits = 3)
+
+ ## save csv 
+write.csv(var_comp,
+  file = here("results/lmer_random_effects_variance_components.csv"),
+  row.names = FALSE)
 ```
 
 
-The linear mixed-effects model was fitted to 6,220 observations from 1,253 patients across 25 trials. The REML criterion at convergence was 27,121.3, and scaled residuals ranged from −3.64 to 3.32.The random-effects structure included patient-level random intercepts and random slopes for time. These patient-specific intercepts and slopes were correlated. The model also included trial-level random intercepts to account for between-trial variation. The full set of estimated variances, standard deviations, and correlations for all random-effect terms is presented in (@random-effects-variance-components).
+The linear mixed-effects model was fitted to 6,220 observations from 1,253 patients across 25 trials. The REML criterion at convergence was 27,121.3, and scaled residuals ranged from −3.64 to 3.32.The random-effects structure included patient-level random intercepts and random slopes for time. These patient-specific intercepts and slopes were correlated. The model also included trial-level random intercepts to account for between-trial variation. The full set of estimated variances, standard deviations, and correlations for all random-effect terms is presented in (@tbl-random-effects-variance-components).
 
 Several fixed effects were statistically significant, including the intercept, time, age, BMI, job status, WZC category, and the time-by-cdrsb0 interaction, all with (p<0.001). The effects of sex, ADL, and the main effect of cdrsb0 were not statistically significant. Full estimates, standard errors, and significance levels for all fixed effects are presented in (@tbl-lmer-reduced-mean-structure).
 
@@ -2225,7 +2257,7 @@ The analysis showed that  psychiatric symptoms worsen steadily over time, with p
 
 Patients who were older, had higher BMI, poorer daily functioning (ADL), lived in a nursing home, or did not have a paid job tended to have more severe psychiatric symptoms at baseline. In addition, patients with more impaired cognition at diagnosis (higher CDR-SB) showed faster worsening of psychiatric symptoms over time. 
 
-Overall, this approach provides a detailed picture of how psychiatric symptoms evolve in Alzheimer’s disease. It shows which baseline factors are linked with faster decline, and it gives individualized estimates of symptom progression. These findings can help to better understand patient variability, identify patients who may be at higher risk for rapid deterioration, and guide monitoring and care strategies over the course of the disease.
+Overall, this model  provides a detailed analysis of how psychiatric symptoms evolve in Alzheimer’s disease. It shows which baseline factors are linked with faster decline, and it gives individualized estimates of symptom progression. These findings can help to better understand patient variability, identify patients who may be at higher risk for rapid deterioration, and guide monitoring and care strategies over the course of the disease.
 
 
 
@@ -2233,39 +2265,34 @@ Overall, this approach provides a detailed picture of how psychiatric symptoms e
 
 The chosen parameterization had two main components:
 
-Mean structure (fixed effects): We specified a linear effect of time, adjusted for sex, age, BMI, job status, ADL, nursing home residence (WZC), baseline CDR-SB,  amyloid PET, and the interaction between time and CDR-SB. This reflects a clinical hypothesis that:
+Mean structure (fixed effects): We specified a linear effect of time, adjusted for sex, age, BMI, job status, ADL, nursing home residence (WZC), baseline CDR-SB, and the interaction between time and CDR-SB. This reflects a clinical hypothesis that:
 
 1) symptom severity depends on demographic, functional, and disease severity markers at baseline, and
 
 2) cognitive status modifies the trajectory of psychiatric symptoms (time × CDRSB0).
 
-Although the assumption of linear change simplifies interpretation, non-linear patterns could be explored in future work if justified..
+Although the assumption of linear change simplifies interpretation, non-linear patterns could be explored in future work if justified.
 
-For the covariance structure, we selected patient-level random intercepts and random slopes for time with an unstructured covariance matrix. This parameterization captures individual differences in baseline severity and rates of change while allowing them to be correlated. Trial-level random intercepts accounted for between-trial variation. Overall, this structure provides a good balance between flexibility and interpretability. Alternative parameterizations, such as non-linear time or more complex random effects, could be considered, but the chosen model is appropriate and coherent for the current analysis.
+For the covariance structure, we selected patient-level random intercepts and random slopes for time with an unstructured covariance matrix. This parameterization captures individual differences in baseline severity and rates of change while allowing them to be correlated. Trial-level random intercepts accounted for between-trial variation(@fig-trial-centersplot). Overall, this structure provides a good balance between flexibility and interpretability. 
 
 ### Recommendations for future similar studies
 
 Based on what we observed in the exploratory plots and models, we suggest the following design and data collection improvements for future work on BPRS in Alzheimer patients.
 
 1. Address informative dropout and missingness
-  * Patients with higher baseline BPRS missed more follow-up visits, and overall missingness rose above 40% by Year 6. This shows     that dropout is related to disease severity, and is unlikely to be completely random.
-  * At enrolment, consider whether including patients with extremely severe psychiatric symptoms at baseline will lead to very       early dropout. If this subgroup is retained, plan in advance how their missing data will be handled in the analysis.
-  * Record reasons for dropout in a structured way (death, institutionalisation, moving away, withdrawal of consent, adverse         events). This will help future analyses distinguish between random and informative missingness and allow sensitivity             analyses.
+  * Patients with higher baseline BPRS missed more follow-up visits, and overall missingness rose above 40% by Year 6. This shows that dropout is related to disease severity, and is unlikely to be completely random.
+  * At enrolment, consider whether including patients with extremely severe psychiatric symptoms at baseline will lead to very early dropout. If this subgroup is retained, plan in advance how their missing data will be handled in the analysis.
+  * Record reasons for dropout in a structured way (death, institutionalisation, moving away, withdrawal of consent, adverse events). This will help future analyses distinguish between random and informative missingness and allow sensitivity analyses.
 
 2. Standardise clinical site procedures
- * The LOESS plots by clinical centre showed clear differences in BPRS trajectories between centres. In the mixed-effects model,    a random intercept for trial was needed to account for important between-centre variation.
- * Tighten and document SOPs for BPRS assessment across centres, including rater training and calibration, to reduce artificial     differences due to measurement.
- * If centres serve populations with different baseline severity, consider stratifying enrolment by baseline BPRS or CDR-SB so      that severity is more evenly distributed over centres and treatment groups.
+ * The LOESS plots by clinical centre showed clear differences in BPRS trajectories between centres. In the mixed-effects model, a random intercept for trial was needed to account for important between-centre variation.
+ * Tighten and document SOPs for BPRS assessment across centres, including rater training and calibration, to reduce artificial differences due to measurement.
+ * If centres serve populations with different baseline severity, consider stratifying enrolment by baseline BPRS or CDR-SB so that severity is more evenly distributed over centres and treatment groups.
 
-3. Collect richer covariate information
-  * In the two-stage analysis and mixed-effects model, there was still substantial variation in patient-specific intercepts and      slopes after adjusting for age, sex, BMI, ADL, and cognition. This suggests important patient differences in progression that     are not yet explained.
-  * In future studies, collect additional longitudinal information on treatment and care: medication classes and doses,              psychosocial or behavioural interventions, caregiver burden, and comorbidities (e.g. depression, cardiovascular disease).
-    These variables may help explain which patients deteriorate faster and could identify modifiable risk factors.
 
-4. Improve biomarker data collection
-  * Tau PET (taupet0) showed almost no variability from about Year 3 onwards, which made it uninformative for explaining changes     in BPRS. This limits its use in longitudinal models.
-  * Review and standardise biomarker measurement protocols across centres to avoid ceiling or floor effects.
-  * Where possible, broaden the range of biomarkers collected, and ensure they are measured with enough precision and variability     over time to be useful in explaining clinical trajectories.
+3. Improve biomarker data collection
+  * Tau PET (taupet0) showed almost no variability from about Year 3 onwards, which made it uninformative for explaining changes in BPRS. This limits its use in longitudinal models.
+  * Where possible, broaden the range of biomarkers collected, and ensure they are measured with enough precision and variability  over time to be useful in explaining clinical trajectories.
 
 
 ### Appendix
@@ -2285,3 +2312,30 @@ tidy_with_ci(gls_full_mean_structure) |>
   kable_styling(font_size = 9, position = "center")   |>
   kable_styling(latex_options = c("hold_position", "scale_down"))
 ```
+
+
+
+
+
+```{r}
+#| label: tbl-q1-baseline-summary-tables
+#| tbl-cap: "Baseline Patient Characteristics"
+tab1_summary$Overall <- NULL  
+# Print the table
+kable(tab1_summary,
+  format = "latex",
+  booktabs = TRUE,
+  #longtable = TRUE,
+  align = "lccccccc"
+) |>
+  # scale down to fit page width
+  kableExtra::kable_styling(
+    latex_options = c(
+      
+      "scale_down"
+    ),
+    font_size = 9
+  )
+
+```
+
