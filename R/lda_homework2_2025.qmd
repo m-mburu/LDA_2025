@@ -456,7 +456,7 @@ ggplot(semivar_df, aes(x = lag, y = semivariance)) +
 
 
 
-To estimate how the population averaged (marginal effects) probability of being in the worse cognitive category (CDRSBbin = 1, i.e. CDRSB > 10) changes over time, we fitted a marginal model using generalized estimating equations (GEE) with a logit link and an AR(1) working correlation structure. The model includes time, sex, age, body mass index (BMI), activities of daily living (ADL), amyloid PET (ABPET), and tau PET (TAUPET) as covariates, and accounts for within-patient correlation across repeated visits using the working correlation matrix.
+To estimate how the population averaged (marginal effects) probability of being in the worse cognitive category (CDRSBbin = 1, i.e. CDRSB > 10) changes over time, we fitted a marginal model using generalized estimating equations (GEE), GEE1 with a logit link and an AR(1) working correlation structure. The model includes time, sex, age, body mass index (BMI), activities of daily living (ADL), amyloid PET (ABPET), and tau PET (TAUPET) as covariates, and accounts for within-patient correlation across repeated visits using the working correlation matrix.
 Let \(Y_{it}\) be the binary outcome for patient \(i\) at time \(t\). We define the marginal mean as:
 $$
 \pi_{it} = \Pr\bigl(Y_{it} = 1 \mid X_{it}\bigr).
@@ -509,6 +509,8 @@ gee_model <- geeglm(
 
 summary(gee_model)
 
+
+
 # Tidy output with Odds Ratios
 tidy_with_ci(gee_model, exponentiate = TRUE) %>%
     kable(
@@ -526,14 +528,15 @@ tidy_with_ci(gee_model, exponentiate = TRUE) %>%
     )
 ```
 
+
 **Model Motivation**
 
-We used GEE model because we wanted to know about the average effects in the population, not individual effects. Our target here was the population average effect that is "On average, how does time/Abpet/tau/ADL affect the probability of worse cognition in this patient group?. We have the correlated repeated measues but our main interest is the marginal mean. So, Generalized Estimating Equations models this mean directly and uses a working correlation to account for within patient dependence. In addition, coefficients are easy to interpret as population-level odds ratios and robust (“sandwich”) standard errors are valid even if the working correlation is not perfectly specified.
+We used a first order Generalised Estimating Equation(GEE1) because we were interested in the average effects in the population, not individual effects. Our target here was the population average(marginal) effect that is "On average, how does time/Abpet/tau/ADL affect the probability of worse cognition in this patient group?. We have the correlated repeated measues but our main interest is the marginal mean, not the detailed structure of the within subject correlation. So, Generalized Estimating Equations(GEE1) models this mean directly and uses a working correlation to account for within patient dependence. In addition, coefficients are easy to interpret as population-level odds ratios and robust (“sandwich”) standard errors are valid even if the working correlation is not perfectly specified.
 
 
 **Choice of method and Estimation**
 
-We fitted a marginal (population-average) model using Generalised Estimating Equation and used binomial family with logit link and AR(1) working correlation (corstr = "ar1"). Estimation was via GEE with robust (“sandwich”) standard errors, so inference is valid even if the exact working correlation is misspecified.
+We fitted a marginal (population-average) model using Generalised Estimating Equation (GEE1) with a binomial family and logit link,  and AR(1) working correlation (corstr = "ar1"). Estimation was via GEE algorithmwith robust (“sandwich”) standard errors, so inference for the regression coefficients remains valid even if the exact working correlation is misspecified.
 
 **Marginal Variance/correlation**
 
@@ -542,6 +545,16 @@ $$
 \operatorname{Var}(Y_{it} \mid X_{it}) = \mu_{it}\bigl(1 - \mu_{it}\bigr)
 $$
 as in the binomial model. The working correlation is AR(1): correlation between time points decreases with increasing time lag. Semivariogram graph showed decreasing correlation with incease in time lag, supporting the AR(1) choice.
+
+**Assumptions**
+
+* The marginal mean is correctly specified
+* Correct variance function for the outcome(CDRSBbin)
+* Independent clusters: Different patients (clusters) are independent; correlation is only within the same patient.
+* Given the covariates in the model, the remaining random part of the outcome is “noise,” not systematically related to unmeasured predictors.
+* Missingness: Dropout / missing data is assumed at least missing completely at random or missing at random given observed covariates and past outcomes, so that the estimating equations remain valid.
+
+
 
 **Advantages**
 
@@ -560,6 +573,9 @@ as in the binomial model. The working correlation is AR(1): correlation between 
 
 **Reflection on Parameterization**
 
+* Link function: The logit link gives coefficients that are log–odds ratios at the population level, which are easy to interpret for a clinician
+* Baseline vs time-varying covariates: Sex, age, adl and BMI were treated as baseline covariates; ABPET, and TAUPET were treated as time-varying, so their coefficients describe how changes in these measures over time are associated with changes in the probability of being in the worse CDRSB category.
+
 **Results**
 
 We modelled the probability of being in the worse cognitive category (CDRSBbin = 1, CDRSB > 10) over 6 years using a marginal logistic model (GEE) with predictors time, sex, age, BMI, ADL, ABPET and TAUPET, clustering on patient and using an AR(1) working correlation structure. The fitted model had an intercept of –1.50 (SE 0.59, p = 0.011), corresponding to an estimated baseline probability of CDRSBbin = 1 of about 0.18. The coefficient for time was 0.25 (SE 0.024, p < 0.001). The coefficients (SE, p-value) for the other covariates were: sex (female vs male) –0.10 (0.057, p = 0.097), age –0.013 (0.0073, p = 0.080), BMI 0.0087 (0.0125, p = 0.486), ADL –0.0090 (0.0104, p = 0.387), ABPET 0.034 (0.113, p = 0.761), TAUPET 0.42 (0.19, p = 0.026). The estimated AR(1) working correlation parameter was α = 0.311 (SE 0.0127), and the estimated scale parameter was approximately 1.
@@ -574,9 +590,8 @@ Using a population-average longitudinal model, we found that the probability of 
 # Question 2: Random-Effects Model (GLMM)
 
 To estimate how the probability of being in the worse cognitive category (CDRSBbin = 1, i.e. CDRSB > 10) changes over time while adjusting for patient characteristics, we fitted a generalized linear mixed model (GLMM) with a logit link. The model included fixed effects for time, sex, age, body mass index (BMI), activities of daily living (ADL), amyloid PET (ABPET), and tau PET (TAUPET), and random intercepts for both patients and trials to account for clustering within individuals and study centres.
-For patient \(i\) in trial \(j\) at time \(t\), let \(Y_{ijt} = \text{CDRSBbin}_{ijt}\) be the binary outcome
-(\(Y_{ijt} = 1\) if CDRSB \(> 10\), \(0\) otherwise).  
-We specify the GLMM with logit link as:
+
+For patient $i\ $ in trial $j\ $ at time $t\ $, let $ Y_{ijt} = \text{CDRSBbin}_{ijt} $ be the binary outcome $ Y_{ijt} = 1 $ if CDRSB \(> 10\), \(0\) otherwise). We specify the GLMM with logit link as:
 $$
 \text{logit}\bigl\{\Pr(Y_{ijt} = 1 \mid b_{0i}, u_{0j})\bigr\}
 =
@@ -584,8 +599,8 @@ $$
 + \beta_1\,\text{time}_{ijt}
 + \beta_2\,\text{sex}_i
 + \beta_3\,\text{age}_i
-+ \beta_4\,\text{bmi}_i
-+ \beta_5\,\text{adl}_i\\
++ \beta_4\,\text{bmi}_i \\
++ \beta_5\,\text{adl}_i
 + \beta_6\,\text{abpet}_{ijt}
 + \beta_7\,\text{taupet}_{ijt}
 + b_{0i}
@@ -594,21 +609,11 @@ $$
 
 where:
 
-$(\beta_0,\ldots, \beta_7)$ are population-level (fixed) effects,
+* $(\beta_0,\ldots, \beta_7)$ are population-level (fixed) effects,
 
-$$
-b_{0i} \sim N(0, \sigma_{b0}^2)
-$$
+* $ b_{0i} \sim N(0, \sigma_{b0}^2) $ is the patient-specific random intercept,  
 
-is the patient-specific random intercept,  
-
-$$
-u_{0j} \sim N(0, \sigma_{u0}^2)
-$$
-
-is the trial-specific random intercept, conditional on $(b_{0i}, u_{0j})$ and the covariates,
-  $(Y_{ijt} \sim \text{Bernoulli}(\pi_{ijt})$ with  
-  $(\pi_{ijt} = \Pr(Y_{ijt}=1 \mid b_{0i}, u_{0j})$.
+* $u_{0j} \sim N(0, \sigma_{u0}^2) $ is the trial-specific random intercept, conditional on $(b_{0i}, u_{0j})$ and the covariates, $(Y_{ijt} \sim \text{Bernoulli}(\pi_{ijt})$ with $(\pi_{ijt} = \Pr(Y_{ijt}=1 \mid b_{0i}, u_{0j})$.
 
 
 ```{r glmm-model}
@@ -625,11 +630,6 @@ glmm_model <- glmer(
 
 summary(glmm_model)
 
-```
-
-
-
-```{r}
 
 tidy_with_ci(glmm_model, exponentiate = TRUE) %>%
   kable(
@@ -647,62 +647,91 @@ tidy_with_ci(glmm_model, exponentiate = TRUE) %>%
   )
 ```
 
+
+
+
+
+
 **Model Motivation**
 
-We fitted GLMM with  a logit link because the outcome CDRSB was binary and also we were interested in patient-specific behaviour and heterogeneity between patients. Our main interest here was conditional/subject specific effect, we wanted to answer this queston, "For a given patient, how does their risk of worse cognition change over time after accounting for the random intercept (and slope)?. We saw that patients differ in baseline crdsb risk and possibly the rate of change, so we want to model this using the random intercepts and slopes. We chose this model because gives patient-specific predictions and empirical Bayes random effects (individual intercepts/slopes) and it handles different number of visits ad trial effects.
+We fitted a logistic GLMM because the outcome (CDRSB) was binary and our primary interest was in subject-specific effects and heterogeneity between patients and sites. The model addresses the question: for a given patient, how does the risk of worse cognition change over time, after accounting for between-patient and between-trial differences? Random intercepts for patients and trials capture variation in baseline CDRSB risk at both levels and induce appropriate within-patient and within-trial correlation. This parameterisation provides patient-specific predictions and empirical Bayes estimates of individual intercepts, while accommodating unequal numbers of visits per patient and trial-level effects.
 
 **Choice of Techniques and Estimation**
 
-To analyse the longitudinal binary outcome CDRSBbin, we used a generalised linear mixed model (GLMM) with a logit link. The model included a random intercept for each patient (to allow each person to have their own baseline risk), a random slope for time at patient level (to allow individual progression rates), and a random intercept for trial (to capture systematic differences between study sites/centres). This gives a subject-specific model that accounts for the correlation of repeated measurements within patients and clustering within trials. The model was fitted by maximum likelihood using the Laplace approximation (via glmer(..., nAGQ = 1)), which approximates the integral over the random effects and provides more accurate estimates for binary data than quasi-likelihood methods such as PQL or MQL.
+To analyse the longitudinal binary outcome CDRSBbin, we used a generalised linear mixed model (GLMM) with a logit link. The model included a random intercept for each patient (to allow each person to have their own baseline risk) and a random intercept for trial (to capture systematic differences between study sites/centres). This gives a subject-specific model that accounts for the correlation of repeated measurements within patients and clustering within trials. The model was fitted by maximum likelihood using the Laplace approximation (via glmer(..., nAGQ = 1)), which approximates the integral over the random effects and provides more accurate estimates for binary data than quasi-likelihood methods such as PQL or MQL.
 
 
 **Assumptions**
 
-* Conditional on random effects and covariates, the responses \(Y_{it}\) are independent Bernoulli:
 
+Let $i$ index patients, $j$ index trials, and $t$ index measurements within patient $i$ in trial $j$.
 
-$$
-  Y_{it} \mid b_{0i}, b_{1i}, u_{0j} \sim \text{Bernoulli}(\pi_{it}),
-  \quad \pi_{it} = \Pr(Y_{it}=1 \mid X_{it}, b_{0i}, b_{1i}, u_{0j}).
-$$
-
-* Random effects
+* Conditional on covariates and random effects, the responses are independent Bernoulli:
 
 $$
-  (b_{0i}, b_{1i})^\top \sim N(0, \Sigma_b), 
-  \quad u_{0j} \sim N(0, \sigma_u^2),
+Y_{ijt} \mid b_i, u_j \sim \mathrm{Bernoulli}(\pi_{ijt}),
+\quad 
+\pi_{ijt} = \Pr(Y_{ijt} = 1 \mid X_{ijt}, b_i, u_j),
 $$
-  with a  covariance structure for \((b_{0i}, b_{1i})\).
+
+with
+
+$$
+\mathrm{logit}(\pi_{ijt}) = X_{ijt}^\top \beta + b_i + u_j.
+$$
+
+
+* Random intercepts for patient and trial are specified as
+
+$$
+b_i \sim N(0, \sigma_b^2), 
+\quad
+u_j \sim N(0, \sigma_u^2),
+$$
+
+where $\{b_i\}$ are independent across patients, $\{u_j\}$ are independent across trials, and $b_i$ is independent of $u_j$.
+
+* Link function and covariate effects: 
+
+- The logit link is correctly specified for the conditional mean:
   
-* The logit link is correctly specified and the effects of continuous covariates are approximately linear on the logit scale.
+  $$
+  \mathrm{logit}(\pi_{ijt}) = X_{ijt}^\top \beta + b_i + u_j.
+  $$
 
-* Missing data are at least missing at random (MAR) given observed covariates and random effects.
+- The effects of continuous covariates are approximately linear on the logit scale, or otherwise correctly modelle.
+
+* Missing data:
+
+- Missing outcome data are assumed to be at least Missing At Random (MAR) given observed covariates, observed outcome history, and the random effects.
 
 
 
 **Advantages**
 
-* Provides subject-specific interpretation (“for a given patient, how does their risk change over time?”).
-* Empirical Bayes predictions (BLUPs) of \(b_{0i}\) and \(b_{1i}\) give estimated patient-specific baseline risk and slope, borrowing strength from the whole sample.
+* Estimates conditional (subject-specific) effects on the log-odds scale, aligning with questions about individual patient risk trajectories.
+* Random intercepts for patients and trials account for unobserved heterogeneity and induce appropriate within-patient and within-trial correlation.
 * Handles unequal numbers of visits and irregular visit patterns naturally.
+* Empirical Bayes estimates of random intercepts provide patient-specific predictions hence improving predictions.
 
 
 
 **Disadvantages and potential problems**
 
 
-* Effects are conditional on random effects, so odds ratios differ from marginal (GEE) estimates.
-* The random-effects covariance matrix can be hard to estimate with binary data and few time points (reflected in the correlation between random intercept and slope being close to \(-1\)).
+* Parameters are subject-specific and not directly comparable to marginal (population-averaged) effects.
+* Sensitivity to model specification: Misspecification of the random-effects structure (e.g. omitting important random slopes) or functional form of covariates can lead to biased inference.
 
 
 
 **Reflection on parameterization**
 
-* A patient-level random intercept \(b_{0i}\) allows each patient to have their own baseline probability of being in the worse CDRSB category.
+We specified a logistic GLMM with a logit link and random intercepts for patients and trials:
+$$
+\text{logit}\{\pi_{ijt}\} = X_{ijt}^\top \beta + b_i + u_j.
+$$
+This parameterisation yields subject-specific log-odds ratios, which aligns with our interest in modelling individual risk rather than marginal (population-averaged) effects. Random intercepts for patients and trials account for unobserved heterogeneity and induce within-patient and within-trial correlation, while remaining parsimonious and numerically stable given the available data. Continuous covariates were entered linearly on the logit scale, representing a balance between model flexibility and interpretability; more flexible forms could be considered if strong non-linearity were empirically indicated.
 
-* A trial-level random intercept \(u_{0j}\) accounts for systematic differences between trials/centres (e.g. recruitment, protocol differences).
-
-* Given the binary outcome and only 7 time points, this rich random-effects structure is powerful but close to the limit of what the data can support, which is consistent with the convergence warnings.
 
 **Results**
 
@@ -713,24 +742,6 @@ Fixed-effect estimates (log-odds scale) were: intercept –1.42 (SE 0.63, z = �
 **Interpretation**
 
 In this analysis, we modelled the probability of being in the worse cognitive category (CDRSB > 10) over time, accounting for repeated measurements within patients and across trials. Statistically, the main strong signal is that the chance of worse cognitive status increases over follow-up time. Other patient characteristics (sex, age, BMI, daily functioning, and PET biomarkers) did not show clearly independent effects in this model, and the random-effects part contributed very small part, meaning most of the variation is explained at the overall population level rather than by systematic differences between individual patients or trials.
-
-
-**Empirical Bayes predictions**
-
-Empirical Bayes (EB) predictions of the random effects were extracted for each patient:
-
-* The EB random intercepts show a wide spread, indicating between-patient variability in baseline risk of worse cognitive status.
-* The EB random slopes are centred around zero with smaller variability, suggesting that although patients differ in their trajectories, the dominant pattern is the overall time effect.
-
-The “true vs predicted” style plots (EB intercepts and slopes) show:
-
-- A reasonable dispersion of intercepts (heterogeneity in baseline risk),
-- Mostly modest deviations in slopes across patients.
-
-This supports the conclusion that most of the variation is in baseline level, while the average progression over time is relatively similar across patients, with smaller patient-specific deviations.
-
-
-
 
 
 ## Empirical Bayes Predictions
@@ -824,3 +835,18 @@ head(low_risk, 10) %>%
   )
 
 ```
+
+
+Left panel (patient random intercepts)
+Each bar shows how many patients have a given “patient effect” on the log-odds of being in the worse CDRSB category, after adjusting for time, sex, age, BMI, ADL, amyloid and tau.
+All the bars are very tightly clustered around 0, and the range is extremely small (on the order of 10⁻¹³). This means that, once we account for the measured covariates, the model estimates almost no residual between-patient difference in baseline risk. Patients’ individual intercepts are essentially the same.
+
+Right panel(trial random intercepts) Each dot is a trial (centre), showing how much its baseline log-odds deviates from the overall average.
+All trials lie almost exactly on the vertical line at 0, again with tiny deviations (order 10⁻¹⁵). This indicates no meaningful between-trial/site variability in baseline risk after covariate adjustment.
+
+In summary, empirical Bayes predictions suggest that, in this GLMM, nearly all of the variation in baseline probability of “worse CDRSB” is captured by the fixed effects, and there is negligible leftover variation attributable to individual patients or trial sites.
+
+
+
+
+
