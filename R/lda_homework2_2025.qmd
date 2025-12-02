@@ -471,6 +471,8 @@ The age and BMI boxplots in @fig-age-bmi-by-cdrsb give a cross-sectional picture
 
 These plots describe only patients who are still observed at each visit. From Homework 1 we saw  that older patients tend to drop out earlier.
 
+In summary, from the exploratory figures(@fig-cdrsb-by-time,@fig-age-bmi-by-cdrsb and @fig-age-bmi-by-cdrsb), sex, age and BMI appear to be related to both the outcome and the biomarkers, so they are potential confounders. The plots show that the proportion with CDRSBbin = 1 differs slightly by sex, and that patients with CDRSBbin = 0 are on average slightly older than those with CDRSBbin = 1, while BMI distributions are broadly similar across outcome groups but remain in a range where BMI is clinically relevant. To reduce confounding and isolate the associations of ADL, ABPET and TAUPET with CDRSBbin, we therefore adjust for sex, age and BMI in the model.
+
 
 ```{r}
 #| label: fig-age-bmi-by-cdrsb
@@ -608,21 +610,16 @@ semi_variogram
 
 
 
-To estimate how the population averaged (marginal effects) probability of being in the worse cognitive category (CDRSBbin = 1, i.e. CDRSB > 10) changes over time, we fitted a marginal model using generalized estimating equations (GEE), GEE1 with a logit link and an AR(1) working correlation structure. The model includes time, sex, age, body mass index (BMI), activities of daily living (ADL), amyloid PET (ABPET), and tau PET (TAUPET) as covariates, and accounts for within-patient correlation across repeated visits using the working correlation matrix.
-Let \(Y_{it}\) be the binary outcome for patient \(i\) at time \(t\). We define the marginal mean as:
+To estimate how the population averaged (marginal effects) probability of being in the worse cognitive category (CDRSBbin = 1, i.e. CDRSB > 10) changes over time, we fitted a marginal model using generalized estimating equations (GEE), GEE1 with a logit link and an AR(1) working correlation structure with a robust sandwich standard errors.We modelled the longitudinal binary outcome CDRSBbin as a function of time, sex, age, body mass index (BMI), baseline ADL, and the time-varying biomarkers ABPET and TAUPET. In addition, we included interactions between time and ABPET, and between time and TAUPET, to allow the effects of these biomarkers on the probability of worse cognition to change over time.
+The fitted model also accounts for within-patient correlation across repeated visits using the working correlation matrix.
 
-
+Let $Y_{it}$ be the binary outcome for patient $i$ at time $t$. We define the marginal mean as:
 $$
 \pi_{it} = \Pr\bigl(Y_{it} = 1 \mid X_{it}\bigr).
 $$
-
-
-
-where \(X_{it}\) denotes the vector of covariates for patient \(i\) at time \(t\). We specify the marginal mean model with a logit link as:
-
-
-
+where $X_{it}$ denotes the vector of covariates for patient $i$ at time $t$. We specify the marginal mean model with a logit link as:
 $$
+\begin{aligned}
 \text{logit}(\pi_{it}) 
 =
 \beta_0 
@@ -631,36 +628,65 @@ $$
 + \beta_3\,\text{age}_i
 + \beta_4\,\text{bmi}_i
 + \beta_5\,\text{adl}_i
-+ \beta_6\,\text{abpet}_{it}
-+ \beta_7\,\text{taupet}_{it}.
++ \beta_6\,\text{abpet}_{it} \\
++ \beta_7\,\text{taupet}_{it}
++ \beta_8\,\bigl(\text{time}_{it}\cdot \text{abpet}_{it}\bigr)
++ \beta_9\,\bigl(\text{time}_{it}\cdot \text{taupet}_{it}\bigr),
+\end{aligned}
 $$
-
-
-
 where:
-
-
 $$
-{logit}(\pi) = \log\{\pi/(1-\pi)\}
+\pi_{it} = \Pr(Y_{it} = 1)
+\quad \text{and} \quad
+\text{logit}(\pi_{it}) = \log\left\{\frac{\pi_{it}}{1 - \pi_{it}}\right\}.
 $$
-
-
-
-Under the binomial model, the marginal variance is :
-
+The parameters $\beta_0,\dots,\beta_9$ are regression coefficients: each $\beta_k$ represents the change in the marginal log-odds of having CDRSBbin = 1 associated with a one-unit increase in the corresponding covariate (or interaction term), holding the other covariates fixed. For the binary outcome(CDRSBbin), the marginal variance is :
 $$
 {Var}(Y_{it} \mid X_{it}) = \pi_{it}\bigl(1 - \pi_{it}\bigr) 
 $$
-
-Within each patient, the working correlation between two measurements at times \(t\) and \(s\) is assumed to follow an AR(1) structure,
-
+For this GEE model, the working correlation matrix for patient $i$ is
 $$
-\mathrm{Corr}\bigl(Y_{it}, Y_{is} \mid X\bigr)
-\approx \alpha^{\lvert t - s \rvert},
+\mathbf{V}_i(\beta, \alpha, \phi)
+=
+\phi\,\mathbf{A}_i^{1/2}(\beta)\,
+\mathbf{R}_i(\alpha)\,
+\mathbf{A}_i^{1/2}(\beta),
 $$
 
+where $\phi$ is a dispersion parameter which is estimated from pearson residuals as:
+$$
+\hat{\phi}
+=
+\frac{1}{N}
+\sum_{i=1}^N
+\left\{
+\frac{1}{n_i}
+\sum_{j=1}^{n_i} e_{ij}^2
+\right\},
+$$
+where $N$ is the number of subjects, $n_i$ is the number of observations for patient $i$, and
+$$
+e_{ij} = \frac{y_{ij} - \mu_{ij}}{\sqrt{v(\mu_{ij})}}
+$$
+are the Pearson residuals. Here $\mu_{ij}$ is the fitted mean and $v(\mu_{ij})$ is the GLM variance function (for a binary outcome(CDRSBbin), $v(\mu_{ij}) = \mu_{ij}(1-\mu_{ij})$). For the binary outcome we set the dispersion parameter $\phi = 1$, as is standard for the binomial model. $\mathbf{A}_i(\beta)$ is a diagonal matrix with entries:
+$$
+\operatorname{Var}(Y_{it} \mid X_{it}) = \pi_{it}\bigl(1 - \pi_{it}\bigr),
+$$
+and ${R}(\alpha)$ is the AR(1) correlation matrix with $\text{Corr}(Y_{it}, Y_{is}) = \alpha^{|t-s|}$,for measurements $t$ and $s$ on the same patient. For this AR(1) working correlation, the correlation parameter $\alpha$  is estimated from the Pearson residuals as:
+$$
+\hat{\alpha}
+=
+\frac{1}{N}
+\sum_{i=1}^N
+\left\{
+\frac{1}{n_i - 1}
+\sum_{j=1}^{n_i - 1} e_{ij}\,e_{i,j+1}
+\right\},
+$$
+where $N$ is the number of subjects and $n_i$ is the number of observations for subject $i$. Thus, for each subject we compute the average product of Pearson residuals from adjacent time points, and then we average these quantities over all subjects to obtain moment based $\hat{\alpha}$, which is used to construct the AR(1) working correlation matrix. Finally, We applied robust (“sandwich”) standard errors that inference remains valid even if the working correlation is misspecified.
 
-and robust (“sandwich”) standard errors are used so that inference remains valid even if the working correlation is misspecified.
+
+
 
 
 ```{r}
