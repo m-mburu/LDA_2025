@@ -616,7 +616,7 @@ summary(glmer_cdrsb)
 ```{r}
 library(broom.mixed)
 
-fixef_table <- tidy(glmer_cdrsb, effects = "fixed")  # estimates, SE, z, p
+fixef_table <- tidy(glmer_cdrsb)  # estimates, SE, z, p
 rand_sd      <- as.data.frame(VarCorr(glmer_cdrsb))  # variance components
 
 ```

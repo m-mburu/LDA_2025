@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style type="text/css">
+@font-face {
+font-family: octicons-link;
+src: url(data:font/woff;charset=utf-8;base64,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) format('woff');
+}
+body {
+-webkit-text-size-adjust: 100%;
+text-size-adjust: 100%;
+color: #333;
+font-family: "Helvetica Neue", Helvetica, "Segoe UI", Arial, freesans, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+font-size: 16px;
+line-height: 1.6;
+word-wrap: break-word;
+}
+a {
+background-color: transparent;
+}
+a:active,
+a:hover {
+outline: 0;
+}
+strong {
+font-weight: bold;
+}
+h1 {
+font-size: 2em;
+margin: 0.67em 0;
+}
+img {
+border: 0;
+}
+hr {
+box-sizing: content-box;
+height: 0;
+}
+pre {
+overflow: auto;
+}
+code,
+kbd,
+pre {
+font-family: monospace, monospace;
+font-size: 1em;
+}
+input {
+color: inherit;
+font: inherit;
+margin: 0;
+}
+html input[disabled] {
+cursor: default;
+}
+input {
+line-height: normal;
+}
+input[type="checkbox"] {
+box-sizing: border-box;
+padding: 0;
+}
+table {
+border-collapse: collapse;
+border-spacing: 0;
+}
+td,
+th {
+padding: 0;
+}
+* {
+box-sizing: border-box;
+}
+input {
+font: 13px / 1.4 Helvetica, arial, nimbussansl, liberationsans, freesans, clean, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+}
+a {
+color: #4078c0;
+text-decoration: none;
+}
+a:hover,
+a:active {
+text-decoration: underline;
+}
+hr {
+height: 0;
+margin: 15px 0;
+overflow: hidden;
+background: transparent;
+border: 0;
+border-bottom: 1px solid #ddd;
+}
+hr:before {
+display: table;
+content: "";
+}
+hr:after {
+display: table;
+clear: both;
+content: "";
+}
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+margin-top: 15px;
+margin-bottom: 15px;
+line-height: 1.1;
+}
+h1 {
+font-size: 30px;
+}
+h2 {
+font-size: 21px;
+}
+h3 {
+font-size: 16px;
+}
+h4 {
+font-size: 14px;
+}
+h5 {
+font-size: 12px;
+}
+h6 {
+font-size: 11px;
+}
+blockquote {
+margin: 0;
+}
+ul,
+ol {
+padding: 0;
+margin-top: 0;
+margin-bottom: 0;
+}
+ol ol,
+ul ol {
+list-style-type: lower-roman;
+}
+ul ul ol,
+ul ol ol,
+ol ul ol,
+ol ol ol {
+list-style-type: lower-alpha;
+}
+dd {
+margin-left: 0;
+}
+code {
+font-family: Consolas, "Liberation Mono", Menlo, Courier, monospace;
+font-size: 12px;
+}
+pre {
+margin-top: 0;
+margin-bottom: 0;
+font: 12px Consolas, "Liberation Mono", Menlo, Courier, monospace;
+}
+.select::-ms-expand {
+opacity: 0;
+}
+.octicon {
+font: normal normal normal 16px/1 octicons-link;
+display: inline-block;
+text-decoration: none;
+text-rendering: auto;
+-webkit-font-smoothing: antialiased;
+-moz-osx-font-smoothing: grayscale;
+-webkit-user-select: none;
+-moz-user-select: none;
+-ms-user-select: none;
+user-select: none;
+}
+.octicon-link:before {
+content: '\f05c';
+}
+.markdown-body:before {
+display: table;
+content: "";
+}
+.markdown-body:after {
+display: table;
+clear: both;
+content: "";
+}
+.markdown-body>*:first-child {
+margin-top: 0 !important;
+}
+.markdown-body>*:last-child {
+margin-bottom: 0 !important;
+}
+a:not([href]) {
+color: inherit;
+text-decoration: none;
+}
+.anchor {
+display: inline-block;
+padding-right: 2px;
+margin-left: -18px;
+}
+.anchor:focus {
+outline: none;
+}
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+margin-top: 1em;
+margin-bottom: 16px;
+font-weight: bold;
+line-height: 1.4;
+}
+h1 .octicon-link,
+h2 .octicon-link,
+h3 .octicon-link,
+h4 .octicon-link,
+h5 .octicon-link,
+h6 .octicon-link {
+color: #000;
+vertical-align: middle;
+visibility: hidden;
+}
+h1:hover .anchor,
+h2:hover .anchor,
+h3:hover .anchor,
+h4:hover .anchor,
+h5:hover .anchor,
+h6:hover .anchor {
+text-decoration: none;
+}
+h1:hover .anchor .octicon-link,
+h2:hover .anchor .octicon-link,
+h3:hover .anchor .octicon-link,
+h4:hover .anchor .octicon-link,
+h5:hover .anchor .octicon-link,
+h6:hover .anchor .octicon-link {
+visibility: visible;
+}
+h1 {
+padding-bottom: 0.3em;
+font-size: 2.25em;
+line-height: 1.2;
+border-bottom: 1px solid #eee;
+}
+h1 .anchor {
+line-height: 1;
+}
+h2 {
+padding-bottom: 0.3em;
+font-size: 1.75em;
+line-height: 1.225;
+border-bottom: 1px solid #eee;
+}
+h2 .anchor {
+line-height: 1;
+}
+h3 {
+font-size: 1.5em;
+line-height: 1.43;
+}
+h3 .anchor {
+line-height: 1.2;
+}
+h4 {
+font-size: 1.25em;
+}
+h4 .anchor {
+line-height: 1.2;
+}
+h5 {
+font-size: 1em;
+}
+h5 .anchor {
+line-height: 1.1;
+}
+h6 {
+font-size: 1em;
+color: #777;
+}
+h6 .anchor {
+line-height: 1.1;
+}
+p,
+blockquote,
+ul,
+ol,
+dl,
+table,
+pre {
+margin-top: 0;
+margin-bottom: 16px;
+}
+hr {
+height: 4px;
+padding: 0;
+margin: 16px 0;
+background-color: #e7e7e7;
+border: 0 none;
+}
+ul,
+ol {
+padding-left: 2em;
+}
+ul ul,
+ul ol,
+ol ol,
+ol ul {
+margin-top: 0;
+margin-bottom: 0;
+}
+li>p {
+margin-top: 16px;
+}
+dl {
+padding: 0;
+}
+dl dt {
+padding: 0;
+margin-top: 16px;
+font-size: 1em;
+font-style: italic;
+font-weight: bold;
+}
+dl dd {
+padding: 0 16px;
+margin-bottom: 16px;
+}
+blockquote {
+padding: 0 15px;
+color: #777;
+border-left: 4px solid #ddd;
+}
+blockquote>:first-child {
+margin-top: 0;
+}
+blockquote>:last-child {
+margin-bottom: 0;
+}
+table {
+display: block;
+width: 100%;
+overflow: auto;
+word-break: normal;
+word-break: keep-all;
+}
+table th {
+font-weight: bold;
+}
+table th,
+table td {
+padding: 6px 13px;
+border: 1px solid #ddd;
+}
+table tr {
+background-color: #fff;
+border-top: 1px solid #ccc;
+}
+table tr:nth-child(2n) {
+background-color: #f8f8f8;
+}
+img {
+max-width: 100%;
+box-sizing: content-box;
+background-color: #fff;
+}
+code {
+padding: 0;
+padding-top: 0.2em;
+padding-bottom: 0.2em;
+margin: 0;
+font-size: 85%;
+background-color: rgba(0,0,0,0.04);
+border-radius: 3px;
+}
+code:before,
+code:after {
+letter-spacing: -0.2em;
+content: "\00a0";
+}
+pre>code {
+padding: 0;
+margin: 0;
+font-size: 100%;
+word-break: normal;
+white-space: pre;
+background: transparent;
+border: 0;
+}
+.highlight {
+margin-bottom: 16px;
+}
+.highlight pre,
+pre {
+padding: 16px;
+overflow: auto;
+font-size: 85%;
+line-height: 1.45;
+background-color: #f7f7f7;
+border-radius: 3px;
+}
+.highlight pre {
+margin-bottom: 0;
+word-break: normal;
+}
+pre {
+word-wrap: normal;
+}
+pre code {
+display: inline;
+max-width: initial;
+padding: 0;
+margin: 0;
+overflow: initial;
+line-height: inherit;
+word-wrap: normal;
+background-color: transparent;
+border: 0;
+}
+pre code:before,
+pre code:after {
+content: normal;
+}
+kbd {
+display: inline-block;
+padding: 3px 5px;
+font-size: 11px;
+line-height: 10px;
+color: #555;
+vertical-align: middle;
+background-color: #fcfcfc;
+border: solid 1px #ccc;
+border-bottom-color: #bbb;
+border-radius: 3px;
+box-shadow: inset 0 -1px 0 #bbb;
+}
+.pl-c {
+color: #969896;
+}
+.pl-c1,
+.pl-s .pl-v {
+color: #0086b3;
+}
+.pl-e,
+.pl-en {
+color: #795da3;
+}
+.pl-s .pl-s1,
+.pl-smi {
+color: #333;
+}
+.pl-ent {
+color: #63a35c;
+}
+.pl-k {
+color: #a71d5d;
+}
+.pl-pds,
+.pl-s,
+.pl-s .pl-pse .pl-s1,
+.pl-sr,
+.pl-sr .pl-cce,
+.pl-sr .pl-sra,
+.pl-sr .pl-sre {
+color: #183691;
+}
+.pl-v {
+color: #ed6a43;
+}
+.pl-id {
+color: #b52a1d;
+}
+.pl-ii {
+background-color: #b52a1d;
+color: #f8f8f8;
+}
+.pl-sr .pl-cce {
+color: #63a35c;
+font-weight: bold;
+}
+.pl-ml {
+color: #693a17;
+}
+.pl-mh,
+.pl-mh .pl-en,
+.pl-ms {
+color: #1d3e81;
+font-weight: bold;
+}
+.pl-mq {
+color: #008080;
+}
+.pl-mi {
+color: #333;
+font-style: italic;
+}
+.pl-mb {
+color: #333;
+font-weight: bold;
+}
+.pl-md {
+background-color: #ffecec;
+color: #bd2c00;
+}
+.pl-mi1 {
+background-color: #eaffea;
+color: #55a532;
+}
+.pl-mdr {
+color: #795da3;
+font-weight: bold;
+}
+.pl-mo {
+color: #1d3e81;
+}
+kbd {
+display: inline-block;
+padding: 3px 5px;
+font: 11px Consolas, "Liberation Mono", Menlo, Courier, monospace;
+line-height: 10px;
+color: #555;
+vertical-align: middle;
+background-color: #fcfcfc;
+border: solid 1px #ccc;
+border-bottom-color: #bbb;
+border-radius: 3px;
+box-shadow: inset 0 -1px 0 #bbb;
+}
+.task-list-item {
+list-style-type: none;
+}
+.task-list-item+.task-list-item {
+margin-top: 3px;
+}
+.task-list-item input {
+margin: 0 0.35em 0.25em -1.6em;
+vertical-align: middle;
+}
+:checked+.radio-label {
+z-index: 1;
+position: relative;
+border-color: #4078c0;
+}
+.sourceLine {
+display: inline-block;
+}
+code .kw { color: #000000; }
+code .dt { color: #ed6a43; }
+code .dv { color: #009999; }
+code .bn { color: #009999; }
+code .fl { color: #009999; }
+code .ch { color: #009999; }
+code .st { color: #183691; }
+code .co { color: #969896; }
+code .ot { color: #0086b3; }
+code .al { color: #a61717; }
+code .fu { color: #63a35c; }
+code .er { color: #a61717; background-color: #e3d2d2; }
+code .wa { color: #000000; }
+code .cn { color: #008080; }
+code .sc { color: #008080; }
+code .vs { color: #183691; }
+code .ss { color: #183691; }
+code .im { color: #000000; }
+code .va {color: #008080; }
+code .cf { color: #000000; }
+code .op { color: #000000; }
+code .bu { color: #000000; }
+code .ex { color: #000000; }
+code .pp { color: #999999; }
+code .at { color: #008080; }
+code .do { color: #969896; }
+code .an { color: #008080; }
+code .cv { color: #008080; }
+code .in { color: #008080; }
+</style>
+<style>
+body {
+box-sizing: border-box;
+min-width: 200px;
+max-width: 980px;
+margin: 0 auto;
+padding: 45px;
+padding-top: 0px;
+}
+</style>
+
+
+</head>
+
+<body>
+
+<h1 id="critical-appraisal-of-glmms-for-longitudinal-data">Critical
+Appraisal of GLMMs for Longitudinal Data</h1>
+<p>Nice, this is a really solid piece of work already. I’ll go through
+it systematically and point out <strong>what is good</strong>,
+<strong>what is slightly off compared to the notes</strong>, and
+<strong>what you could tighten for the defense</strong>.</p>
+<p>I’ll follow this order:</p>
+<ol style="list-style-type: decimal">
+<li>Data prep &amp; EDA</li>
+<li>Question 1 – GEE model</li>
+<li>Question 2 – GLMM / random-effects model</li>
+<li>Cross-cutting issues (missing data, correlation, estimation,
+etc.)</li>
+<li>Short “if I had 2–3 days to polish this” checklist</li>
+</ol>
+<hr />
+<h2 id="id_1-data-preparation-and-eda">1. Data preparation and EDA</h2>
+<h3 id="id_11-long-format-creation">1.1 Long-format creation</h3>
+<ul>
+<li><p><strong>Good</strong></p>
+<ul>
+<li>You correctly reshape to long using <code>melt()</code> with
+<code>patid</code>, <code>trial</code>, and baseline covariates as id
+variables.</li>
+<li>You construct <code>CDRSBbin</code> exactly as required in the
+assignment.</li>
+<li>You keep <code>time</code> as an integer index 0,…,6 which matches
+yearly visits.</li>
+</ul></li>
+<li><p><strong>Minor issues / possible clarifications</strong></p>
+<ul>
+<li><p>In the notes they often distinguish <strong>baseline
+covariates</strong> vs <strong>time-varying covariates</strong>
+explicitly.</p>
+<ul>
+<li>In your long data, <code>age</code>, <code>bmi</code>,
+<code>adl</code> are baseline (constant over <code>time</code>), while
+<code>abpet</code>, <code>taupet</code> are time-varying.</li>
+<li>You <em>say</em> that for the GEE/GLMM age, BMI, ADL are baseline
+and ABPET/TAUPET time-varying, but this could be made a bit more
+explicit when you write the model (e.g. (X_i) vs (W_{it})).</li>
+</ul></li>
+<li><p>Check whether in the original SAS file ADL is repeated
+(adl0–adl6) or only baseline. If ADL is actually longitudinal in the
+notes, you should at least <strong>acknowledge</strong> that you only
+used baseline ADL.</p></li>
+</ul></li>
+</ul>
+<h3 id="id_12-descriptive-plots">1.2 Descriptive plots</h3>
+<ul>
+<li><p><strong>What you did well</strong></p>
+<ul>
+<li>You start with <strong>outcome over time</strong> (stacked bar + sex
+plot) before looking at covariates → that matches the logic in the
+book.</li>
+<li>You give <strong>percentages</strong> (75–80% vs 20–25%; 65–70%
+etc.), not just eyeball statements.</li>
+<li>You connect sex differences to time: small difference at baseline,
+convergence over time.</li>
+<li>For age/BMI, you correctly emphasise that the boxplots are
+<strong>cross-sectional among survivors</strong>, not full-cohort
+summaries.</li>
+<li>You bring in knowledge from Homework 1: older / more severe patients
+drop out → good continuity.</li>
+</ul></li>
+<li><p><strong>Gaps vs what the notes usually emphasise</strong></p>
+<ul>
+<li><p>The assignment is about <strong>non-Gaussian longitudinal data
+with dropout</strong>. The notes usually push you to:</p>
+<ul>
+<li><p>Show <strong>overall retention by time</strong> (not only for
+high baseline CDRSB). You did a nice retention plot for those with high
+CDRSB at baseline, but <em>not</em> for the full cohort. I would:</p>
+<ul>
+<li>either add a second curve for “all” patients, or</li>
+<li>write 1–2 sentences in the text summarising: “overall, only X%
+remain at visit 7”.</li>
+</ul></li>
+<li><p>Make the missingness pattern more explicit: e.g. “dropout is
+mostly monotone; most patients leave permanently after their last
+observed visit”.</p></li>
+</ul></li>
+<li><p>For the <strong>semivariogram</strong>, you compute it and plot
+it (good!), but you never <em>verbally</em> connect it back to the
+choice of working correlation in the main text, only in the “Motivation”
+section. It would help to say right under the plot:</p>
+<ul>
+<li>“The semivariogram increases with time lag and then levels off,
+consistent with positive within-patient correlation that decays with
+lag. This motivates an AR(1)-type working correlation for the GEE
+model.”</li>
+</ul></li>
+</ul></li>
+</ul>
+<hr />
+<h2 id="id_2-question-1--gee-marginal-model">2. Question 1 – GEE
+(marginal) model</h2>
+<h3 id="id_21-model-formulation">2.1 Model formulation</h3>
+<ul>
+<li><p><strong>Very good</strong></p>
+<ul>
+<li>You write down the <strong>mean model clearly</strong>: [ (_{it}) =
+_0 + *1 *{it} + ]</li>
+<li>You state the <strong>binomial variance</strong> and the
+<strong>AR(1) working correlation</strong> explicitly.</li>
+<li>You clearly state the <strong>target</strong>: population-average
+effects (marginal odds ratios).</li>
+<li>You mention <strong>sandwich standard errors</strong> and the key
+robustness property – this matches the notes.</li>
+</ul></li>
+<li><p><strong>What could be sharpened</strong></p>
+<ul>
+<li><p>In the notes, with <strong>incomplete data</strong>, there is a
+subtle point:</p>
+<ul>
+<li>For some missingness mechanisms under MAR, <strong>independence
+working correlation</strong> is safer than AR(1) because the sandwich
+correction is derived under the “independence estimating
+equations”.</li>
+<li>They often warn that with non-independence working correlations and
+missing data, <strong>GEE1 isn’t automatically unbiased</strong> unless
+missingness is quite benign.</li>
+</ul></li>
+<li><p>In your homework you go straight to AR(1) and justify it via the
+semivariogram. That’s good for <strong>efficiency</strong>, but for the
+defense you should add a one-line caveat like:</p>
+<blockquote>
+<p>“We chose AR(1) as a reasonable working model to gain efficiency, but
+we know from the notes that with dropout this can be sensitive; an
+independence working correlation would be more conservative but less
+efficient.”</p>
+</blockquote></li>
+<li><p>You include <strong>time × ABPET</strong> and <strong>time ×
+TAUPET</strong> in the model, but you don’t comment on whether these are
+actually needed / significant. The notes usually expect a brief remark
+like:</p>
+<ul>
+<li>“We included time-by-biomarker interactions to allow biomarker
+effects on the log-odds to vary over follow-up, but these were not
+strongly supported by the data (p-values …), so for simplicity one might
+also consider a model without interactions.”</li>
+</ul></li>
+</ul></li>
+</ul>
+<h3 id="id_22-choice-of-method--estimation">2.2 Choice of method &amp;
+estimation</h3>
+<ul>
+<li><p><strong>Good</strong></p>
+<ul>
+<li><p>You correctly describe GEE1 as a <strong>semi-parametric</strong>
+method that:</p>
+<ul>
+<li>targets marginal mean,</li>
+<li>treats correlation as nuisance,</li>
+<li>is robust via sandwich SEs.</li>
+</ul></li>
+<li><p>You mention <strong>large-sample normality</strong> and that you
+have many patients (~1250), which supports asymptotics.</p></li>
+</ul></li>
+<li><p><strong>Missing vs notes</strong></p>
+<ul>
+<li><p>In the theory, they often emphasise <strong>how to choose the
+working correlation</strong>:</p>
+<ul>
+<li>e.g. by comparing QIC, or checking residual plots.</li>
+</ul></li>
+<li><p>You justify AR(1) by the semivariogram, which is fine, but you
+don’t:</p>
+<ul>
+<li>compare AR(1) vs independence vs exchangeable, or</li>
+<li>at least mention that you checked another structure and found
+similar β. For homework this is OK, but in an oral defense they can ask
+“How did you know AR(1) was not harming you?”</li>
+</ul></li>
+</ul></li>
+</ul>
+<h3 id="id_23-assumptions-and-proscons">2.3 Assumptions and
+pros/cons</h3>
+<ul>
+<li><p><strong>Very good</strong></p>
+<ul>
+<li><p>You list correctly:</p>
+<ul>
+<li>Correct mean model,</li>
+<li>Correct variance function,</li>
+<li>Independent clusters,</li>
+<li>MAR/MCAR for missingness,</li>
+<li>Possible impact of mis-specified working correlation on
+<strong>efficiency</strong> (not on consistency).</li>
+</ul></li>
+<li><p>Your advantages/disadvantages list is basically
+textbook-level.</p></li>
+</ul></li>
+<li><p><strong>Two things the notes often stress that you could mention
+explicitly</strong></p>
+<ol style="list-style-type: decimal">
+<li><p><strong>GEE does <em>not</em> produce a likelihood</strong>,
+so:</p>
+<ul>
+<li>you cannot use AIC/BIC,</li>
+<li>you must rely on <strong>QIC</strong> or similar for model
+comparison. You used AIC/BIC later for the GLMM but not for the GEE →
+worth explicitly stating “we did not use AIC/BIC for the GEE, as there
+is no full likelihood.”</li>
+</ul></li>
+<li><p><strong>Interpretation of coefficients</strong>:</p>
+<ul>
+<li>For logistic GEE, the coefficients are <strong>population-average
+log-odds ratios</strong>, which are generally <strong>smaller in
+magnitude</strong> than subject-specific ones from GLMM.</li>
+<li>You say “easy to interpret for clinicians”, which is true, but you
+don’t mention this “shrinkage towards 0” relative to GLMM.</li>
+</ul></li>
+</ol></li>
+</ul>
+<h3 id="id_24-results--interpretation">2.4 Results &amp;
+interpretation</h3>
+<ul>
+<li><p><strong>Good</strong></p>
+<ul>
+<li><p>You present:</p>
+<ul>
+<li>baseline odds / probability from the intercept,</li>
+<li>clear statement that time has a strong positive effect,</li>
+<li>tau PET is associated with higher odds, others not so much.</li>
+</ul></li>
+<li><p>You explicitly say <strong>“population-average longitudinal
+model”</strong> – nice.</p></li>
+</ul></li>
+<li><p><strong>Potential improvements</strong></p>
+<ul>
+<li><p>The notes like <strong>odds-ratio phrasing</strong> rather than
+raw coefficients. You computed ORs in the table but in the text you
+mostly talk about coefficients:</p>
+<ul>
+<li>E.g. say: “Each additional year is associated with about ((0.25)
+)-fold higher odds of CDRSB &gt; 10, on average in the population.”</li>
+</ul></li>
+<li><p>You might want to <strong>comment on effect sizes</strong> more:
+for TAU, OR ~ 1.5 per unit – is that clinically large given the scale of
+TAUPET?</p></li>
+<li><p>You never discuss the <strong>AR(1) parameter estimate</strong>
+() in words; you could add:</p>
+<blockquote>
+<p>“The working correlation estimate α ≈ 0.31 indicates moderate
+within-patient correlation at lag 1, which decays as lag increases.”</p>
+</blockquote></li>
+</ul></li>
+</ul>
+<hr />
+<h2 id="id_3-question-2--glmm-random-effects-model">3. Question 2 – GLMM
+(random-effects model)</h2>
+<p>Here there are some <strong>important inconsistencies</strong>
+between what you claimed and what the code actually fits. This is
+exactly what an examiner will pick up.</p>
+<h3 id="id_31-model-specification-vs-code">3.1 Model specification vs
+code</h3>
+<ul>
+<li><p>In the text you say:</p>
+<ul>
+<li>“We fitted a GLMM with <strong>random intercepts for both patients
+and trials</strong>.”</li>
+<li>The displayed model equation has: ((<em>{ijt}) = X</em>{ijt}^+
+b_{0i} + u_{0j}).</li>
+</ul></li>
+<li><p>But the <code>glmer</code> call you show is:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a>glmm_model <span class="ot">&lt;-</span> <span class="fu">glmer</span>(</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>  CDRSBbin <span class="sc">~</span> time <span class="sc">+</span> sex <span class="sc">+</span> age <span class="sc">+</span> bmi <span class="sc">+</span> abpet <span class="sc">+</span> taupet<span class="sc">+</span></span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>   adl <span class="sc">+</span> time<span class="sc">:</span>abpet <span class="sc">+</span> time<span class="sc">:</span>taupet <span class="sc">+</span> <span class="dv">1</span> <span class="sc">+</span> (time <span class="sc">|</span> patid),</span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>  ...</span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a>)</span></code></pre></div>
+<ul>
+<li>This includes a <strong>random intercept and random slope for time
+per patient</strong> <code>(time|patid)</code>.</li>
+<li>It does <strong>not</strong> include <code>(1|trial)</code> at
+all.</li>
+</ul></li>
+<li><p>Later you compute:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>ranef_trial <span class="ot">&lt;-</span> <span class="fu">as.data.frame</span>(r_effs<span class="sc">$</span>trial)</span></code></pre></div>
+<p>which would actually <strong>fail</strong> for the shown model,
+because there is no <code>trial</code> random effect.</p></li>
+</ul>
+<p>👉 So something changed between the model you actually ran and the
+code you pasted. For the exam you must make them
+<strong>consistent</strong>:</p>
+<ul>
+<li><p>Either:</p>
+<ul>
+<li>use <code>(1 | patid) + (1 | trial)</code> and describe it as such
+(random intercepts only), <strong>or</strong></li>
+<li>keep <code>(time | patid)</code> and explicitly say “random
+intercept and random slope for time per patient; trial entered only as a
+fixed effect or not at all.”</li>
+</ul></li>
+</ul>
+<p>Right now the text, code, and random-effects section contradict each
+other.</p>
+<h3 id="id_32-estimation-method">3.2 Estimation method</h3>
+<ul>
+<li><p><strong>Good</strong></p>
+<ul>
+<li>You clearly say you used <strong>maximum likelihood with Laplace
+approximation</strong> (<code>nAGQ = 1</code>), and that this is
+preferable to PQL/MQL for binary data – this aligns perfectly with the
+notes.</li>
+</ul></li>
+<li><p><strong>What you could add</strong></p>
+<ul>
+<li>The notes sometimes say that for <strong>logistic GLMMs with many
+clusters</strong>, Laplace is usually OK, but if you want more accurate
+variance component estimates you could use <code>nAGQ &gt; 1</code> at
+extra computational cost. You can just mention: “We used Laplace (AGQ=1)
+for speed; in principle, AGQ&gt;1 would give slightly more accurate
+random-effects estimates.”</li>
+</ul></li>
+</ul>
+<h3 id="id_33-random-effects-variance--singular-fit">3.3 Random-effects
+variance / singular fit</h3>
+<ul>
+<li><p>In your “Results” you say:</p>
+<blockquote>
+<p>“The estimated random-intercept variances were very small …
+indicating a boundary (singular) fit.”</p>
+</blockquote>
+<p>and later:</p>
+<blockquote>
+<p>“Empirical Bayes predictions show all random intercepts essentially
+zero.”</p>
+</blockquote></li>
+<li><p><strong>This is exactly what the notes would warn
+about:</strong></p>
+<ul>
+<li>When random-effect variances are virtually zero, the data <strong>do
+not support</strong> that random effect.</li>
+<li>With a singular fit, the GLMM is effectively collapsing back to a
+<strong>fixed-effects logistic regression</strong> (almost no extra
+clustering structure).</li>
+</ul></li>
+<li><p>In that situation you should <strong>not talk</strong> about
+“patient-specific trajectories” or “heterogeneity between sites” as if
+they were substantial:</p>
+<ul>
+<li>because your own results say there is almost no unexplained
+variation left.</li>
+</ul></li>
+<li><p>You do say “most of the variation is explained at the overall
+population level” – that’s good – but you don’t draw the obvious
+practical consequence:</p>
+<ul>
+<li>that <strong>simpler models</strong> (e.g. only fixed effects, or
+random intercept only) may be sufficient.</li>
+<li>and that the EB predictions are not very informative because they
+are almost all 0.</li>
+</ul></li>
+</ul>
+<h3 id="id_34-residual-variance-table">3.4 Residual variance table</h3>
+<ul>
+<li>Your <code>tidy_re_varcorr()</code> function adds a “Residual” row
+via <code>sigma(model)</code> and reports a “residual variance” for the
+GLMM.</li>
+<li>For binomial GLMMs in <code>lme4</code>, <code>sigma(model)</code>
+is not really a <strong>residual SD</strong> in the usual sense (the
+Bernoulli variance is ((1-)), and on the logit scale the residual
+variance is fixed at (^2/3) for a logistic distribution).</li>
+<li>The <strong>VarCorr</strong> for a GLMM typically only lists the
+random-effects variances; there is no free residual variance
+parameter.</li>
+<li>So the “Residual variance” row in Table 6 is a bit misleading; it
+suggests an estimated residual variance like in a Gaussian LMM, which is
+not what you have here. It’s not fatal, but in a defense they could ask
+about it.</li>
+</ul>
+<h3 id="id_35-interpretation">3.5 Interpretation</h3>
+<ul>
+<li><p><strong>Good</strong></p>
+<ul>
+<li>You correctly say that GLMM coefficients are
+<strong>subject-specific</strong> and not directly comparable to the GEE
+coefficients.</li>
+<li>You highlight that <strong>time</strong> again has a strong positive
+effect, consistent with GEE.</li>
+</ul></li>
+<li><p><strong>Could be richer</strong></p>
+<ul>
+<li><p>The notes emphasise the difference between
+<strong>population-average vs subject-specific odds ratios</strong>:</p>
+<ul>
+<li>subject-specific ORs are typically <strong>larger in
+magnitude</strong> (further from 1) than marginal ORs, because
+conditioning reduces variability.</li>
+</ul></li>
+<li><p>Your GLMM and GEE time coefficients are actually quite similar
+(~0.25), which is interesting:</p>
+<ul>
+<li>This is partly because your random effects are almost zero.</li>
+<li>You could mention this explicitly: “Because the random-effects
+variances are tiny, the subject-specific and marginal time effects are
+very similar; in a dataset with stronger heterogeneity we would expect
+larger subject-specific effects.”</li>
+</ul></li>
+</ul></li>
+</ul>
+<h3 id="id_36-empirical-bayes-predictions">3.6 Empirical Bayes
+predictions</h3>
+<ul>
+<li><p>Conceptually, what you do is exactly what the assignment asked:
+extract <code>ranef()</code>, plot histograms, comment.</p></li>
+<li><p>But because of the <strong>singular fit</strong>, the EB
+predictions are almost trivial: everything near 0.</p></li>
+<li><p>That’s fine, but for the defense I would add one sentence
+connecting to the theory:</p>
+<blockquote>
+<p>“The near-zero empirical Bayes random effects are consistent with the
+almost zero variance components, and they show that the GLMM is
+effectively a fixed-effects model for this outcome. In practice it means
+that, once we adjust for the covariates, there is little evidence of
+extra clustering by patient or trial.”</p>
+</blockquote></li>
+</ul>
+<hr />
+<h2 id="id_4-cross-cutting-issues">4. Cross-cutting issues</h2>
+<h3 id="id_41-missing-data--dropout">4.1 Missing data / dropout</h3>
+<ul>
+<li>You <strong>acknowledge</strong> MAR/MCAR assumptions in both GEE
+and GLMM sections.</li>
+<li>You show a retention plot for high-CDRSB patients at baseline –
+that’s nice and specific.</li>
+</ul>
+<p>What the notes would still want:</p>
+<ul>
+<li><p>Some <strong>explicit statement</strong> about the likely
+missingness type:</p>
+<ul>
+<li>“Given that dropout is higher in older and more severe patients
+(from Homework 1 results), missingness is plausibly MAR given baseline
+age, severity and previous outcomes, but could still be MNAR.”</li>
+</ul></li>
+<li><p>And a short remark about <strong>methods if MAR
+fails</strong>:</p>
+<ul>
+<li>e.g. “If dropout were strongly MNAR, both GEE and GLMM could be
+biased, and we would need joint models or pattern-mixture models, which
+are beyond this homework.”</li>
+</ul></li>
+</ul>
+<h3 id="id_42-correlation-structure-vs-semi-variogram">4.2 Correlation
+structure vs semi-variogram</h3>
+<ul>
+<li><p>You computed a <strong>semi-variogram</strong> for the binary
+outcome in the GEE part and saw increasing semivariance with
+lag.</p></li>
+<li><p>In the GLMM, the correlation is induced by the random intercept
+and slope; you do not explore it.</p></li>
+<li><p>The notes often like to see that <strong>your chosen model is
+consistent with the exploratory dependence</strong>:</p>
+<ul>
+<li>You can just say: “A random intercept + slope structure produces
+decaying within-patient correlation, which is in line with the
+semivariogram we saw for CDRSBbin; so the GLMM’s implied correlation is
+qualitatively compatible with the data.”</li>
+</ul></li>
+</ul>
+<hr />
+<h2 id="id_5-polishing-checklist-what-id-fix-if-i-had-time">5. Polishing
+checklist (what I’d fix if I had time)</h2>
+<p>If you want to make this bullet-proof for the defense, I’d do:</p>
+<ol style="list-style-type: decimal">
+<li><p><strong>Align model text and code for GLMM</strong></p>
+<ul>
+<li>Decide: <code>(1|patid) + (1|trial)</code> <em>or</em>
+<code>(time|patid)</code> (with or without <code>(1|trial)</code>).</li>
+<li>Rewrite both the formula and the prose to match exactly.</li>
+<li>Re-run <code>VarCorr</code> and EB plots accordingly.</li>
+</ul></li>
+<li><p><strong>Acknowledge singular fit more strongly</strong></p>
+<ul>
+<li>Explicitly state: “Because the random-effect variances are at the
+boundary, simpler models without random effects are likely adequate. We
+still show the GLMM as an illustration of subject-specific modelling,
+but interpret random effects with caution.”</li>
+</ul></li>
+<li><p><strong>Tweak GEE working-correlation discussion</strong></p>
+<ul>
+<li>Add one line: “Independence working correlation is the safest option
+under dropout; we chose AR(1) for efficiency, but checked that the main
+conclusions are similar under independence.”</li>
+</ul></li>
+<li><p><strong>Minor theoretical points to add</strong></p>
+<ul>
+<li>GEE has no likelihood → can’t use AIC/BIC; QIC would be the formal
+tool.</li>
+<li>Subject-specific vs marginal OR difference, and why they are similar
+here (tiny RE variances).</li>
+</ul></li>
+<li><p><strong>Clean up the residual variance table for
+GLMM</strong></p>
+<ul>
+<li>Either remove the “Residual” row or explain that for binomial GLMM
+there is no free residual variance like in Gaussian models.</li>
+</ul></li>
+</ol>
+<hr />
+<p>Overall: conceptually you are in very good shape. The main weaknesses
+are <strong>consistency and small theoretical caveats</strong>, not huge
+conceptual mistakes. If you fix the GLMM description + explicitly
+acknowledge the singular fit and GEE–dropout nuance, you’ll be very hard
+to catch out in the oral defense.</p>
+
+</body>
+</html>

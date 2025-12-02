@@ -47,21 +47,8 @@ library(kableExtra)
 use_latex_packages()
 
 
-#list.files(lda_data_path)
-
-#' Tidy model with 95% CIs and a formatted estimate column
-#'
-#' Works for lm/glm via broom and lme4/glmmTMB via broom.mixed.
-#' @param model a fitted model (lm, glm, lmerMod, glmerMod, glmmTMB, etc.)
-#' @param effects which effects to return
-#' for mixed models ("fixed", "ran_pars", "ran_vals")
-#' @param conf_level CI level
-#' @param exponentiate exponentiate estimates/CIs (useful for logit/Poisson)
-#' @param digits rounding for formatted strings
-#' @return tibble with columns term, estimate (formatted),
-#' std.error, statistic, p.value, conf.low, conf.high
 tidy_with_ci <- function(model,
-                         effects = c("fixed"),
+                         effects = c("fixed", "ran_pars"),
                          conf_level = 0.95,
                          exponentiate = FALSE,
                          digits = 2) {
@@ -139,34 +126,35 @@ tidy_with_ci <- function(model,
     )]
   }
 
-  # format numeric columns
-  num_cols <- intersect(c("estimate", "std.error", "statistic", "
-  p.value", "conf.low", "conf.high"), names(out))
+  # formatted estimate with CI
+  if (all(c("estimate", "conf.low", "conf.high") %in% names(out))) {
+    # Identify rows that have valid CIs (i.e., not ran_pars)
+    has_ci <- !is.na(out$conf.low)
+    
+    # Create the formatted estimate string, applying CI only where valid
+    out$estimate <- ifelse(
+      has_ci,
+      paste0(
+        sprintf(paste0("%.", digits, "f"), out$estimate), " [",
+        sprintf(paste0("%.", digits, "f"), out$conf.low), ", ",
+        sprintf(paste0("%.", digits, "f"), out$conf.high), "]"
+      ),
+      sprintf(paste0("%.", digits, "f"), out$estimate) # Just format the estimate for ran_pars
+    )
+  }
+
+  # format numeric columns that are not the main estimate
+  num_cols <- intersect(c("std.error", "statistic"), names(out))
   out[num_cols] <- lapply(out[num_cols], function(x) {
     if (is.numeric(x)) round(x, digits) else x
   })
 
-  # formatted estimate with CI
-  if (all(c("estimate", "conf.low", "conf.high") %in%
-    names(out))) {
-    # Use sprintf to format numbers to a consistent width for alignment
-    # make 3f to be digitsf
-    out$estimate_str <- sprintf(paste0("%7.", digits, "f"), out$estimate)
-    out$conf.low_str <- sprintf(paste0("%7.", digits, "f"), out$conf.low)
-    out$conf.high_str <- sprintf(paste0("%7.", digits, "f"), out$conf.high)
-
-    est_ci <- paste0(
-      out$estimate_str, " [",
-      out$conf.low_str, ", ", out$conf.high_str, "]"
-    )
-    out$estimate <- est_ci
-  }
-
   # optional: pretty p-values (e.g., <0.001)
   if ("p.value" %in% names(out)) {
+    # Format p-values, leaving NAs as they are
     out$p.value <- ifelse(is.na(out$p.value), NA_character_,
       ifelse(out$p.value < 10^(-digits),
-        paste0("<", format(10^(-digits), scientific = FALSE)),
+        paste0("<0.", paste(rep("0", digits - 1), collapse = ""), "1"),
         format(round(out$p.value, digits), nsmall = digits)
       )
     )
@@ -183,6 +171,7 @@ tidy_with_ci <- function(model,
 }
 
 
+
 # Tidy adjacent model comparisons from base anova() output
 # Works for anova(m1, m2, ...): lm/glm, lmer/glmer, gls/lme, etc.
 tidy_anova_compare <- function(anova_df, digits = 2) {
@@ -194,6 +183,86 @@ tidy_anova_compare <- function(anova_df, digits = 2) {
   x$call <- NULL
   x
 }
+
+
+
+display_random_effects <- function(
+    model,
+    caption = "Random effects: variance components",
+    digits = 3) {
+  df <- tidy_re_varcorr(model, digits = digits)
+  knitr::kable(
+    df,
+    format = "latex",
+    booktabs = TRUE,
+    #caption = caption,
+    align = c("l", "l", "r", "r", "r")
+  ) |>
+    kableExtra::kable_styling(latex_options = "hold_position")
+}
+
+
+
+tidy_re_varcorr <- function(model, digits = 3) {
+  vc <- lme4::VarCorr(model)
+  rows <- list()
+
+  for (grp in names(vc)) {
+    m <- vc[[grp]]
+    sd <- attr(m, "stddev")
+    trm <- names(sd)
+    var <- sd^2
+
+    corMat <- tryCatch(attr(m, "correlation"),
+      error = function(e) NULL
+    )
+
+    for (k in seq_along(trm)) {
+      term <- trm[k]
+      corr_val <- NA_real_
+      if (!is.null(corMat) && nrow(corMat) > 1 &&
+        term != "(Intercept)" &&
+        "(Intercept)" %in% colnames(corMat)) {
+        corr_val <- as.numeric(corMat[term, "(Intercept)"])
+      }
+      rows[[length(rows) + 1L]] <- data.frame(
+        Groups = grp,
+        Name = term,
+        Variance = var[k],
+        Std.Dev. = sd[k],
+        Corr = corr_val,
+        check.names = FALSE
+      )
+    }
+  }
+
+  out <- do.call(rbind, rows)
+
+  # Add Residual variance
+  resid_sd <- sigma(model)
+  resid_var <- resid_sd^2
+  resid_row <- data.frame(
+    Groups = "Residual",
+    Name = "",
+    Variance = resid_var,
+    Std.Dev. = resid_sd,
+    Corr = NA_real_,
+    check.names = FALSE
+  )
+  out <- rbind(out, resid_row)
+
+  num_cols <- c("Variance", "Std.Dev.", "Corr")
+  out[num_cols] <- lapply(
+    out[num_cols],
+    function(x) {
+      ifelse(is.na(x),
+        NA, round(x, digits)
+      )
+    }
+  )
+  out
+}
+
 
 ```
 
@@ -308,20 +377,21 @@ alzheimer_long[, CDRSBbin := ifelse(cdrsb > 10, 1, 0)]
 
 
 
-### Question 1: Marginal Model (Generalized Estimating Equations)
+### Question 1
 
-Fit a marginal model to the binary response `CDRSBbin`.
-Correct for: `sex`, `age`, `bmi`.
-Examine effect of: `adl`, `abpet`, `taupet`.
-Since `abpet` and `taupet` are time-varying, we include them as such. `adl` is baseline.
 
-Because sex, bmi and age are related to CDRSBbin, and they are also related to functional measures like ADL and biomarkers (Abpet and Taupet), they can act as potential confounders, so it is neccessary to adjust for them in the models.
+#### Exploratory Data Analysis/Data Description
+
+At baseline (@fig-cdrsb-by-time), most patients have $\text{CDRSBbin}=0$ ($\text{CDRSB} \le 10$), about 75–80% are in the mild group (CDRSBbin=0) and only about 20–25% already have $\text{CDRSB} > 10$. Over time the bars shift: by visit 6–7, around 65–70% of the observed patients have $\text{CDRSBbin}=1$, so a much larger share has moved into the more severe category.
+
+The sex plot reflect the above pattern. At the first visit, the proportion with $\text{CDRSB} > 10$ is low in both sexes (around 10–15%), with males slightly higher than females. As time goes on, the lines rise and come together; by visits 6–7 both sexes have roughly 60–70% of patients above the cut-off, so among those who remain there is no strong or persistent sex imbalance in severity.
+
 
 ```{r}
-#| label: cdrsb-stacked-plots
-#| fig.height: 10
+#| label: fig-cdrsb-by-time
+#| fig.height: 3.5
 #| fig.width: 10
-#| fig.cap: "Distribution of CDRSB Scores by Time and Site"
+#| fig.cap: "Distribution of CDRSB Scores Over Time and by sex"
 
 library(ggplot2)
 library(scales)
@@ -337,7 +407,7 @@ cdrsb_time_plot <- ggplot(plot_data_time, aes(
 )) +
     geom_bar(stat = "identity", position = "fill") +
     scale_y_continuous(labels = scales::percent) +
-    scale_fill_brewer(palette = "Dark2") +
+    #scale_fill_brewer(palette = "Dark2") +
     labs(
         title = "Distribution of CDRSB Scores Over Time",
         x = "Time (Visit)",
@@ -357,7 +427,7 @@ cdrsb_site_plot <- ggplot(plot_data_site, aes(
     x = factor(trial),
     y = pct, fill = factor(CDRSBbin)
 )) +
-    geom_bar(stat = "identity", position = "fill") +
+    geom_bar(stat = "identity", position = "fill", width = .5) +
     scale_y_continuous(labels = scales::percent) +
     scale_fill_brewer(palette = "Dark2") +
     labs(
@@ -369,55 +439,135 @@ cdrsb_site_plot <- ggplot(plot_data_site, aes(
     theme_minimal() +
     theme(axis.text.x = element_text(angle = 90))
 
-grid.arrange(cdrsb_time_plot, 
-cdrsb_site_plot, ncol = 1)
-```
 
 
-
-
-```{r}
-
-
-# Plot: proportion with CDRSBbin = 1 by sex
-library(dplyr)
-library(ggplot2)
 
 outcome_by_sex <- alzheimer_long %>%
-  group_by(sex) %>%
-  summarise(p_high = mean(CDRSBbin, na.rm = TRUE))
+    group_by(sex, time) %>%
+    summarise(p_high = mean(CDRSBbin, na.rm = TRUE))
 
-ggplot(outcome_by_sex, aes(x = sex, y = p_high)) +
-  geom_col() +
-  labs(x = "Sex", y = "Proportion with CDRSBbin = 1")
+sex_time <- ggplot(outcome_by_sex, aes(x = time, y = p_high, color = sex)) +
+    geom_line(size = 1) +
+    geom_point(size = 2) +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+    labs(
+        title = "Proportion of Patients with CDRSB > 10 \n by Sex Over Time",  
+        x = "Time (Visit)",
+        y = "Proportion with CDRSB > 10",
+        color = "Sex"
+    ) +
+    guides(color = guide_legend(title = "Sex")) +
+    theme_minimal()+
+    theme(legend.position = "bottom")
 
+grid.arrange(cdrsb_time_plot,
+    sex_time,
+    ncol = 2
+)
 ```
 
 
+The age and BMI boxplots in @fig-age-bmi-by-cdrsb give a cross-sectional picture at each visit. At every time point, patients with $\text{CDRSBbin}=1$ are on average a few years older than those with $\text{CDRSBbin}=0$ (median ages mostly in the late 60s to low 70s), but this age gap becomes smaller over time. In the early visits we still see very old patients (some above 85 years), whereas by visits 6–7 these extreme ages have largely disappeared and most patients cluster around their late 60s–early 70s. BMI medians stay around 25–27 kg/m(^2) and the two CDRSB groups have very similar BMI distributions at all visits.
+
+These plots describe only patients who are still observed at each visit. From Homework 1 we saw  that older patients tend to drop out earlier.
+
+
 ```{r}
-ggplot(
-  subset(alzheimer_long, !is.na(CDRSBbin) & !is.na(age)),
-  aes(x = factor(CDRSBbin), y = age)
+#| label: fig-age-bmi-by-cdrsb
+#| fig.cap: "Distribution of Age and BMI by CDRSBbin"
+#| fig.height: 4.5
+#| fig.width: 10
+age_by_crdrsb <- ggplot(
+    subset(alzheimer_long, !is.na(CDRSBbin) & !is.na(age)),
+    aes(fill = factor(CDRSBbin), y = age, x = factor(time))
 ) +
-  geom_boxplot() +
-  labs(
-    x = "CDRSBbin (0 = ≤10, 1 = >10)",
-    y = "Age",
-    title = "Distribution of Age by CDRSBbin"
-  ) +
-  theme_minimal()
+    geom_boxplot() +
+    labs(
+        x = "Time",
+        y = "Age",
+        title = "Distribution of Age by CDRSBbin"
+    ) +
+    guides(fill = guide_legend(title = "CDRSBbin")) +
+    theme_minimal()+
+    theme(legend.position = "bottom")
 
 
+
+
+### bmi by cdrsbbin
+bmi_by_crdrsb <- ggplot(
+    subset(alzheimer_long, !is.na(CDRSBbin) & !is.na(bmi)),
+    aes(fill = factor(CDRSBbin), y = bmi, x = factor(time))
+) +
+    geom_boxplot() +
+    labs(
+        x = "Time",
+        y = "BMI",
+        title = "Distribution of BMI by CDRSBbin"
+    ) +
+    guides(fill = guide_legend(title = "CDRSBbin")) +
+    theme_minimal()+
+    theme(legend.position = "bottom")
+
+grid.arrange(age_by_crdrsb,
+    bmi_by_crdrsb,
+    ncol = 2
+)
 
 ```
 
 
-```{r}
-library(dplyr)
-library(ggplot2)
 
-# Make sure cdrsb_bin and time exist and have no weird values
-# str(alzheimer_long)
+```{r}
+#| label: fig-retention-rate-high-cdrsb
+#| fig-cap: "Retention Rate Over Time for Patients with High CDRSB (>10) at Baseline"
+#| fig.width: 6.3
+#| fig.height: 3.5
+
+library(data.table)
+library(ggplot2)
+library(scales)
+
+high_baseline_patients <- alzheimer_long[time == 1 & CDRSBbin == 1, .(patid)]
+n_total_high_baseline <- nrow(high_baseline_patients)
+
+# 2. Count actual observed patients from this cohort at each time point
+# This accounts for missing intermediate visits correctly
+retention_data <- alzheimer_long[
+  patid %in% high_baseline_patients$patid & !is.na(cdrsb),
+  .(n_remaining = uniqueN(patid)),
+  by = time
+][order(time)]
+
+# 3. Calculate the retention percentage
+retention_data[, pct_remaining := n_remaining / n_total_high_baseline]
+
+# 4. Create the retention plot
+retention_plot <- ggplot(retention_data, aes(x = time, y = pct_remaining)) +
+    geom_line(size = 1, color = "firebrick") +
+    geom_point(size = 3, color = "firebrick") +
+    # geom_text(aes(label = paste0(percent(pct_remaining, accuracy = 1), " (n=", n_remaining, ")")),
+    #     vjust = -1, size = 3.5
+    # ) +
+    scale_y_continuous(labels = scales::percent, limits = c(0, 1.05)) +
+    labs(
+        title = "Retention of Patients with High CDRSB at Baseline",
+        subtitle = paste("Cohort started with", n_total_high_baseline, "patients (CDRSB > 10 at time 0)"),  
+        x = "Time (Visit)",
+        y = "Percentage of Initial Cohort Remaining"
+    ) +
+    theme_minimal(base_size = 12)
+retention_plot
+```
+
+
+
+
+```{r}
+#| label: fig-semi-variogram
+#| fig.cap: "Empirical Semivariogram of CDRSBbin Over Time"
+#| fig.width: 6
+#| fig.height: 3.5
 
 max_time <- max(alzheimer_long$time, na.rm = TRUE)
 lags <- 1:max_time
@@ -441,7 +591,7 @@ semivar_df <- lapply(lags, function(h) {
   bind_rows()
 
 # Plot semivariogram
-ggplot(semivar_df, aes(x = lag, y = semivariance)) +
+semi_variogram <- ggplot(semivar_df, aes(x = lag, y = semivariance)) +
   geom_point() +
   geom_line() +
   labs(
@@ -450,6 +600,8 @@ ggplot(semivar_df, aes(x = lag, y = semivariance)) +
     y = "Semivariance"
   ) +
   theme_minimal()
+
+semi_variogram
 ```
 
 
@@ -458,10 +610,18 @@ ggplot(semivar_df, aes(x = lag, y = semivariance)) +
 
 To estimate how the population averaged (marginal effects) probability of being in the worse cognitive category (CDRSBbin = 1, i.e. CDRSB > 10) changes over time, we fitted a marginal model using generalized estimating equations (GEE), GEE1 with a logit link and an AR(1) working correlation structure. The model includes time, sex, age, body mass index (BMI), activities of daily living (ADL), amyloid PET (ABPET), and tau PET (TAUPET) as covariates, and accounts for within-patient correlation across repeated visits using the working correlation matrix.
 Let \(Y_{it}\) be the binary outcome for patient \(i\) at time \(t\). We define the marginal mean as:
+
+
 $$
 \pi_{it} = \Pr\bigl(Y_{it} = 1 \mid X_{it}\bigr).
 $$
+
+
+
 where \(X_{it}\) denotes the vector of covariates for patient \(i\) at time \(t\). We specify the marginal mean model with a logit link as:
+
+
+
 $$
 \text{logit}(\pi_{it}) 
 =
@@ -474,19 +634,32 @@ $$
 + \beta_6\,\text{abpet}_{it}
 + \beta_7\,\text{taupet}_{it}.
 $$
+
+
+
 where:
-${logit}(\pi) = \log\{\pi/(1-\pi)\}$
+
+
+$$
+{logit}(\pi) = \log\{\pi/(1-\pi)\}
+$$
+
+
+
 Under the binomial model, the marginal variance is :
 
 $$
 {Var}(Y_{it} \mid X_{it}) = \pi_{it}\bigl(1 - \pi_{it}\bigr) 
 $$
+
 Within each patient, the working correlation between two measurements at times \(t\) and \(s\) is assumed to follow an AR(1) structure,
 
 $$
 \mathrm{Corr}\bigl(Y_{it}, Y_{is} \mid X\bigr)
 \approx \alpha^{\lvert t - s \rvert},
 $$
+
+
 and robust (“sandwich”) standard errors are used so that inference remains valid even if the working correlation is misspecified.
 
 
@@ -499,7 +672,9 @@ library(geepack)
 setorder(alzheimer_long, patid, time)
 
 gee_model <- geeglm(
-    CDRSBbin ~ time + sex + age + bmi + adl + abpet + taupet,
+    CDRSBbin ~ time + sex + age + bmi +
+     adl + abpet + taupet +
+     time:abpet + time:taupet,
     id = patid,
     data = alzheimer_long,
     family = binomial(link = "logit"),
@@ -541,9 +716,12 @@ We fitted a marginal (population-average) model using Generalised Estimating Equ
 **Marginal Variance/correlation**
 
 The variance is
+
 $$
 \operatorname{Var}(Y_{it} \mid X_{it}) = \mu_{it}\bigl(1 - \mu_{it}\bigr)
 $$
+
+
 as in the binomial model. The working correlation is AR(1): correlation between time points decreases with increasing time lag. Semivariogram graph showed decreasing correlation with incease in time lag, supporting the AR(1) choice.
 
 **Assumptions**
@@ -592,37 +770,43 @@ Using a population-average longitudinal model, we found that the probability of 
 To estimate how the probability of being in the worse cognitive category (CDRSBbin = 1, i.e. CDRSB > 10) changes over time while adjusting for patient characteristics, we fitted a generalized linear mixed model (GLMM) with a logit link. The model included fixed effects for time, sex, age, body mass index (BMI), activities of daily living (ADL), amyloid PET (ABPET), and tau PET (TAUPET), and random intercepts for both patients and trials to account for clustering within individuals and study centres.
 
 For patient $i\ $ in trial $j\ $ at time $t\ $, let $ Y_{ijt} = \text{CDRSBbin}_{ijt} $ be the binary outcome $ Y_{ijt} = 1 $ if CDRSB \(> 10\), \(0\) otherwise). We specify the GLMM with logit link as:
+
+
+
 $$
+\begin{aligned}
 \text{logit}\bigl\{\Pr(Y_{ijt} = 1 \mid b_{0i}, u_{0j})\bigr\}
-=
-\beta_0
+&= \beta_0
 + \beta_1\,\text{time}_{ijt}
 + \beta_2\,\text{sex}_i
 + \beta_3\,\text{age}_i
 + \beta_4\,\text{bmi}_i \\
-+ \beta_5\,\text{adl}_i
+&\quad + \beta_5\,\text{adl}_i
 + \beta_6\,\text{abpet}_{ijt}
 + \beta_7\,\text{taupet}_{ijt}
 + b_{0i}
 + u_{0j}.
+\end{aligned}
 $$
+
 
 where:
 
-* $(\beta_0,\ldots, \beta_7)$ are population-level (fixed) effects,
+*$(\beta_0,\ldots, \beta_7)$ are population-level (fixed) effects,
 
-* $ b_{0i} \sim N(0, \sigma_{b0}^2) $ is the patient-specific random intercept,  
+* $b_{0i} \sim N(0, \sigma_{b0}^2)$ is the patient-specific random intercept,  
 
-* $u_{0j} \sim N(0, \sigma_{u0}^2) $ is the trial-specific random intercept, conditional on $(b_{0i}, u_{0j})$ and the covariates, $(Y_{ijt} \sim \text{Bernoulli}(\pi_{ijt})$ with $(\pi_{ijt} = \Pr(Y_{ijt}=1 \mid b_{0i}, u_{0j})$.
+* $u_{0j} \sim N(0, \sigma_{u0}^2)$ is the trial-specific random intercept, conditional on $(b_{0i}, u_{0j})$ and the covariates, $(Y_{ijt} \sim \text{Bernoulli}(\pi_{ijt})$ with $(\pi_{ijt} = \Pr(Y_{ijt}=1 \mid b_{0i}, u_{0j})$.
 
 
-```{r glmm-model}
+```{r}
 #| label: glmm-model
 #| tbl-cap: "GLMM Model Results (Odds Ratios)"
 
 
 glmm_model <- glmer(
-  CDRSBbin ~ time + sex + age + bmi + adl + abpet + taupet + (1 | trial) + (1 | patid),
+  CDRSBbin ~ time + sex + age + bmi + abpet + taupet+
+   adl + time:abpet + time:taupet + 1 + (time | patid),
   data = alzheimer_long,
   family = binomial(link = "logit"),
   nAGQ = 1 # Laplace approximation
@@ -647,6 +831,27 @@ tidy_with_ci(glmm_model, exponentiate = TRUE) %>%
   )
 ```
 
+
+
+```{r}
+#| label: tbl-glmm-ranef
+#| tbl-cap: "GLMM Random Effects Variance Components"
+
+tidy_re_varcorr(glmm_model, digits = 4) %>%
+  kable(
+    format = "latex",
+    booktabs = TRUE,
+    # longtable = TRUE,
+    align = c("l", "l", "r", "r", "r")
+  ) |>
+  # scale down to fit page width
+  kableExtra::kable_styling(
+    latex_options = c(
+      "scale_down"
+    ),
+    font_size = 9
+  )
+```
 
 
 
@@ -727,9 +932,13 @@ where $\{b_i\}$ are independent across patients, $\{u_j\}$ are independent acros
 **Reflection on parameterization**
 
 We specified a logistic GLMM with a logit link and random intercepts for patients and trials:
+
+
 $$
 \text{logit}\{\pi_{ijt}\} = X_{ijt}^\top \beta + b_i + u_j.
 $$
+
+
 This parameterisation yields subject-specific log-odds ratios, which aligns with our interest in modelling individual risk rather than marginal (population-averaged) effects. Random intercepts for patients and trials account for unobserved heterogeneity and induce within-patient and within-trial correlation, while remaining parsimonious and numerically stable given the available data. Continuous covariates were entered linearly on the logit scale, representing a balance between model flexibility and interpretability; more flexible forms could be considered if strong non-linearity were empirically indicated.
 
 
@@ -763,9 +972,9 @@ ranef_pat <- as.data.frame(r_effs$patid) %>%
   rename(random_intercept = `(Intercept)`)
 
 # 2. Trial-level random effects
-ranef_trial <- as.data.frame(r_effs$trial) %>%
-  rownames_to_column("trial") %>%
-  rename(random_intercept = `(Intercept)`)
+# ranef_trial <- as.data.frame(r_effs$trial) %>%
+#   rownames_to_column("trial") %>%
+#   rename(random_intercept = `(Intercept)`)
 
 # Plot distribution of Patient Random Intercepts
 patid_plot <- ggplot(ranef_pat, aes(x = random_intercept)) +
@@ -776,16 +985,16 @@ patid_plot <- ggplot(ranef_pat, aes(x = random_intercept)) +
        x = "Log-Odds", y = "Count")
 
 # Plot Trial Random Intercepts
-trial_plot <- ggplot(ranef_trial, aes(x = reorder(trial, random_intercept), y = random_intercept)) +
-  geom_point(size = 3, color = "darkred") +
-  geom_hline(yintercept = 0, linetype = "dashed") +
-  coord_flip() +
-  theme_minimal() +
-  labs(title = "Trial Random Intercepts", 
-       subtitle = "Variation between sites",
-       x = "Trial", y = "Log-Odds Deviation")
+# trial_plot <- ggplot(ranef_trial, aes(x = reorder(trial, random_intercept), y = random_intercept)) +
+#   geom_point(size = 3, color = "darkred") +
+#   geom_hline(yintercept = 0, linetype = "dashed") +
+#   coord_flip() +
+#   theme_minimal() +
+#   labs(title = "Trial Random Intercepts", 
+#        subtitle = "Variation between sites",
+#        x = "Trial", y = "Log-Odds Deviation")
 
-grid.arrange(patid_plot, trial_plot, ncol = 2)
+grid.arrange(patid_plot, ncol = 1)
 
 
 ```

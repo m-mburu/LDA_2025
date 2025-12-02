@@ -1,0 +1,561 @@
+Motivations
+================
+
+### Why use GEE1 (standard GEE) for this homework?
+
+**Study goal**
+
+- The assignment says: *“correct for sex, age, BMI, and then examine the
+  importance of ADL, ABPET, TAUPET”* for a **longitudinal binary
+  outcome** ($\text{CDRSBbin}$).
+- So the **main interest is in marginal mean effects**
+  (population–average odds of “worse” CDR-SB) as a function of baseline
+  covariates, *not* in a detailed model for the full joint distribution
+  or the association structure.
+
+Given that, **GEE1 is the natural first choice**:
+
+- GEE1 directly models $$
+  \mathbb{E}(Y_{ij}\mid X_i) = \pi_{ij}, \quad \text{with}\quad \text{logit}(\pi_{ij}) = X_{ij}^\top\beta
+  $$ and treats the working correlation as a nuisance.
+- Even if the **working correlation** is misspecified, the **regression
+  coefficients $\beta$ are still consistent** for the marginal mean
+  (with robust/sandwich SEs), provided the mean model is correct and
+  missingness is at least MAR/MCAR.
+- In our case all covariates are **baseline** (sex, age, BMI, ADL,
+  ABPET, TAUPET), so there is no time–varying confounding that would
+  break standard GEE assumptions.
+
+So: **GEE1 matches the question (marginal effects of baseline
+predictors) and has simple, robust interpretation.**
+
+------------------------------------------------------------------------
+
+### Why *not* GEE2 in this setting?
+
+GEE2 extends GEE by also modelling **second–order moments** (pairwise
+association), for example via **within–subject odds ratios**.
+
+- GEE2 is mainly useful if the **scientific question is about the
+  association structure itself**, e.g. “how strongly are repeated
+  responses correlated, after covariate adjustment?”.
+- Here, we are not asked to interpret **within–patient odds ratios** or
+  covariance parameters; we only need to know whether ADL, ABPET, TAUPET
+  contribute to the **marginal probability** of high CDR-SB.
+
+Practical drawbacks of GEE2 for your dataset:
+
+- More parameters (for association) → heavier model, trickier
+  convergence, especially with 7 time points.
+- As discussed in typical notes, GEE2 **can be unstable in moderate
+  samples**, and the **mean–parameter estimates can become more
+  sensitive** to misspecification of the association model.
+
+So for this assignment, **GEE2 adds complexity without addressing a
+primary research question**, and doesn’t clearly outperform GEE1.
+
+------------------------------------------------------------------------
+
+### Why not a Bahadur / quadratic–exponential model?
+
+The **Bahadur representation** (or quadratic exponential model)
+parameterizes the **full joint distribution** of a multivariate binary
+vector via:
+
+- main–effect terms (one per time point),
+- plus **pairwise interaction terms** between all times.
+
+For 7 time points that’s already:
+
+- 7 marginal terms + 21 pairwise terms = 28 parameters *before* adding
+  covariates.
+
+Why it’s not a great fit here:
+
+- Your aim is **not** to fully model and interpret the entire joint
+  distribution of the 7–dimensional binary vector; you mainly want
+  **covariate effects on the marginal mean**.
+- Bahadur models can run into **constraints/instability** (probabilities
+  must remain in $[0,1]$; correlation parameters must stay compatible
+  with a joint distribution).
+- They are **less standard in software** and heavier to explain in a
+  10–15 minute defence, compared with a logit GEE.
+
+So in terms of **“complexity vs. what the question asks”**, Bahadur is
+overkill and not well aligned with the assignment’s focus.
+
+------------------------------------------------------------------------
+
+### Is GEE1 completely “appropriate”? Any caveats?
+
+For *this* homework, with:
+
+- **baseline covariates only**,
+- interest in **population–average effects**,
+- and moderate number of time points (7),
+
+GEE1 with a logit link is **appropriate and defensible**.
+
+But you can acknowledge limitations:
+
+- It assumes **MAR/MCAR** missingness given covariates; if dropout
+  depends on unobserved future outcomes (MNAR), even GEE1 is biased.
+- It does **not give subject–specific trajectories**; it’s purely
+  marginal.
+- In small samples, the **sandwich SEs can be downward biased**, though
+  with $n \approx 1250$ that’s less of an issue.
+
+You can say something like:
+
+> “We chose GEE1 because our primary goal is to estimate
+> population–average covariate effects on the binary outcome. We are not
+> targeting subject–specific trajectories or detailed association
+> parameters, so GEE2 or Bahadur-type models would add complexity
+> without a clear gain. GEE1 gives consistent estimates of the marginal
+> regression coefficients under a correct mean model and MAR/MCAR
+> missingness, which matches our scientific question.”
+
+------------------------------------------------------------------------
+
+### Other marginal non-Gaussian methods you could mention (from theory)
+
+If they ask “what else could you have used?” you can list:
+
+1.  **GEE1 with alternative working correlations**
+
+    - Independence, exchangeable, AR(1), unstructured.
+    - All still GEE1, but different assumptions for $R(\alpha)$.
+
+2.  **Weighted GEE (WGEE)**
+
+    - Uses inverse–probability weights to handle dropout that depends on
+      observed history (MAR).
+    - Still targets marginal mean, but more robust to informative
+      dropout.
+
+3.  **Alternating Logistic Regression (ALR)**
+
+    - A GEE2–type method that models **pairwise log–odds ratios** as
+      association parameters, alongside a marginal logit mean model.
+
+4.  **Marginalized transition models** (e.g. Heagerty’s models)
+
+    - Combine a marginal mean model with a **Markov structure** for
+      dependence, still targeting population–average effects but
+      explicitly modelling $Y_{ij} | Y_{i,j-1}$.
+
+5.  **Quadratic exponential / Bahadur models**
+
+    - Full joint model for multivariate binary data, but, as noted, more
+      complex and not needed here.
+
+That’s enough to show you know the “zoo” of marginal non-Gaussian
+methods, and why **GEE1** is a reasonable, purpose–driven choice for
+this assignment.
+
+### 1. With *complete* data
+
+For standard GEE1:
+
+- If the **mean model is correctly specified**
+
+  \[ = X\_{ij}^,\]
+
+- and you have **many subjects** (lots of replication),
+
+- and the \*\*same mean model (\_i)\*\* is reasonable for all groups,
+
+- and **time grids are not wildly different** between subjects,
+
+then **() is consistent even if the working correlation matrix is
+wrong**. If these conditions fail (tiny sample, completely different
+time designs, wrong link/linear predictor), then GEE1 can give biased or
+very unstable estimates.
+
+------------------------------------------------------------------------
+
+### 2. Incomplete data: when does GEE1 break?
+
+This is what the red note “Care needed with incomplete data” is about.
+
+Once you have **dropout / missing responses**, the nice robustness
+result *no longer automatically holds*:
+
+- If missingness is **MCAR** (missing completely at random), standard
+  GEE1 is still fine.
+- If missingness is **MAR but depends only on observed covariates and
+  past responses**, you need to be more careful – some choices of
+  working correlation remain okay, others can lead to bias.
+- If missingness is **MNAR** (depends on unobserved outcomes or random
+  effects), **plain GEE1 is generally biased**, no matter which working
+  correlation you choose.
+
+That’s why people move to **weighted GEE / WGEE**, joint models, or
+random-effects logistic models when dropout is clearly informative.
+
+------------------------------------------------------------------------
+
+### 3. Efficiency vs “being wrong”
+
+Even when () is still consistent:
+
+- A **bad working correlation** can make the estimator **very
+  inefficient** (bigger standard errors, wider CIs).
+- So GEE1 is “not wrong” in a strict sense, but you may lose a lot of
+  power.
+
+------------------------------------------------------------------------
+
+So if they ask:
+
+> When is GEE1 wrong?
+
+You can say:
+
+> “With complete data and a correct mean model, GEE1 gives consistent
+> marginal estimates even if the working correlation is wrong, provided
+> we have enough subjects and similar time grids. But with incomplete
+> data, especially when dropout depends on unobserved outcomes (MNAR),
+> this robustness breaks and standard GEE1 can give biased
+> estimates—then we would need weighted GEE or a joint/random-effects
+> model instead.”
+
+Nice question to think through for the defense. I’ll keep it short and
+practical.
+
+### 1. Why *not* a transition model here?
+
+Transition (Markov) model: \[ (Y\_{it}=1 Y\_{i,t-1}, X_i) = ^{-1}{+
+Y\_{i,t-1} + ’ X_i}\]
+
+**Problems for this project**
+
+- **Scientific question** – We care about *population-average* change in
+  the probability of high CDRSB over time and how this depends on
+  baseline factors (sex, age, BMI, ADL, biomarkers). A transition model
+  answers a different question: “given last year’s CDRSB value, what
+  happens this year?”. The coefficients are conditional on the previous
+  response, not marginal.
+
+- **Lagged outcome dominates** – In slowly progressing diseases like
+  Alzheimer’s, (Y\_{i,t-1}) is extremely predictive of (Y\_{it}). Once
+  you condition on the previous outcome, the effect of baseline
+  covariates is heavily attenuated and hard to interpret.
+
+- **Initial state + missing data** – You must model the distribution of
+  the first observation and make strong assumptions about how missing
+  visits depend on the past history. With heavy dropout and unequal
+  visit numbers, this becomes quite fragile for a homework project.
+
+So a transition model doesn’t align well with the *goal* of the
+assignment and adds extra assumptions we don’t really want to defend.
+
+------------------------------------------------------------------------
+
+### 2. Why *not* a log-linear model for the repeated binaries?
+
+Log-linear approach: treat ((Y\_{i1},,Y\_{iT})) as cells of a multi-way
+contingency table and model log-expected cell counts with main effects
+and interactions.
+
+**Problems here**
+
+- **Too many parameters** – With up to 7 yearly measurements, even just
+  main effects + pairwise time–time interactions already explodes in
+  number of parameters. It’s fine for 2–3 time points, not for 7.
+
+- **Continuous covariates** – Our key covariates (age, BMI, ADL,
+  biomarkers) are continuous. Log-linear models are natural for
+  categorical predictors; handling several continuous predictors would
+  require heavy categorisation or very awkward modelling.
+
+- **Messy with missing and unbalanced data** – Log-linear models are
+  built for “complete” tables. In our data we have many different visit
+  patterns and monotone dropout, so the contingency table is extremely
+  sparse.
+
+So the log-linear route is theoretically possible, but totally
+impractical and gives less interpretable regression-style effects than
+GEE or a random-effects logistic model.
+
+------------------------------------------------------------------------
+
+### 3. So why stick with a marginal GEE1 instead?
+
+Very briefly:
+
+- **Matches the question** – directly models the marginal mean
+  ((Y\_{it}=1 X_i, t)) which is exactly what we want to interpret
+  (population-average odds of high CDRSB over time).
+
+- **Robust to correlation misspecification** – if the mean model is
+  correct and missingness is at least MAR given included covariates, ()
+  is consistent even when the working correlation is wrong (sandwich
+  variance).
+
+- **Works with many subjects, unbalanced data** – GEE1 handles different
+  numbers of visits per patient and irregular dropout much more easily
+  than log-linear or transition models.
+
+You can summarise in the exam like this:
+
+> “Conditional models like transition or log-linear would force us to
+> model the full joint distribution or condition on previous outcomes,
+> which is not our scientific target and becomes impractical with 7 time
+> points, continuous covariates and heavy dropout. A marginal GEE1 model
+> directly answers our population-average question, is robust to
+> misspecified within-subject correlation, and is much easier to fit and
+> interpret for this Alzheimer dataset.”
+
+### What does “efficient” mean for GEE1?
+
+For GEE1 we usually mean:
+
+> **If the mean model is correct and the working correlation is close to
+> the truth, the GEE1 estimator () has (asymptotically) the smallest
+> possible variance among all estimators that use only the first two
+> moments (mean + covariance).**
+
+So:
+
+- with a **good working correlation**, GEE1 makes very “good use” of the
+  within-subject information → **small standard errors = efficient**;
+- with a **poor working correlation**, () is still *consistent* but
+  **less efficient** (SEs larger than necessary).
+
+------------------------------------------------------------------------
+
+### Other key characteristics of GEE1 (you can list these in the defense)
+
+- **Consistent** for () even if the working correlation is wrong (given
+  correct mean model, large sample, independent subjects).
+
+- **Robust (“sandwich”) standard errors** → valid inference under a wide
+  range of true covariance structures.
+
+- **Population-average (marginal) interpretation** → () tells you how
+  the *average* probability changes with covariates, not
+  subject-specific effects.
+
+- **Good for many subjects, few time points** → large (n), small (T);
+  unbalanced follow-up is fine.
+
+- **Handles general correlation structures** (independence,
+  exchangeable, AR(1), unstructured, …) via the working correlation.
+
+- **Requires MAR/MCAR and correctly specified mean**
+
+  → with drop-out that is MAR given covariates and past data, GEE1 still
+  targets the correct marginal mean.
+
+Nice, we’re now in the *random-effects* world rather than GEE. I’ll
+mirror the structure you used for Question 1 and focus only on the GLMM
+/ random-effects side.
+
+You can drop this into a small `Motivations` section for Question 2.
+
+------------------------------------------------------------------------
+
+### Why use a random-effects model (GLMM) for this homework?
+
+**Study goal in Question 2**
+
+For the binary outcome
+
+\[ Y\_{ij} = \_{ij} ,\]
+
+we now want to:
+
+- allow **each patient** to have their own level and possibly their own
+  evolution over time,
+- **borrow strength** across patients via random effects,
+- and look at **empirical Bayes predictions** of these random effects
+  (who deteriorates faster / slower, which centres differ, etc.).
+
+This is a **subject-specific** question, not a purely marginal one. So
+instead of a marginal GEE, we use a **generalized linear mixed model
+(GLMM)**, i.e. a random-effects logistic model, which is the standard
+tool for **non-Gaussian longitudinal data** in the conditional
+framework.
+
+A typical model you can write in the report is:
+
+\[ ,(Y\_{ij}=1 b_i) = \_0 + *1 ,*{ij} + \_2 ,\_i + \_3 ,\_i + \_4 ,\_i +
+\_5 ,\*i + \_6 ,\*i + \_7 ,*i + b*{0i} + b*{1i},*{ij},\]
+
+with random intercept and (optionally) random slope,
+
+\[ \]
+
+- The **β’s** describe changes in **subject-specific log-odds** of high
+  CDR-SB.
+- The **random effects** (b_i) capture how each patient deviates from
+  the “average” trajectory.
+
+This directly matches what the assignment asks for in part 2: a
+**random-effects model** and **empirical Bayes predictions** of those
+effects.
+
+------------------------------------------------------------------------
+
+### Why GLMM (likelihood-based) and not PQL or MQL?
+
+For non-Gaussian longitudinal data there are several estimation
+approaches for random-effects models:
+
+- **MQL** – marginal quasi-likelihood
+- **PQL** – penalized quasi-likelihood
+- **Laplace / Adaptive Gaussian Quadrature (AGQ)** – direct likelihood
+  approximations
+
+In the notes, they compare these methods on a logistic random-intercept
+model and show:
+
+- With **adaptive Gaussian quadrature**, using many quadrature points (Q
+  = 50), they treat this as a kind of **gold standard**.
+
+- When they compare QUAD vs PQL vs MQL, the **fixed effects and variance
+  components differ a lot**:
+
+  - Intercepts and slopes are substantially closer to 0 under MQL/PQL,
+  - The random-intercept variance is much smaller with MQL/PQL than with
+    QUAD.
+
+- The slides explicitly say: “**Severe differences between QUAD (gold
+  standard?) and MQL/PQL. MQL/PQL may yield (very) biased results,
+  especially for binary data.**”
+
+So for **binary outcomes like CDRSBbin**, MQL and PQL are known to:
+
+- underestimate the **between-subject variance**,
+- shrink slopes towards zero,
+- and generally give **biased fixed-effect estimates** when random
+  effects are not tiny.
+
+Because of this, for our homework we **do not** use MQL or PQL. Instead
+we fit the GLMM with **likelihood-based methods** as implemented in
+`glmer`:
+
+- `glmer(..., family = binomial, nAGQ = 1)` → **Laplace approximation**
+  to the likelihood (fast, default).
+- `glmer(..., family = binomial, nAGQ = k > 1)` → **adaptive
+  Gauss–Hermite quadrature**, more accurate but slower.
+
+In a report you can say something like:
+
+> “Because quasi-likelihood methods such as PQL and MQL are known to
+> give biased estimates for binary random-effects models, especially for
+> the random-effects variance, we used a likelihood-based GLMM fitted by
+> `glmer` with a logistic link. This relies on Laplace / adaptive
+> Gaussian quadrature instead of PQL/MQL.”
+
+If you want to be fancy you can add that, in principle, one would check
+if increasing `nAGQ` changes the estimates a lot; if not, `nAGQ = 1` is
+adequate.
+
+------------------------------------------------------------------------
+
+### Strengths of the random-effects logistic model for this dataset
+
+1.  **Subject-specific interpretation**
+
+    - Coefficients are **conditional odds ratios**: they tell you how
+      the odds of high CDR-SB change for a *given* patient when a
+      covariate changes, holding their random effects fixed.
+    - This is exactly what you need when you want to talk about
+      **individual trajectories** rather than only population averages.
+
+2.  **Empirical Bayes predictions**
+
+    - Once the model is fitted, we get **BLUPs/EB estimates** (b_i) for
+      each patient’s intercept (and slope, if included).
+    - These predictions are **shrunk towards zero**: patients with few
+      or noisy observations are pulled more strongly to the overall
+      mean, which stabilises individual estimates and avoids
+      over-fitting.
+
+3.  **Proper likelihood-based inference**
+
+    - Under the assumed model (correct link, correct random-effects
+      distribution), the estimators are **consistent and efficient**; we
+      are using the full likelihood rather than just first moments.
+    - The GLMM falls in the general likelihood/Bayesian framework the
+      notes recommend for non-Gaussian longitudinal data.
+
+4.  **Handles unbalanced and incomplete data**
+
+    - Patients have different numbers of visits and monotone dropout.
+    - Likelihood-based mixed models remain valid under **MAR**, as long
+      as the missingness mechanism depends only on observed data and
+      possibly the random effects (ignorability in Rubin’s sense).
+
+5.  **Natural way to model heterogeneity**
+
+    - Random intercepts allow patients to start at different baseline
+      log-odds of severe CDR-SB.
+    - Random slopes (if included) allow different rates of
+      deterioration.
+    - You can also add a trial-level random intercept for between-centre
+      differences.
+
+### Weaknesses and caveats
+
+1.  **Heavier assumptions than GEE**
+
+    - We must assume a **specific distribution** for random effects
+      (usually multivariate normal) and a correct link function.
+    - If these assumptions are badly wrong, both fixed and random
+      effects can be biased.
+
+2.  **Different interpretation from GEE**
+
+    - GLMM coefficients are **subject-specific** odds ratios; GEE
+      coefficients are **marginal** odds ratios.
+    - For binary data, subject-specific ORs are typically **further from
+      1** (stronger effects) than marginal ORs, so they cannot be
+      directly compared.
+
+3.  **Computational complexity**
+
+    - Likelihood evaluation involves **numerical integration** over
+      random effects.
+    - Accuracy depends on the approximation (Laplace vs AGQ) and number
+      of quadrature points; poor choices can change p-values, as shown
+      in the notes where non-adaptive quadrature with small Q gave
+      different conclusions from adaptive Q = 50.
+    - With more complex random-effects structures (intercept + slope +
+      trial), convergence and boundary issues can arise; models may need
+      to be simplified.
+
+4.  **Empirical Bayes predictions are not “true” parameters**
+
+    - The (b_i) are **estimates**, shrunken towards zero and treated as
+      random; they are useful for plotting and ranking, but you should
+      be cautious about formal hypothesis tests based on them.
+
+5.  **Dropout still matters**
+
+    - As with any likelihood-based model, we rely on an **MAR-type
+      missingness** assumption given covariates and random effects.
+    - If dropout is **MNAR beyond the random effects** (e.g. people drop
+      out because of future unobserved worsening), the GLMM can still be
+      biased, just like GEE.
+
+### How to summarise this in the defence
+
+A short, oral version you can say:
+
+> “In Question 2 we switched from a marginal GEE to a random-effects
+> logistic model because we now care about *subject-specific*
+> trajectories and about predicting patient-level random effects. For
+> binary data the standard conditional model is a GLMM with logit link
+> and random intercepts (and possibly slopes). We fitted this model with
+> `glmer` using likelihood-based methods (Laplace / adaptive
+> Gauss–Hermite quadrature). In the notes, quasi-likelihood methods like
+> PQL and MQL are shown to give very biased estimates for binary
+> random-effects models, especially for the random-effects variance, so
+> we deliberately avoided them. The GLMM has the advantage that it
+> handles unbalanced data under MAR, provides interpretable
+> subject-specific odds ratios, and allows us to obtain empirical Bayes
+> predictions of the random effects, at the cost of stronger
+> distributional assumptions and more complex computation.”
