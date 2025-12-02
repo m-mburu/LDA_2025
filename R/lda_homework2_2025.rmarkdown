@@ -31,10 +31,6 @@ format:
 fontsize: 11pt
 ---
 
-
-
-
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE,
                         message = FALSE,
@@ -266,8 +262,6 @@ tidy_re_varcorr <- function(model, digits = 3) {
 
 ```
 
-
-
 ```{r}
 library(here)
 library(tidyverse)
@@ -286,8 +280,6 @@ lda_data_path <- here(lda_path, "data")
 
 ```
 
-
-
 ```{r}
 # Load the data
 alzheimer_data <- read_sas(here(
@@ -297,10 +289,6 @@ alzheimer_data <- read_sas(here(
 
 
 ```
-
-
-
-
 
 ```{r factor-conversion}
 setDT(alzheimer_data)
@@ -338,10 +326,6 @@ for (col_name in names(factor_info)) {
 #kable(alzheimer_data[1:5, c("sex", "edu", "job", "wzc")])
 ```
 
-
-
-
-
 ```{r reshape-data}
 
 id_vars <- c("patid", "trial", "sex", "age", 
@@ -377,6 +361,9 @@ alzheimer_long[, CDRSBbin := ifelse(cdrsb > 10, 1, 0)]
 
 
 
+
+
+
 ### Question 1
 
 
@@ -385,6 +372,9 @@ alzheimer_long[, CDRSBbin := ifelse(cdrsb > 10, 1, 0)]
 At baseline (@fig-cdrsb-by-time), most patients have $\text{CDRSBbin}=0$ ($\text{CDRSB} \le 10$), about 75–80% are in the mild group (CDRSBbin=0) and only about 20–25% already have $\text{CDRSB} > 10$. Over time the bars shift: by visit 6–7, around 65–70% of the observed patients have $\text{CDRSBbin}=1$, so a much larger share has moved into the more severe category.
 
 The sex plot reflect the above pattern. At the first visit, the proportion with $\text{CDRSB} > 10$ is low in both sexes (around 10–15%), with males slightly higher than females. As time goes on, the lines rise and come together; by visits 6–7 both sexes have roughly 60–70% of patients above the cut-off, so among those who remain there is no strong or persistent sex imbalance in severity.
+
+
+
 
 
 ```{r}
@@ -467,11 +457,17 @@ grid.arrange(cdrsb_time_plot,
 ```
 
 
+
+
+
 The age and BMI boxplots in @fig-age-bmi-by-cdrsb give a cross-sectional picture at each visit. At every time point, patients with $\text{CDRSBbin}=1$ are on average a few years older than those with $\text{CDRSBbin}=0$ (median ages mostly in the late 60s to low 70s), but this age gap becomes smaller over time. In the early visits we still see very old patients (some above 85 years), whereas by visits 6–7 these extreme ages have largely disappeared and most patients cluster around their late 60s–early 70s. BMI medians stay around 25–27 kg/m(^2) and the two CDRSB groups have very similar BMI distributions at all visits.
 
 These plots describe only patients who are still observed at each visit. From Homework 1 we saw  that older patients tend to drop out earlier.
 
 In summary, from the exploratory figures(@fig-cdrsb-by-time,@fig-age-bmi-by-cdrsb and @fig-age-bmi-by-cdrsb), sex, age and BMI appear to be related to both the outcome and the biomarkers, so they are potential confounders. The plots show that the proportion with CDRSBbin = 1 differs slightly by sex, and that patients with CDRSBbin = 0 are on average slightly older than those with CDRSBbin = 1, while BMI distributions are broadly similar across outcome groups but remain in a range where BMI is clinically relevant. To reduce confounding and isolate the associations of ADL, ABPET and TAUPET with CDRSBbin, we therefore adjust for sex, age and BMI in the model.
+
+
+
 
 
 ```{r}
@@ -518,8 +514,6 @@ grid.arrange(age_by_crdrsb,
 
 ```
 
-
-
 ```{r}
 #| label: fig-retention-rate-high-cdrsb
 #| fig-cap: "Retention Rate Over Time for Patients with High CDRSB (>10) at Baseline"
@@ -562,9 +556,6 @@ retention_plot <- ggplot(retention_data, aes(x = time, y = pct_remaining)) +
 retention_plot
 ```
 
-
-
-
 ```{r}
 #| label: fig-semi-variogram
 #| fig.cap: "Empirical Semivariogram of CDRSBbin Over Time"
@@ -605,6 +596,9 @@ semi_variogram <- ggplot(semivar_df, aes(x = lag, y = semivariance)) +
 
 semi_variogram
 ```
+
+
+
 
 
 
@@ -689,6 +683,9 @@ where $N$ is the number of subjects and $n_i$ is the number of observations for 
 
 
 
+
+
+
 ```{r}
 #| label: gee-model
 #| tbl-cap: "GEE Model Results (Odds Ratios)"
@@ -728,6 +725,9 @@ tidy_with_ci(gee_model, exponentiate = TRUE) %>%
         font_size = 9
     )
 ```
+
+
+
 
 
 **Model Motivation**
@@ -823,6 +823,9 @@ where:
 * $u_{0j} \sim N(0, \sigma_{u0}^2)$ is the trial-specific random intercept, conditional on $(b_{0i}, u_{0j})$ and the covariates, $(Y_{ijt} \sim \text{Bernoulli}(\pi_{ijt})$ with $(\pi_{ijt} = \Pr(Y_{ijt}=1 \mid b_{0i}, u_{0j})$.
 
 
+
+
+
 ```{r}
 #| label: glmm-model
 #| tbl-cap: "GLMM Model Results (Odds Ratios)"
@@ -855,8 +858,6 @@ tidy_with_ci(glmm_model, exponentiate = TRUE) %>%
   )
 ```
 
-
-
 ```{r}
 #| label: tbl-glmm-ranef
 #| tbl-cap: "GLMM Random Effects Variance Components"
@@ -876,6 +877,9 @@ tidy_re_varcorr(glmm_model, digits = 4) %>%
     font_size = 9
   )
 ```
+
+
+
 
 
 
@@ -981,6 +985,9 @@ In this analysis, we modelled the probability of being in the worse cognitive ca
 
 Examine the empirical Bayes predictions (random effects) to identify subjects with specific profiles.
 
+
+
+
 ```{r eb-predictions}
 #| label: eb-predictions
 #| fig-cap: "Empirical Bayes Predictions of Random Effects"
@@ -1023,7 +1030,6 @@ grid.arrange(patid_plot, ncol = 1)
 
 ```
 
-
 ```{r}
 #| label: extreme-subjects
 #| tbl-cap: "Subjects with Highest Random Intercepts (High Risk)"
@@ -1047,7 +1053,6 @@ head(top_risk, 10) %>%
 
 ```
 
-
 ```{r}
 #| label: extreme-subjects-low
 #| tbl-cap: "Subjects with Lowest Random Intercepts (Low Risk)"
@@ -1070,6 +1075,9 @@ head(low_risk, 10) %>%
 ```
 
 
+
+
+
 Left panel (patient random intercepts)
 Each bar shows how many patients have a given “patient effect” on the log-odds of being in the worse CDRSB category, after adjusting for time, sex, age, BMI, ADL, amyloid and tau.
 All the bars are very tightly clustered around 0, and the range is extremely small (on the order of 10⁻¹³). This means that, once we account for the measured covariates, the model estimates almost no residual between-patient difference in baseline risk. Patients’ individual intercepts are essentially the same.
@@ -1078,6 +1086,7 @@ Right panel(trial random intercepts) Each dot is a trial (centre), showing how m
 All trials lie almost exactly on the vertical line at 0, again with tiny deviations (order 10⁻¹⁵). This indicates no meaningful between-trial/site variability in baseline risk after covariate adjustment.
 
 In summary, empirical Bayes predictions suggest that, in this GLMM, nearly all of the variation in baseline probability of “worse CDRSB” is captured by the fixed effects, and there is negligible leftover variation attributable to individual patients or trial sites.
+
 
 
 
