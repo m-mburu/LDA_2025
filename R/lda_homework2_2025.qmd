@@ -699,7 +699,7 @@ setorder(alzheimer_long, patid, time)
 
 gee_model <- geeglm(
     CDRSBbin ~ time + sex + age + bmi +
-     adl + abpet + taupet + time:adl +
+     adl + abpet + taupet + 
      time:abpet + time:taupet,
     id = patid,
     data = alzheimer_long,
@@ -736,7 +736,7 @@ We used a marginal logistic model fitted by generalized estimating equations (GE
 
 Because we have repeated measurements from the same patients, the observations are correlated. The semivariogram indicated that within-patient correlation decreases as the time lag increases, suggesting an AR(1) pattern. To reflect this, we specified an AR(1) working correlation structure, in which measurements closer in time within a patient are more correlated than those further apart. The correlation parameter is estimated from the Pearson residuals and used to build the working covariance matrices.
 
-We use the GEE1 formulation to model only the marginal mean $ E(Y_{it} \mid X_{it}) = \pi_{it}$ with a logit link, and treat the within-patient correlation as a working feature rather than a primary target of inference. This is appropriate because our scientific question concerns the marginal mean as a function of the covariates. GEE1 directly targets this mean and treats the working correlation as a nuisance component. We report robust (sandwich) standard errors for the regression coefficients; these remain valid even if the AR(1) working correlation is misspecified, provided the mean model is correct and missingness is at least missing at random.
+We use the GEE1 formulation to model only the marginal mean $E(Y_{it} \mid X_{it}) = \pi_{it}$ with a logit link, and treat the within-patient correlation as a working feature rather than a primary target of inference. This is appropriate because our scientific question concerns the marginal mean as a function of the covariates. GEE1 directly targets this mean and treats the working correlation as a nuisance component. We report robust (sandwich) standard errors for the regression coefficients; these remain valid even if the AR(1) working correlation is misspecified, provided the mean model is correct and missingness is at least missing at random.
 
 Additionally, we did not use GEE2 or alternating logistic regression because our main goal was to model the average probability of worse cognition, not the association between pairs of measurements within a patient. GEE2/ALR would add extra parameters for within-patient association (pairwise log-odds ratios) that are harder to interpret here and less stable given the sample size. Also we did not use transition, Bahadur or log-linear models, which focus on the full joint or conditional structure of the repeated outcomes (e.g. how each visit depends on the previous one) and do not give parameters that map as directly to the average risk at a given time. In contrast, GEE1 directly models the marginal mean of the binary outcome with a logistic link, provides population-averaged effects of time, ADL, ABPET and TAUPET, and uses a working correlation only to account for within-patient dependence, combined with sandwich standard errors for robust inference.
 
@@ -751,7 +751,7 @@ The regression parameters $\beta$ were obtained by solving the GEE using an iter
 * Correct mean model: The marginal mean of the binary outcome is correctly specified as
 $\text{logit}\{\Pr(Y_{it} = 1 \mid X_{it})\} = X_{it}^\top \beta,$ with the chosen covariates (time, sex, age, BMI, ADL, ABPET, TAUPET and their interactions with time) and a logit link.
 
-* Appropriate variance function: Conditional on the covariates, $Y_{it}$ follows a Bernoulli distribution with variance $ \operatorname{Var}(Y_{it} \mid X_{it}) = \pi_{it}\bigl(1 - \pi_{it}\bigr),$ where $\pi_{it} = \Pr(Y_{it} = 1 \mid X_{it})$.
+* Appropriate variance function: Conditional on the covariates, $Y_{it}$ follows a Bernoulli distribution with variance ${Var}(Y_{it} \mid X_{it}) = \pi_{it}\bigl(1 - \pi_{it}\bigr)$, where $\pi_{it} = \Pr(Y_{it} = 1 \mid X_{it})$.
 
 * Independence of clusters: Different patients (and trials) are independent. Correlation is only present between repeated measurements from the same patient.
 
