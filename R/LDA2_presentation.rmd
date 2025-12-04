@@ -1,8 +1,8 @@
 ---
-title: "Longitudinal Analysis of BPRS  in Alzheimer's Disease"
+title: "Longitudinal Analysis of CDRS  in Alzheimer's Disease"
 author: 
-  - Anita Kerubo Ogero
-  - Moses Mburu
+  - Euchariates Tess Okolie
+  - Dorothy Chepkoech
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 fontsize: 8pt 
 output:
@@ -61,21 +61,218 @@ load(here("R","LDA2.RData"))
 
 ### Study description
 
-- **Population:** 1,253 patients with Alzheimer’s disease enrolled in **25 clinical trials**.  
-- **Outcome:** Brief Psychiatric Rating Scale (BPRS), measured annually from baseline to year 6  
-  - Up to **7 measurements per patient** (baseline + 6 follow-up years)  
-  - Higher BPRS = more severe psychiatric symptoms  
-- **Design:** Unbalanced longitudinal data  
-  - Not all patients are observed at all time points  
-  - Total number of BPRS observations: **6,220**  
-- **Baseline covariates:**
-  - Demographic: sex, age, education  
-  - Clinical: BMI, ADL score, living situation (home vs nursing home), job status (paid vs no paid job)  
-  - Disease severity / biomarkers: baseline CDR-SB, amyloid PET (ABPET0), tau PET (TAUPET0)
+- **Data:** Longitudinal Alzheimer’s trial data with repeated visits per patient.
+- **Outcome:**`CDRSBbin` = 1 if CDRSB > 10 (worse cognition), 0 otherwise.
+- **Covariates considered:**
+  - Time since baseline
+  - Baseline: sex, age, BMI, ADL
+  - Time-varying biomarkers: ABPET, TAUPET
+  
+- **Exploratory analysis (plots and summaries):**
+  - Probability of `CDRSBbin = 1` changed over time.
+  - Sex, age and BMI were related to both the outcome and biomarkers → potential confounders.
+  
+---
+
+### Exploratory Analysis of CDRSB scores
+  
+```{r, fig.width=10, fig.height=4.5, fig.cap="Distribution of CDRSB Scores Over Time and by sex"}
+
+grid.arrange(cdrsb_time_plot,
+    sex_time,
+    ncol = 2 )
+
+```
+  
+- This graph shows more people move into the more severe group over time
+
+- By the 7th, men and women have almost the same percentage of severe scores meaning there is no strong sex difference
 
 ---
 
+```{r, fig.width=10, fig.height=4.5, fig.cap="Distribution of Age and BMI by CDRSBbin"}
+grid.arrange(age_by_crdrsb,
+    bmi_by_crdrsb,
+    ncol = 2
+)
+```
 
+- The two groups overlap a lot, which means age differences are not huge
+
+- There is no clear pattern where one group consistently has higher or lower BMI
+
+---
+
+### Exploring Serial Correlation
+
+```{r, fig.width=10, fig.height=4.5, fig.cap="Empirical Semivariogram of CDRSBbin Over Time and Patient drop out over time by CDRSB Baseline Severity"}
+
+grid.arrange(semi_variogram, retention_plot, ncol = 2)
+```
+
+-  Semivariogram decreasing correlation with increasing lag, consistent with a decaying correlation structure. This supports the use of an AR(1) working correlation structure to capture serial dependence within patients.
+
+- 
+
+
+---
+
+### Marginal Model(GEE1)
+- **Aim (marginal):**To describe how, **on average in the population**, the probability of worse cognition depends on time, ADL, ABPET and TAUPET after adjusting for sex, age and BMI.
+
+- We fitted using Generalised Estimating Equations(GEE1) with a binomial family, logit link and an AR(1) working correlation structure with robust standard errors.
+
+- The GEE model fitted:
+
+
+$$
+\begin{aligned}
+\operatorname{logit}(\pi_{it}) =
+\beta_0
++ \beta_1\,\text{time}_{it}
++ \beta_2\,\text{sex}_i
++ \beta_3\,\text{age}_i
++ \beta_4\,\text{bmi}_i
++ \beta_5\,\text{adl}_i
++ \beta_6\,\text{abpet}_{it} \\
++ \beta_7\,\text{taupet}_{it}
++ \beta_8\,(\text{time}_{it}\,\text{abpet}_{it})
++ \beta_9\,(\text{time}_{it}\,\text{taupet}_{it})
+\end{aligned}
+$$
+
+
+
+---
+
+### Results
+
+```{r}
+
+#| label: tbl-gee-model
+#| tbl-cap: "GEE Model Results (Odds Ratios)"
+#| tbl-pos: "H"
+
+library(geepack)
+# Ensure data is sorted for GEE
+setorder(alzheimer_long, patid, time)
+
+gee_model <- geeglm(
+    CDRSBbin ~ time + sex + age + bmi +
+     adl + abpet + taupet + 
+     time:abpet + time:taupet,
+    id = patid,
+    data = alzheimer_long,
+    family = binomial(link = "logit"),
+    corstr = "ar1",
+    std.err = "san.se" # Robust standard errors
+)
+
+#summary(gee_model)
+
+# Tidy output with Odds Ratios
+tidy_with_ci(gee_model, exponentiate = TRUE) %>%
+    kable(
+        format = "latex",
+        booktabs = TRUE,
+        # longtable = TRUE,
+        align = "lcccccc",
+    ) |>
+    # scale down to fit page width
+    kableExtra::kable_styling(
+        latex_options = c(
+            "scale_down"
+        ),
+        font_size = 9
+    )
+
+```
+
+
+- On average, after adjusting for sex age and BMI,ADL did not show a significant effect on whether a patient was in the worse-cognition group. Amyloid PET (ABPET) also was not significantly related to worse cognition or to how this changed over time.
+
+-  The interaction between time and TAUPET was statistically significant. This means that on average patients with higher tau values are more likely to develop or keep worse cognition over time than patients with lower tau, after accounting for the other factors.
+
+
+---
+
+### Random effects logistic Model
+
+- **Outcome:** CDRSBbin = 1 if cdrsb>0, 0 otherwise
+
+- **Main Question:** How does the probability of worse cognition change over time, and how does this trend differ between patients?
+- Repeated measurements within patients → outcomes are correlated
+- Patient-specific trajectories:
+    - random intercept: patients differ in baseline risk
+    - random slope for time: patients differ in rate of change
+- Obtain empirical Bayes estimates of intercepts and slopes for each patient
+
+---
+
+### Multicollinearity and Centering
+
+- **Initial Model specified:** Conditional model:
+
+$$
+\operatorname{logit}(\pi_{it}) = X_{it}^\top \beta + b_{0i} + b_{1i}\,\text{time}_{it}.
+$$
+
+where $X_{it}$ includes, age,sex , bmi,adl,abpet,taupet and time:taupet.
+
+- Random effects:
+$$
+\begin{pmatrix}
+b_{0i} \\
+b_{1i}
+\end{pmatrix}
+\sim
+N\!\left(
+\begin{pmatrix}
+0 \\
+0
+\end{pmatrix},
+\Sigma_b
+\right).
+$$
+
+- Random intercept only: estimated variance 0
+
+- Random intercept and slope : correlation between intercept and slope -1
+
+- Fitted logistic model with same fixed effects and computed VIFs
+
+- High VIF values for time, taupet and time:taupet → severe Multicollinearity
+
+- Centred all continous covariates to reduce collinearity
+
+---
+
+### Final Centered Model
+
+- **Final model after centering:**Logistic generalized linear mixed model with patient-specific random intercepts and random slopes for centred time, using centred covariates for all continuous predictors.
+
+$$
+\begin{aligned}
+\operatorname{logit}(\pi_{it}) =
+\beta_0
++ \beta_1\,\text{time}_{c,it}
++ \beta_2\,\text{sex}_i
++ \beta_3\,\text{age}_{c,i}
++ \beta_4\,\text{bmi}_{c,i}
++ \beta_5\,\text{adl}_{c,i}
++ \beta_6\,\text{abpet}_{c,it} \\
++ \beta_7\,\text{taupet}_{c,it}
++ \beta_8\,\bigl(\text{time}_{c,it}\,\text{taupet}_{c,it}\bigr)
++ b_{0i} + b_{1i}\,\text{time}_{c,it}
+\end{aligned}
+$$
+where the patient-specific random effects follow a bivariate normal distribution
+
+- Approximation method of the integral: Laplace
+
+---
+
+### Results
 
 ```{r}
 tidy_with_ci(glmm_center, exponentiate = TRUE) %>%
@@ -94,13 +291,16 @@ tidy_with_ci(glmm_center, exponentiate = TRUE) %>%
   )
 ```
 
-
-
-- what you see 
-- interpretation of coefficients
-
+- For a typical patient, the model estimates about a 30% chance of being in the worse cognitive category at the average visit.
+- As follow-up continues, the risk of worse cognition increases over time, even at average tau.
+- Tau mainly influences the rate of decline: patients with higher tau than the cohort mean show a steeper increase over time in the probability of CDRSB > 10; patients with lower tau worsen more slowly.
+- Together with the random intercept and random slope, this shows that patients differ in both their starting risk and their speed of decline, which answers how the time trend differs between patients.
 
 ---
+
+### Empirical Bayes Estimates
+
+
 
 ```{r, fig.width=10, fig.height=4.5, fig.cap="Predicted BPRS Trajectories over Time by Baseline CDR-SB"}
 
@@ -108,6 +308,9 @@ grid.arrange(p_int, p_slope, ncol = 2)
 
 ```
 
+- The histogram of patient random intercepts shows a wide spread around zero, indicating clear differences between patients in their baseline log-odds of being in the worse cognitive category.
+
+- The histogram of patient random slopes is also dispersed, with many positive values, showing that patients differ in how quickly their risk changes over time, with some worsening much faster than others.
 
 ---
 
