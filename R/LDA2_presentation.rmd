@@ -1,0 +1,114 @@
+---
+title: "Longitudinal Analysis of BPRS  in Alzheimer's Disease"
+author: 
+  - Anita Kerubo Ogero
+  - Moses Mburu
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+fontsize: 8pt 
+output:
+  beamer_presentation:
+    incremental: false
+    latex_engine: xelatex
+  slidy_presentation:
+    incremental: false
+  github_document:
+    df_print: kable
+  ioslides_presentation:
+    widescreen: true
+    css: style.css
+    self_contained: true
+    incremental: false
+header-includes:
+- \usepackage{longtable}
+- \usepackage{tabu}
+- \usepackage{xcolor}
+- \usepackage{bookmark}
+- \usepackage{booktabs}
+- \usepackage{xcolor}
+- \setbeamercolor{item}{fg=black}
+- \setbeamercolor{subitem}{fg=black}
+- \setbeamercolor{subsubitem}{fg=black}
+- \usetheme{Hannover} #- \usetheme{Boadilla}
+- \usepackage{lmodern}          # Latin Modern (clean, scalable)
+- \usepackage{microtype}        # Improves spacing & kerning subtly
+- \setbeamertemplate{sidebar left}{}
+- \setbeamertemplate{navigation symbols}{}
+
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, eval = TRUE, 
+                      warning = FALSE, message = FALSE,
+                      fig.width = 8, fig.height = 4.5)
+
+library(here)
+library(tidyverse)
+library(data.table)
+library(haven)
+library(janitor)
+library(knitr)
+library(nlme)
+library(gridExtra)
+library(kableExtra)
+# source(here("R","lda_homework1_2025.R"))
+# save.image(here("R","LDA1.RData"))
+load(here("R","LDA2.RData"))
+```
+
+
+---
+
+### Study description
+
+- **Population:** 1,253 patients with Alzheimer’s disease enrolled in **25 clinical trials**.  
+- **Outcome:** Brief Psychiatric Rating Scale (BPRS), measured annually from baseline to year 6  
+  - Up to **7 measurements per patient** (baseline + 6 follow-up years)  
+  - Higher BPRS = more severe psychiatric symptoms  
+- **Design:** Unbalanced longitudinal data  
+  - Not all patients are observed at all time points  
+  - Total number of BPRS observations: **6,220**  
+- **Baseline covariates:**
+  - Demographic: sex, age, education  
+  - Clinical: BMI, ADL score, living situation (home vs nursing home), job status (paid vs no paid job)  
+  - Disease severity / biomarkers: baseline CDR-SB, amyloid PET (ABPET0), tau PET (TAUPET0)
+
+---
+
+
+
+```{r}
+tidy_with_ci(glmm_center, exponentiate = TRUE) %>%
+  kable(
+    format = "latex",
+    booktabs = TRUE,
+    # longtable = TRUE,
+    align = "lcccccc"
+  ) |>
+  # scale down to fit page width
+  kableExtra::kable_styling(
+    latex_options = c(
+      "scale_down"
+    ),
+    font_size = 9
+  )
+```
+
+
+
+- what you see 
+- interpretation of coefficients
+
+
+---
+
+```{r, fig.width=10, fig.height=4.5, fig.cap="Predicted BPRS Trajectories over Time by Baseline CDR-SB"}
+
+grid.arrange(p_int, p_slope, ncol = 2)
+
+```
+
+
+---
+
+
