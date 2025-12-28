@@ -511,7 +511,7 @@ retention_plot <- ggplot(retention_by_group,
   scale_y_continuous(labels = scales::percent_format()) +
   labs(
     title = "Retention Over Time by Baseline Severity",
-    subtitle = "Patients with high baseline severity faster until year visit 6",
+    subtitle = "Patients with high baseline severity drop faster until year visit 6",
     x = "Time (Visit)",
     y = "Percent of Initial Cohort Remaining",
     color = "Baseline Severity"

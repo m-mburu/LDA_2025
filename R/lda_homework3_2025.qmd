@@ -1,0 +1,872 @@
+---
+title: "LDA Homework 3 (2025-2026)"
+author: 
+  - Anita Kerubo Ogero (2469491)  
+  - Okolie Tess Eucharia (2468507)  
+  - Moses Mburu (2469245)  
+  - Dorothy Chepkoech (2469284)
+
+format:
+  pdf:
+    pdf-engine: xelatex
+    fig-pos: "H"
+    tbl-pos: "H"
+    number-depth: 6
+    include-in-header:
+      text: |
+        \renewcommand{\baselinestretch}{1.1}
+        \usepackage{graphicx}
+        \usepackage{xcolor}
+        \usepackage{amsmath,amssymb}
+        \usepackage{booktabs}
+        \usepackage{longtable}
+        \usepackage{array}
+        \usepackage{multirow}
+        \usepackage{makecell}
+        \usepackage{pdflscape}
+        \usepackage{float}
+        \usepackage{fancyhdr}
+  gfm: default
+
+fontsize: 11pt
+---
+
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                        message = FALSE,
+                        warning = FALSE,
+                        fig.width = 7,
+                        fig.height = 4.3)
+
+library(kableExtra)
+
+use_latex_packages()
+
+
+tidy_with_ci <- function(model,
+                         effects = c("fixed", "ran_pars"),
+                         conf_level = 0.95,
+                         exponentiate = FALSE,
+                         digits = 2) {
+  mm_class <- class(model)
+
+  is_mixed <-
+    any(c(
+      "lmerMod", "lmerModLmerTest",
+      "glmerMod", "nlmerMod"
+    ) %in% mm_class) ||
+      inherits(model, "glmmTMB")
+
+  if (is_mixed) {
+    if (!requireNamespace("broom.mixed", quietly = TRUE)) {
+      stop("broom.mixed is required for mixed models.\n
+        Install with install.packages('broom.mixed').")
+    }
+    out <- broom.mixed::tidy(
+      model,
+      effects = effects,
+      conf.int = TRUE,
+      conf.level = conf_level,
+      exponentiate = exponentiate
+    )
+    # keep only common columns
+    out <- out[, intersect(
+      c(
+        "effect", "group", "term", "estimate", "std.error",
+        "statistic", "p.value", "conf.low", "conf.high"
+      ),
+      names(out)
+    )]
+  } else if (inherits(model, "gls")) {
+    # nlme::gls objects are not supported by broom::tidy; extract manually
+    s <- summary(model)
+    if (!is.null(s$tTable)) {
+      tt <- as.data.frame(s$tTable)
+      # tTable columns: Value, Std.Error, t-value, p-value
+      out <- data.frame(
+        term = rownames(tt),
+        estimate = tt[["Value"]],
+        std.error = tt[["Std.Error"]],
+        statistic = tt[["t-value"]],
+        p.value = tt[["p-value"]],
+        stringsAsFactors = FALSE
+      )
+      # Wald (normal) CIs
+      z <- stats::qnorm(1 - (1 - conf_level) / 2)
+      out$conf.low <- out$estimate - z * out$std.error
+      out$conf.high <- out$estimate + z * out$std.error
+      # ensure column names match later expectations
+      out <- out[, c(
+        "term", "estimate", "std.error",
+        "statistic", "p.value", "conf.low", "conf.high"
+      )]
+    } else {
+      stop("Unable to extract coefficient table from gls summary output.")
+    }
+  } else {
+    if (!requireNamespace("broom", quietly = TRUE)) {
+      stop("broom is required. Install with install.packages('broom').")
+    }
+    out <- broom::tidy(
+      model,
+      conf.int = TRUE,
+      conf.level = conf_level,
+      exponentiate = exponentiate
+    )
+    out <- out[, intersect(
+      c(
+        "term", "estimate", "std.error",
+        "statistic", "p.value", "conf.low", "conf.high"
+      ),
+      names(out)
+    )]
+  }
+
+  # formatted estimate with CI
+  if (all(c("estimate", "conf.low", "conf.high") %in% names(out))) {
+    # Identify rows that have valid CIs (i.e., not ran_pars)
+    has_ci <- !is.na(out$conf.low)
+    
+    # Create the formatted estimate string, applying CI only where valid
+    out$estimate <- ifelse(
+      has_ci,
+      paste0(
+        sprintf(paste0("%.", digits, "f"), out$estimate), " [",
+        sprintf(paste0("%.", digits, "f"), out$conf.low), ", ",
+        sprintf(paste0("%.", digits, "f"), out$conf.high), "]"
+      ),
+      sprintf(paste0("%.", digits, "f"), out$estimate) # Just format the estimate for ran_pars
+    )
+  }
+
+  # format numeric columns that are not the main estimate
+  num_cols <- intersect(c("std.error", "statistic"), names(out))
+  out[num_cols] <- lapply(out[num_cols], function(x) {
+    if (is.numeric(x)) round(x, digits) else x
+  })
+
+  # optional: pretty p-values (e.g., <0.001)
+  if ("p.value" %in% names(out)) {
+    # Format p-values, leaving NAs as they are
+    out$p.value <- ifelse(is.na(out$p.value), NA_character_,
+      ifelse(out$p.value < 10^(-digits),
+        paste0("<0.", paste(rep("0", digits - 1), collapse = ""), "1"),
+        format(round(out$p.value, digits), nsmall = digits)
+      )
+    )
+  }
+
+  # reorder columns: put term first, then estimate string
+  keep_order <- c(
+    "effect", "group", "term", "estimate", "std.error",
+    "statistic", "p.value"
+  )
+  out <- out[, intersect(keep_order, names(out))]
+
+  tibble::as_tibble(out)
+}
+
+
+
+# Tidy adjacent model comparisons from base anova() output
+# Works for anova(m1, m2, ...): lm/glm, lmer/glmer, gls/lme, etc.
+tidy_anova_compare <- function(anova_df, digits = 2) {
+  x <- anova_df
+  is_num <- vapply(x, is.numeric, logical(1))
+  x[is_num] <- lapply(x[is_num], function(v) {
+    ifelse(is.na(v), v, round(v, digits))
+  })
+  x$call <- NULL
+  x
+}
+
+
+
+display_random_effects <- function(
+    model,
+    caption = "Random effects: variance components",
+    digits = 3) {
+  df <- tidy_re_varcorr(model, digits = digits)
+  knitr::kable(
+    df,
+    format = "latex",
+    booktabs = TRUE,
+    #caption = caption,
+    align = c("l", "l", "r", "r", "r")
+  ) |>
+    kableExtra::kable_styling(latex_options = "hold_position")
+}
+
+
+
+tidy_re_varcorr <- function(model, digits = 3) {
+  vc <- lme4::VarCorr(model)
+  rows <- list()
+
+  for (grp in names(vc)) {
+    m <- vc[[grp]]
+    sd <- attr(m, "stddev")
+    trm <- names(sd)
+    var <- sd^2
+
+    corMat <- tryCatch(attr(m, "correlation"),
+      error = function(e) NULL
+    )
+
+    for (k in seq_along(trm)) {
+      term <- trm[k]
+      corr_val <- NA_real_
+      if (!is.null(corMat) && nrow(corMat) > 1 &&
+        term != "(Intercept)" &&
+        "(Intercept)" %in% colnames(corMat)) {
+        corr_val <- as.numeric(corMat[term, "(Intercept)"])
+      }
+      rows[[length(rows) + 1L]] <- data.frame(
+        Groups = grp,
+        Name = term,
+        Variance = var[k],
+        Std.Dev. = sd[k],
+        Corr = corr_val,
+        check.names = FALSE
+      )
+    }
+  }
+
+  out <- do.call(rbind, rows)
+
+  # Add Residual variance
+  resid_sd <- sigma(model)
+  resid_var <- resid_sd^2
+  resid_row <- data.frame(
+    Groups = "Residual",
+    Name = "",
+    Variance = resid_var,
+    Std.Dev. = resid_sd,
+    Corr = NA_real_,
+    check.names = FALSE
+  )
+  out <- rbind(out, resid_row)
+
+  num_cols <- c("Variance", "Std.Dev.", "Corr")
+  out[num_cols] <- lapply(
+    out[num_cols],
+    function(x) {
+      ifelse(is.na(x),
+        NA, round(x, digits)
+      )
+    }
+  )
+  out
+}
+
+
+```
+
+
+
+```{r}
+library(here)
+library(tidyverse)
+library(data.table)
+library(haven)
+library(janitor)
+library(knitr)
+library(lme4)   
+library(lmerTest)
+library(pbkrtest)
+library(gridExtra)
+
+lda_path <- here()
+lda_data_path <- here(lda_path, "data")
+#list.files(lda_data_path)
+
+```
+
+
+
+```{r}
+# Load the data
+alzheimer_data <- read_sas(here(
+    lda_data_path,
+    "alzheimer25.sas7bdat"
+)) |> clean_names()
+
+
+```
+
+
+
+
+
+```{r factor-conversion}
+setDT(alzheimer_data)
+# log bmi
+#alzheimer_data[, bmi := log(bmi)]
+factor_info <- list(
+  sex = list(
+    levels = c(0, 1),
+    labels = c("Male", "Female")
+  ),
+  edu = list(
+    levels = c(1, 2, 3, 4),
+    labels = c("Primary", "Lower secondary", "Upper secondary", "Higher")
+  ),
+  job = list(
+    levels = c(0, 1),
+    labels = c("No Paid Job", "Paid Job")
+  ),
+  wzc = list(
+    levels = c(0, 1),
+    labels = c("Lives at Home", "Nursing Home")
+  )
+)
+
+
+for (col_name in names(factor_info)) {
+  info <- factor_info[[col_name]]
+  alzheimer_data[, (col_name) := factor(get(col_name),
+    levels = info$levels,
+    labels = info$labels
+  )]
+}
+
+# Verify the changes by checking the structure of the new columns
+#kable(alzheimer_data[1:5, c("sex", "edu", "job", "wzc")])
+```
+
+
+
+## Methodology
+
+### Notation and data structure
+
+Let $i=1,\dots,N$ index patients and $j=0,\dots,J$ index scheduled annual visits ($j=0$ baseline). The continuous outcome of interest is the BPRS score $Y_{ij}$. Define the missingness indicator
+
+$$
+R_{ij} =
+\begin{cases}
+1, & \text{if } Y_{ij}\ \text{is observed},\
+0, & \text{if } Y_{ij}\ \text{is missing.}
+\end{cases}
+$$
+
+Let $R_i=(R_{i0},\dots,R_{iJ})$ denote the subject-specific observation pattern, and split the full outcome vector as $Y_i=(Y_i^{obs},Y_i^{mis})$.
+
+
+
+### Missingness pattern and dropout taxonomy
+
+The first goal is to describe whether missingness behaves like monotone dropout (typical in longitudinal follow-up) or intermittent missingness (temporary gaps). For each patient:
+
+1. **Completeness.** A patient is complete if $R_{ij}=1$ for all $j$.
+
+2. **Monotone missingness (dropout-type).** Define the last observed visit
+   $$
+   t_i=\max{j: R_{ij}=1}.
+   $$
+
+
+   The pattern is monotone if
+
+
+   $$
+   R_{ij}=1 \text{ for } j\le t_i,\qquad R_{ij}=0 \text{ for } j>t_i.
+   $$
+
+
+3. **Non-monotone (intermittent) missingness.** The pattern is non-monotone if there exist $j<k$ such that
+   $$
+   R_{ij}=0 \ \text{and}\ R_{ik}=1.
+   $$
+
+These classifications are summarised using (i) the distribution of $t_i$ (retention over time), (ii) the proportion missing at each visit $j$, and (iii) the frequency of intermittent gaps within $R_i$. In this Alzheimer cohort, missingness rises markedly with follow-up, so later-visit summaries are based on a progressively smaller subset of participants. 
+
+
+
+### Empirical signals of informative missingness
+
+Because BPRS is measured repeatedly, a second goal is to evaluate whether missingness is associated with observed disease severity/history (evidence against MCAR and supportive of MAR as a working assumption). Two descriptive comparisons are used:
+
+* **Baseline severity vs missingness burden.** Let $M_i=\sum_{j=1}^J (1-R_{ij})$ be the number of missed follow-up BPRS measurements. The relationship between baseline BPRS ($Y_{i0}$) and $M_i$ is examined to assess whether those with worse baseline psychiatric symptoms are more likely to miss subsequent visits. This pattern is present in the dataset and suggests that dropout is related to observed severity. 
+
+* **Visit-specific missingness rates.** The proportion missing at each visit $j$,
+
+  $$
+  \widehat{p}*j=\frac{1}{N}\sum*{i=1}^N (1-R_{ij}),
+  $$
+
+  is plotted over time to characterise the growth of missingness with follow-up (and, indirectly, the degree of selection in later years). 
+
+These summaries establish whether the data resemble monotone dropout, whether intermittent missingness occurs, and whether observed severity/history is linked to being missing—key inputs for choosing MAR-valid modelling strategies later.
+
+
+
+### Working assessment of MCAR vs MAR, and why MNAR cannot be “diagnosed” from observed data
+
+To formalise the dependence of missingness on observed history, a discrete-time observation model is fitted. Define a “next-visit missingness” indicator for those observed at visit $j$:
+
+$$
+D_{i,j+1} = 1-R_{i,j+1}.
+$$
+
+A logistic regression (discrete-time hazard) model is used:
+
+$$
+\Pr(D_{i,j+1}=1 \mid \mathcal{H}*{ij})
+= \operatorname{logit}^{-1}!\Big(
+\alpha_0 + \alpha_1 Y*{ij} + \alpha_2^\top X_i + \alpha_3 j
+\Big),
+$$
+
+
+where $\mathcal{H}*{ij}$ is the observed history up to $j$ and $X_i$ contains baseline covariates (e.g., sex, age, BMI, ADL, job status, living situation, baseline CDR-SB, and other baseline markers as available). A clear dependence of $D*{i,j+1}$ on observed outcomes/covariates argues against MCAR and supports MAR as a reasonable primary assumption.
+
+The MAR mechanism is stated as
+
+$$
+p(R_i \mid Y_i, X_i)=p(R_i \mid Y_i^{obs}, X_i),
+$$
+
+whereas MNAR allows dependence on $Y_i^{mis}$. Since MNAR is defined through unobserved outcomes, it cannot be identified from the observed data alone; therefore, departures from MAR are addressed through sensitivity analysis rather than “testing” MNAR.
+
+
+
+### MAR assumption used for primary analyses (and link to later models)
+
+For primary modelling, missingness is treated as ignorable under MAR (with distinct parameters for the outcome and missingness processes), so inference can proceed using the observed-data likelihood for the continuous outcome models. This aligns with the modelling assumptions used for BPRS longitudinal mixed modelling in this dataset. 
+
+In addition, the fitted observation model above yields estimated observation probabilities
+$$
+\widehat{\pi}*{ij}=\Pr(R*{ij}=1 \mid \mathcal{H}*{i,j-1}),
+$$
+
+which can be converted into inverse-probability weights $w*{ij}=1/\widehat{\pi}_{ij}$ for MAR-valid weighted marginal analyses when needed.
+
+
+
+## Sensitivity analysis for the continuous outcome (BPRS)
+
+Given (i) increasing missingness over time and (ii) evidence that missingness relates to observed severity (baseline BPRS vs missed visits), sensitivity analysis focuses on plausible MNAR departures where unobserved post-dropout BPRS differs systematically from MAR-based predictions. 
+
+A pattern-mixture $\delta$-adjustment is used:
+
+1. Fit the primary MAR model for BPRS (specified in the continuous-outcome modelling section), obtain predicted values $\widehat{Y}_{ij}^{MAR}$ for missing occasions.
+
+2. For $j>t_i$ (post-dropout times), define MNAR-shifted imputations
+$$
+Y_{ij}^{mis}(\delta)=\widehat{Y}_{ij}^{MAR} + \delta,
+$$
+
+   with $\delta$ chosen on the BPRS scale to represent clinically meaningful departures (e.g., $\delta<0$ if dropout is hypothesised to occur when psychiatric status is worse than predicted under MAR; $\delta>0$ for the opposite direction).
+
+3. Refit the primary BPRS model (or recompute the estimands of interest) under a grid of $\delta$ values and report how key fixed-effect conclusions change as a function of $\delta$ (“robustness curve”).
+
+This sensitivity analysis is anchored to the observed missingness–severity relationship in this cohort and provides a transparent way to quantify how strongly conclusions would need to depend on unobserved BPRS values to materially change inference. The need for such an analysis follows directly from the fact that the MAR assumption is not empirically verifiable. 
+
+
+
+If you paste the *exact variable names* you use for (a) the time index and (b) the baseline covariate set you decided to carry forward (the ones you consistently used in your BPRS model), I can tighten the notation so the missingness model and $\delta$-sensitivity section match your final model specification perfectly (same $X_i$, same centering, same time coding).
+
+
+### Draft 2
+
+### Missing data: assessment, primary (MAR) analysis, and MNAR sensitivity
+
+Longitudinal follow-up in Alzheimer cohorts typically exhibits increasing missingness over time (e.g., missed visits, institutionalisation, illness progression, death). Because later visits are observed on a selected subset of patients, the missing-data strategy was specified *a priori* and integrated with the outcome models.
+
+#### Notation
+
+For subject $i=1,\dots,N$ at visit $j=0,\dots,J$, let $Y_{ij}$ denote the outcome of interest (e.g., continuous BPRS for the psychiatric symptom trajectory). Let
+
+$$
+R_{ij} =
+\begin{cases}
+1, & \text{if } Y_{ij} \text{ is observed},\
+0, & \text{if } Y_{ij} \text{ is missing}.
+\end{cases}
+$$
+
+Write $Y_i = (Y_i^{o}, Y_i^{m})$ for the observed and missing components of the full trajectory, and let $X_i$ denote baseline covariates (e.g., age, sex, education, baseline severity markers).
+
+
+
+## 1) Missingness pattern and dropout characterisation (data-driven diagnostics)
+
+The first step was to describe *how* missingness occurs in this dataset, since the pattern informs which modeling tools are appropriate and how sensitivity analyses should be designed.
+
+### 1.1 Missingness pattern: complete, monotone, non-monotone
+
+For each subject, the vector $R_i = (R_{i0},\dots,R_{iJ})$ was summarised as a binary “response string” (e.g., $1111000$). Subjects were classified as:
+
+* **Complete** if $R_{ij}=1$ for all scheduled visits.
+
+* **Monotone** if missingness begins and then persists. Equivalently, there exists a last observed time $t_i$ such that
+
+$$
+R_{ij}=1 \ \text{for } j \le t_i,
+\qquad
+R_{ij}=0 \ \text{for } j>t_i.
+$$
+
+* **Non-monotone** (intermittent) if there is at least one missing visit followed by a later observed visit, i.e., there exist $j<k$ such that $R_{ij}=0$ and $R_{ik}=1$.
+
+### 1.2 Dropout pattern: complete, dropout, intermittent
+
+A dropout time was defined as
+
+$$
+t_i = \max{ j : R_{ij}=1 }.
+$$
+
+Subjects were summarised by (i) whether they completed follow-up, (ii) the visit of last observation $t_i$, and (iii) whether missingness was intermittent (return after a missed visit). This description provides a clinically interpretable link between follow-up attrition and disease course (e.g., subjects with worse observed BPRS history may be more likely to drop out earlier).
+
+### 1.3 Empirical evidence against MCAR (association with observed history)
+
+Because MCAR implies that missingness is unrelated to observed outcomes, we assessed whether the probability of being observed depended on the observed history. A discrete-time model for observation at visit $j+1$ was used as a diagnostic:
+
+$$
+\Pr(R_{i,j+1}=1 \mid \mathcal{H}_{ij})
+=
+\operatorname{logit}^{-1}!\Big(
+\alpha_0 + \alpha_1 Y_{ij} + \alpha_2^\top X_i + \alpha_3 j
+\Big),
+$$
+
+where $\mathcal{H}_{ij}$ denotes the observed history up to visit $j$. A clear dependence on previously observed BPRS (or other observed markers) is consistent with missingness being related to observed data, which argues against MCAR and motivates methods valid under MAR as the primary analytic framework.
+
+
+
+## 2) Primary missing-data assumption and why “MCAR/simple” methods were not used
+
+### 2.1 Why not complete-case (CC) or LOCF
+
+Two common “simple” approaches under an MCAR mindset are complete-case (CC) analysis and last observation carried forward (LOCF). In longitudinal Alzheimer follow-up, these can be problematic:
+
+* **CC** uses only subjects with complete trajectories and can induce bias if completion is related to severity or prior outcomes; it also reduces efficiency by discarding partially observed profiles.
+
+* **LOCF** implicitly assumes stability after the last observation and can distort the mean trajectory and variance structure, especially when symptoms tend to evolve over time.
+
+Given the observed dropout/intermittency patterns and the clinical plausibility that missingness relates to observed history, the primary analysis proceeded under MAR using methods that retain all observed data without imputing ad hoc values.
+
+
+
+## 3) MAR analysis strategies used for the study outcomes
+
+Under MAR, the missingness mechanism can depend on observed history but not on unobserved outcomes after conditioning on observed data:
+
+$$
+f(R_i \mid X_i, Y_i^{o}, Y_i^{m})
+=
+f(R_i \mid X_i, Y_i^{o}).
+$$
+
+This assumption supports likelihood-based mixed models for subject-specific inference, and marginal models via GEE (with appropriate handling of incomplete data).
+
+### 3.1 Continuous outcome (BPRS): direct likelihood via a linear mixed model
+
+For the continuous BPRS trajectory, a linear mixed model was fitted by maximum likelihood (or REML for variance components where appropriate), using all available BPRS observations per subject. A general form is
+
+$$
+Y_{ij}
+======
+
+x_{ij}^\top \beta
++
+z_{ij}^\top b_i
++
+\varepsilon_{ij},
+$$
+
+with
+
+$$
+b_i \sim N(0, D),
+\qquad
+\varepsilon_{ij} \sim N(0,\sigma^2),
+\qquad
+b_i \perp \varepsilon_{ij}.
+$$
+
+Here, $x_{ij}$ contains fixed-effect terms (e.g., time and other covariates) and $z_{ij}$ defines the random-effects structure (e.g., random intercept and potentially random slope for time). The likelihood-based fit provides valid inference under MAR (given correct specification of the mean structure and random-effects distribution), while using partially observed trajectories efficiently.
+
+### 3.2 Binary outcome: random-effects model (GLMM) under MAR
+
+For the binary longitudinal endpoint, a subject-specific (conditional) model was fitted using a GLMM with a logit link:
+
+$$
+\Pr(Y_{ij}=1 \mid b_i, X_i)
+=
+\operatorname{logit}^{-1}!\Big(
+x_{ij}^\top \beta + z_{ij}^\top b_i
+\Big),
+$$
+
+with $b_i \sim N(0,D)$. This formulation captures within-subject correlation through random effects and yields conditional (subject-specific) interpretations of covariate effects.
+
+### 3.3 Binary outcome: marginal model (GEE) under MAR
+
+A marginal model was also fitted using GEE to obtain population-averaged effects:
+
+$$
+\Pr(Y_{ij}=1 \mid X_i)
+=
+\operatorname{logit}^{-1}\Big(
+x_{ij}^\top \beta
+\Big).
+$$
+
+Let $\mu_i(\beta)$ be the mean vector and $V_i$ a working covariance matrix. The estimating equation is
+
+$$
+\sum_{i=1}^N
+D_i^\top
+V_i^{-1}
+\left(
+Y_i - \mu_i(\beta)
+\right)
+=
+0,
+$$
+
+where $D_i = \partial \mu_i(\beta)/\partial \beta^\top$. Robust (sandwich) standard errors were used to protect inference against misspecification of the working correlation.
+
+### 3.4 Weighted GEE as an MAR approach when dropout is informative given observed history
+
+When dropout depends on observed history, inverse probability weighting provides a principled MAR correction for marginal inference. Let $\pi_{ij} = \Pr(R_{ij}=1 \mid \mathcal{H}_{i,j-1})$ be estimated from an observation model (such as the logistic diagnostic model above). Define weights
+
+$$
+w_{ij} = \frac{1}{\pi_{ij}}.
+$$
+
+Weighted GEE solves
+
+$$
+\sum_{i=1}^N
+D_i^\top
+V_i^{-1}
+W_i
+\left(
+Y_i - \mu_i(\beta)
+\right)
+=
+0,
+$$
+
+where $W_i$ is typically diagonal with entries $w_{ij}$ for observed components. Weight behaviour (e.g., presence of extreme weights) was monitored as a practical diagnostic of whether observed history adequately explains missingness.
+
+### 3.5 Multiple imputation (MI) as an MAR alternative (if included)
+
+As an MAR-based alternative, multiple imputation can be used to create $M$ completed datasets by drawing $Y^{m}$ from an imputation model conditional on $(Y^{o},X)$. Each dataset is analysed with the chosen outcome model, and estimates are combined using Rubin’s rules. Inference targets and model specifications match those of the primary analyses, while MI propagates uncertainty due to missingness through between-imputation variability.
+
+---
+
+## 4) MNAR: sensitivity analysis anchored on BPRS (continuous outcome)
+
+Because MNAR implies dependence of missingness on unobserved outcomes,
+
+$$
+f(R_i \mid X_i, Y_i^{o}, Y_i^{m}) \ \text{depends on } Y_i^{m},
+$$
+
+it cannot be empirically verified from the observed data alone. Therefore, robustness was assessed via a structured sensitivity analysis using the BPRS trajectory, reflecting the clinical concern that patients may become unobserved because their unmeasured symptom burden is systematically worse than expected under MAR.
+
+### 4.1 Pattern-mixture $\delta$-adjustment after dropout
+
+Let $\widehat{Y}^{MAR}_{ij}$ denote the MAR-based predicted value (from the fitted linear mixed model). For post-dropout visits $j>t_i$, define an MNAR-adjusted missing outcome as
+
+$$
+Y_{ij}^{m}(\delta)
+=
+\widehat{Y}^{MAR}_{ij}
++
+\delta,
+\qquad
+j>t_i.
+$$
+
+Here, $\delta$ encodes the degree and direction of MNAR departure:
+
+* $\delta=0$ corresponds to MAR.
+* $\delta>0$ represents systematically higher (worse) unobserved BPRS after dropout than MAR would predict.
+* $\delta<0$ represents systematically lower unobserved BPRS.
+
+Key estimands (e.g., time trend and covariate effects) were recomputed across a pre-specified grid of $\delta$ values to evaluate how conclusions change as missingness becomes increasingly non-ignorable. This approach provides an interpretable robustness summary in the Alzheimer context: it quantifies the magnitude of unobserved symptom shift required to materially alter inference.
+
+### 4.2 Interpretation
+
+Sensitivity analysis results were reported as ranges (or profiles) of the main parameters of interest across $\delta$, emphasizing whether substantive conclusions are stable under clinically plausible MNAR deviations.
+
+---
+
+If you paste the exact fixed-effect structure you used for time (e.g., linear time, quadratic time, or categorical visit indicators) and which binary outcome you modelled, I can rewrite the model equations *verbatim* to match your final formulas (same covariate symbols, same link functions, same random-effects structure).
+
+
+
+## Results
+
+
+```{r missingness-taxonomy-code, echo=TRUE}
+#| label: q1-missingness-taxonomy-code
+#| message: false
+#| warning: false
+
+library(data.table)
+library(ggplot2)
+
+# ------------------------------------------------------------
+# 1) Taxonomy helpers: complete / monotone / non-monotone
+#    and complete / dropout / intermittent
+# ------------------------------------------------------------
+
+classify_missingness <- function(dt, id, cols, time = NULL) {
+  stopifnot(is.data.table(dt))
+  if (is.null(time)) time <- seq_along(cols) - 1L
+
+  # enforce time ordering
+  ord  <- order(time)
+  cols <- cols[ord]
+  time <- time[ord]
+
+  # R_ij = 1 if observed, 0 if missing
+  R_dt <- dt[, lapply(.SD, function(x) as.integer(!is.na(x))), .SDcols = cols]
+  Rmat <- as.matrix(R_dt)
+
+  # complete cases
+  is_complete <- rowSums(1L - Rmat) == 0L
+
+  # monotone missingness (dropout-type): once missing then always missing
+  is_monotone <- apply(Rmat, 1, function(r) {
+    if (all(r == 1L)) return(TRUE)                 # complete is monotone, but we separate later
+    last1 <- if (any(r == 1L)) max(which(r == 1L)) else 0L
+    all(r[(last1 + 1L):length(r)] == 0L)
+  })
+
+  # non-monotone: intermittent gaps exist
+  is_nonmon <- !is_monotone
+
+  # dropout time T_i = last observed visit time
+  last_obs_idx <- apply(Rmat, 1, function(r) if (any(r == 1L)) max(which(r == 1L)) else NA_integer_)
+  T_i <- ifelse(is.na(last_obs_idx), NA_integer_, time[last_obs_idx])
+
+  pattern_missingness <- fifelse(is_complete, "complete",
+                                fifelse(is_monotone, "monotone", "non-monotone"))
+  pattern_dropout <- fifelse(is_complete, "complete",
+                             fifelse(is_monotone, "dropout", "intermittent"))
+
+  pattern_string <- apply(Rmat, 1, paste0, collapse = "")
+
+  out <- dt[, .(patid = get(id))]
+  out[, `:=`(
+    missingness_pattern = pattern_missingness,
+    dropout_pattern     = pattern_dropout,
+    last_observed_time  = T_i,
+    n_missing           = rowSums(1L - Rmat),
+    pattern             = pattern_string
+  )]
+  out
+}
+
+summarise_missing_by_time <- function(dt, id, cols, time = NULL) {
+  stopifnot(is.data.table(dt))
+  if (is.null(time)) time <- seq_along(cols) - 1L
+
+  ord  <- order(time)
+  cols <- cols[ord]
+  time <- time[ord]
+
+  long <- melt(
+    dt[, c(id, cols), with = FALSE],
+    id.vars = id,
+    variable.name = "visit",
+    value.name = "y",
+    variable.factor = FALSE
+  )
+  long[, time := time[match(visit, cols)]]
+  long[, observed := !is.na(y)]
+
+  long[, .(
+    n_patients  = uniqueN(get(id)),
+    n_obs       = sum(observed),
+    pct_missing = 100 * (uniqueN(get(id)) - sum(observed)) / uniqueN(get(id))
+  ), by = time][order(time)]
+}
+
+# ------------------------------------------------------------
+# 2) Apply to the continuous outcome (BPRS)
+# ------------------------------------------------------------
+
+bprs_cols <- paste0("bprs", 0:6)
+tax_bprs  <- classify_missingness(alzheimer_data, id = "patid", cols = bprs_cols, time = 0:6)
+miss_t_bprs <- summarise_missing_by_time(alzheimer_data, id = "patid", cols = bprs_cols, time = 0:6)
+
+# summaries for reporting
+tab_missingness_bprs <- tax_bprs[, .(n = .N), by = missingness_pattern][order(missingness_pattern)]
+tab_missingness_bprs[, pct := 100 * n / sum(n)]
+
+tab_dropout_bprs <- tax_bprs[, .(n = .N), by = dropout_pattern][order(dropout_pattern)]
+tab_dropout_bprs[, pct := 100 * n / sum(n)]
+
+top_patterns_bprs <- tax_bprs[, .(n = .N), by = pattern][order(-n)][1:10]
+
+# ------------------------------------------------------------
+# 3) Plots: missingness by time + pattern heatmap (optional)
+# ------------------------------------------------------------
+
+p_miss_time_bprs <- ggplot(miss_t_bprs, aes(x = time, y = pct_missing)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  labs(x = "Time (years)", y = "Percent missing", title = "Missingness over time (BPRS)") +
+  theme_minimal()
+
+# Heatmap of individual patterns (use a sample if too many patients)
+set.seed(1)
+tax_sample <- tax_bprs[sample(.N, min(.N, 200L))]
+
+# Expand the pattern string into columns for plotting
+pat_mat <- t(vapply(strsplit(tax_sample$pattern, ""), as.integer, integer(7)))
+colnames(pat_mat) <- paste0("t", 0:6)
+
+heat_dt <- data.table(patid = tax_sample$patid, pat_mat)
+heat_long <- melt(heat_dt, id.vars = "patid", variable.name = "time", value.name = "R")
+heat_long[, time := as.integer(sub("^t", "", time))]
+
+p_heat_bprs <- ggplot(heat_long, aes(x = time, y = factor(patid), fill = factor(R))) +
+  geom_tile() +
+  labs(x = "Time (years)", y = "Patient (sample)", title = "Observation indicator R_ij (BPRS)") +
+  theme_minimal() +
+  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()) +
+  guides(fill = "none")
+
+# print(p_miss_time_bprs)
+# print(p_heat_bprs)
+
+# ------------------------------------------------------------
+# 4) Objects that map to SEM / PMM / SPM frameworks
+#    (these are the building blocks you will reuse later)
+# ------------------------------------------------------------
+
+# SEM-style: long data with R_ij and observed history (lagged outcome)
+# (works off your existing long dataset)
+alz_sem_bprs <- copy(alzheimer_long)
+alz_sem_bprs[, R_bprs := as.integer(!is.na(bprs))]
+setorder(alz_sem_bprs, patid, time)
+alz_sem_bprs[, bprs_lag1 := shift(bprs, 1L, type = "lag"), by = patid]
+alz_sem_bprs[, dbprs_lag1 := bprs_lag1 - shift(bprs, 2L, type = "lag"), by = patid]
+
+# PMM-style: dropout groups via T_i (pattern-mixture stratification variable)
+alz_pmm_bprs <- merge(alzheimer_long, tax_bprs, by = "patid", all.x = TRUE)
+alz_pmm_bprs[, dropout_group := factor(last_observed_time, levels = 0:6)]
+
+# SPM-style: for shared-parameter ideas you typically need the same ingredients:
+# - longitudinal outcome (bprs)
+# - missingness indicator (R_bprs)
+# - shared random effects (later in modelling, not in preprocessing)
+# So the key dataset is alz_sem_bprs (contains both bprs and R_bprs).
+
+```
+
+

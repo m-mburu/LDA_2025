@@ -1,0 +1,154 @@
+---
+title: "Revision Homework 3"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+Let \( Y_{ij} \) denote the outcome for subject \( i \) at visit \( j \), and define the missingness indicator as:
+
+\[
+R_{ij} =
+\begin{cases}
+1, & \text{if } Y_{ij} \text{ is observed} \\
+0, & \text{if } Y_{ij} \text{ is missing}
+\end{cases}
+\]
+
+We also decompose the vector of outcomes for subject \( i \) as:
+
+\[
+Y_i = (Y_i^{\text{obs}},\ Y_i^{\text{mis}})
+\]
+where \( Y_i^{\text{obs}} \) and \( Y_i^{\text{mis}} \) are the observed and missing components, respectively.
+
+
+
+## 1. Missingness Pattern
+
+- **Complete**: No missing data for subject \( i \), i.e., \( R_{ij} = 1 \) for all \( j \).
+- **Monotone**: Once missing, always missing thereafter. There exists \( t_i \) such that:
+
+  \[
+  R_{ij} = 1 \text{ for } j \le t_i, \quad R_{ij} = 0 \text{ for } j > t_i.
+  \]
+- **Non-monotone**: Intermittent missingness, where missing visits are followed by observed ones. There exist \( j < k \) such that:
+  
+  \[
+  R_{ij} = 0 \quad \text{and} \quad R_{ik} = 1.
+  \]
+
+
+
+## 2. Dropout Pattern
+
+- **Complete**: All scheduled visits are attended.
+- **Dropout**: Observed until a certain point, then missing thereafter (monotone).
+- **Intermittent**: Misses at least one visit but returns later (non-monotone).
+
+
+
+## 3. Model Framework
+
+We classify joint models for \( (Y_i, R_i) \) into the following frameworks:
+
+### a) SEM – Selection Models
+
+\[
+p(Y_i, R_i \mid X_i) = p(Y_i \mid X_i; \theta)\ p(R_i \mid Y_i, X_i; \psi)
+\]
+
+Interpretation: Model outcome process first, then dropout as a function of observed and unobserved outcomes. Often used in MNAR sensitivity analysis.
+
+### b) PMM – Pattern Mixture Models
+
+\[
+p(Y_i, R_i \mid X_i) = p(R_i \mid X_i; \psi)\ p(Y_i \mid R_i, X_i; \theta)
+\]
+
+Interpretation: Stratify the analysis by dropout pattern (e.g., dropout time), and model outcomes within pattern strata.
+
+### c) SPM – Shared Parameter Models
+
+\[
+p(Y_i, R_i \mid X_i) = \int p(Y_i \mid b_i, X_i)\ p(R_i \mid b_i, X_i)\ p(b_i)\ db_i
+\]
+
+Interpretation: Missingness and outcome share latent random effects \( b_i \), e.g., frailty.
+
+
+
+## 4. Missingness Mechanism
+
+This characterizes the assumptions on how the dropout process depends on outcomes and covariates:
+
+- **MCAR (Missing Completely at Random)**:
+
+  \[
+  p(R_i \mid Y_i, X_i) = p(R_i)
+  \]
+  Missingness is independent of all data. Rarely plausible.
+
+- **MAR (Missing at Random)**:
+  \[
+  p(R_i \mid Y_i, X_i) = p(R_i \mid Y_i^{\text{obs}}, X_i)
+  \]
+  Missingness depends only on observed outcomes and covariates. This assumption allows likelihood-based and Bayesian inference without explicitly modeling \( R_i \).
+
+- **MNAR (Missing Not at Random)**:
+  \[
+  p(R_i \mid Y_i, X_i) \text{ depends on } Y_i^{\text{mis}}
+  \]
+  Missingness depends on unobserved values, requiring joint modeling or sensitivity analysis.
+
+
+
+## 5. Ignorability
+
+This concept tells us whether we can ignore the missing data mechanism in inference:
+
+- **Ignorable**: Holds when the mechanism is MAR *and* the parameter sets \( \theta \) (for \( Y \)) and \( \psi \) (for \( R \)) are distinct. In this case, valid inference for \( \theta \) can proceed using the observed-data likelihood:
+  
+  
+  \[
+  L(\theta) \propto p(Y^{\text{obs}} \mid X; \theta)
+  \]
+
+- **Non-ignorable**: Either the mechanism is MNAR or parameters are not distinct. Then, inference must model \( R \) jointly with \( Y \), or include sensitivity analysis.
+
+
+
+## 6. Inference Paradigm
+
+- **Frequentist**: Parameters are fixed; uncertainty quantified via sampling distributions. Estimation uses ML, REML, or estimating equations. Example: LMMs, GEE.
+
+- **Likelihood-based**: Emphasizes the likelihood function:
+
+  \[
+  L(\theta; Y^{\text{obs}})
+  \]
+  Inference is based on likelihood profiles, likelihood ratio tests, and AIC/BIC.
+
+- **Bayesian**: Parameters are random variables
+
+  \[
+  p(\theta \mid Y^{\text{obs}}) \propto L(\theta; Y^{\text{obs}})\ p(\theta)
+  \]
+  Posterior inference naturally incorporates missing data via imputation or marginalization.
+
+
+
+## Summary
+
+This taxonomy enables us to:
+
+- Describe the nature of dropout/missingness in real-world data.
+- Choose appropriate models (e.g., LMM, GLMM, GEE) under the MAR assumption.
+- Perform sensitivity analyses (SEM, PMM, SPM) under MNAR.
+- Select a valid inferential strategy (frequentist, likelihood, or Bayesian).
+
+For the Alzheimer’s dataset, classification of subjects into *completers*, *dropouts*, and *intermittent missers* will guide our modeling approach. Under MAR, likelihood-based methods (linear mixed models, GLMM, GEE) remain valid and are adopted for primary analyses. MNAR concerns will be addressed using shared parameter or pattern-mixture approaches in sensitivity analyses.
