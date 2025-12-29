@@ -3090,3 +3090,2003 @@ As missingness increases:
 - The between-imputation variance (\(B\)) grows because imputations disagree more.
 - The total variance (\(V\)) increases, making inference less precise.
 - Even though each completed dataset appears “complete,” the uncertainty from missing data propagates through the imputation process.
+
+
+
+
+1. **Simple ad-hoc fixes** (often taught first, often problematic),
+2. **Model-based methods under MAR** (including **multiple imputation**),
+3. **MNAR tools** (mostly for **sensitivity analysis**, not for “the one true fit”).
+
+
+### Summary of Imputation Approaches (from the Class Notes)
+
+#### 1) “MCAR/Simple” Approaches (Risky Defaults)
+
+These are the **simple** options (e.g., **CC** and **LOCF**) but come with clear warnings (bias/inefficiency).
+
+**(a) Complete Case (CC)**  
+Use only patients with no missing values for the outcome history being analyzed.
+
+- Works cleanly only in very special situations (e.g., missingness unrelated to outcomes after conditioning appropriately).
+- In longitudinal Alzheimer data, CC can quietly shift the sample toward “healthier completers,” as later follow-ups are often missing due to worsening, institutionalization, or death.
+
+**(b) Last Observation Carried Forward (LOCF)**  
+Replace a missing value by the last observed value.
+
+- In progressive diseases, LOCF builds in a *“no further change”* assumption after dropout, which is usually clinically implausible.
+- LOCF is **not automatically conservative**; it can bias effects and distort uncertainty.
+
+**BPRS Translation:**  
+Because BPRS evolves over time and missingness increases at later years, methods that freeze trajectories after dropout (LOCF) or discard partial histories (CC) are not aligned with the data-generation story in an Alzheimer follow-up cohort.
+
+
+
+#### 2) Single Imputation (Fills Once, Then Pretends It Was Observed)
+
+Single imputation is conceptually straightforward but statistically fragile because it typically **understates uncertainty**: you plug in one guess and proceed as if it were truth.
+
+**Common Single-Imputation Methods:**
+
+- **Mean/Median Imputation:** Crude; distorts variance and relationships.
+- **Regression Imputation:** Predict missing values from other variables; over-smooths because predictions sit too neatly on the regression surface.
+- **Hot Deck:** Replace with an observed value from a “similar” donor; better for preserving realistic values but requires careful donor definition.
+- **Predictive Mean Matching (PMM):** Realistic-value imputation, but becomes principled only in the **multiple imputation** framework.
+
+**BPRS Translation:**  
+A single “best guess” for missing BPRS at year 5 is rarely believable as *the* value. What matters is acknowledging uncertainty about the missing value and propagating it into standard errors and conclusions.
+
+
+
+#### 3) Multiple Imputation (MI): The Main Framework (MAR)
+
+The MI workflow:
+
+1. **Impute** missing values **M** times to create **M** completed datasets.
+2. **Analyze** each completed dataset using the chosen model.
+3. **Pool** estimates and uncertainty across the **M** analyses.
+
+##### (a) MI Methods Depend on the Missingness Pattern
+
+**Monotone Missingness:** Common with dropout (e.g., patients drop out and remain missing).  
+For monotone patterns, the notes suggest:
+
+- **Regression** for continuous variables
+- **Logistic Regression** for binary variables
+- **Discriminant Methods** for categorical variables
+- **Regression + Predictive Mean Matching (REGPMM)**
+- **Propensity Score Methods**
+
+**Non-Monotone Missingness:** Missingness can appear and disappear across time/variables.  
+The notes suggest:
+
+- **MCMC Imputation:** Multivariate model + iterative simulation.
+- **FCS/Chained Equations:** Specify a conditional model for each variable with missingness and iterate through them.
+
+**BPRS Translation:**  
+- If BPRS missingness is mainly dropout, monotone MI methods are a natural match.  
+- If there’s a mix of intermittent missing items + dropout, **FCS** is the flexible default because the dataset contains a mix of variable types (continuous scores, binary indicators, categorical factors).
+
+
+
+### Pooling Rules (Within vs Between)
+
+With **M** imputations, let $\hat{\beta}^{(m)}$ be the estimate from imputed dataset $m$, and let $U^{(m)}$ be its estimated variance.
+
+**Pooled Estimate:**
+
+$$
+\hat{\beta}^{\ast} = \frac{1}{M} \sum_{m=1}^{M} \hat{\beta}^{(m)}.
+$$
+
+**Within-Imputation Variance:**
+
+$$
+W = \frac{1}{M} \sum_{m=1}^{M} U^{(m)}.
+$$
+
+**Between-Imputation Variance:**
+
+$$
+B = \frac{1}{M-1} \sum_{m=1}^{M} \left(\hat{\beta}^{(m)} - \hat{\beta}^{\ast}\right) \left(\hat{\beta}^{(m)} - \hat{\beta}^{\ast}\right)^{\top}.
+$$
+
+**Total Variance:**
+
+$$
+V = W + \left(\frac{M+1}{M}\right)B.
+$$
+
+
+
+### What Happens to Variance When Missingness is High?
+
+- **Many Missing Values:** Less observed signal pushes **$W$** upward (less precision within each dataset).
+- **More Imputation Influence:** Imputed datasets differ more, increasing **$B$**.
+
+**Practical Implication:**
+
+$$
+V = W + \left(\frac{M+1}{M}\right)B \quad \Rightarrow \quad V \text{ increases as missingness increases.}
+$$
+
+**BPRS Translation:**  
+If later-year BPRS is frequently missing, uncertainty includes both **sampling variability** ($W$) and **imputation uncertainty** ($B$). With heavier dropout, $B$ becomes a non-trivial part of the final standard errors.
+
+
+
+### One Clean Sentence to Link This to Your BPRS Methodology
+
+In a cohort with progressive disease and dropout, multiple imputation under MAR provides a principled way to replace missing BPRS values while carrying forward both sources of uncertainty—model-fit uncertainty within each imputed dataset ($W$) and imputation-to-imputation variability ($B$)—into the final inference through Rubin’s pooling rules.
+
+
+### Choosing an appropriate method for longitudinal data with missingness
+
+This section summarizes when different modeling strategies are appropriate in longitudinal studies with incomplete data, and how they relate to the missing-data mechanism. The discussion is framed around repeated outcomes such as yearly BPRS measurements in an Alzheimer cohort.
+
+
+
+### Generalized Estimating Equations (GEE)
+
+GEE targets **population-average effects** and treats the within-subject correlation as a nuisance, specified through a *working correlation structure*.
+
+#### When standard GEE is appropriate
+
+Standard (unweighted) GEE is appropriate when:
+
+- The outcome is **fully observed** (complete data), or
+- Missingness is **MCAR** (Missing Completely At Random).
+
+Under MCAR, the estimating equations remain unbiased because the observed data form a random subsample of the full data.
+
+#### Limitations under MAR
+
+When missingness is **MAR**, standard GEE is **not valid** in general:
+
+- GEE conditions only on the mean model  
+  $$E(Y_{ij} \mid X_{ij}) = \mu_{ij},$$  
+  and does **not model the outcome distribution**.
+- If dropout depends on observed history (e.g., earlier BPRS values), the estimating equations are biased unless this dependence is explicitly corrected.
+
+Hence, under MAR, **plain GEE is insufficient**.
+
+
+
+### Weighted GEE (WGEE) under MAR
+
+To extend GEE to MAR settings, **inverse probability weights** are introduced.
+
+#### Idea
+
+Each observed measurement is weighted by the inverse probability of being observed:
+
+$$
+w_{ij} = \frac{1}{\hat{\pi}_{ij}},
+$$
+
+where
+
+$$
+\pi_{ij} = P(R_{ij} = 1 \mid \text{observed history}).
+$$
+
+The probabilities $\pi_{ij}$ are typically estimated using a **logistic regression for dropout**, fitted to observed data only.
+
+#### Why WGEE works under MAR
+
+- If missingness depends only on observed history, reweighting reconstructs the population that would have been observed without dropout.
+- The weighted estimating equations are unbiased for population-average effects.
+
+#### Observation-level vs subject-level weights
+
+The lecturer explicitly recommends **observation-level weights**:
+
+- **Subject-level weights**: One weight per individual; simpler but less precise.
+- **Observation-level weights**: A separate weight for each $(i,j)$; better reflects time-varying dropout risk.
+
+In longitudinal Alzheimer data, dropout risk typically **changes over time** and depends on evolving symptoms, so observation-level weights are more appropriate.
+
+
+
+### Mixed Models (LMM / GLMM)
+
+Mixed models specify a **full likelihood** for the outcome process, including subject-specific random effects.
+
+#### Key property under MAR
+
+Under MAR and **parameter distinctness**, the likelihood factorizes as:
+
+$$
+f(Y^{o}, R \mid X, \theta, \psi) = f(Y^{o} \mid X, \theta) f(R \mid Y^{o}, X, \psi),
+$$
+
+so inference for $\theta$ can be based on the observed-data likelihood alone.
+
+#### Implication
+
+- **LMM (Gaussian outcomes)** and **GLMM (non-Gaussian outcomes)** are **valid under MAR without modeling the missingness process explicitly**.
+- This is why your lecturer states that **under MAR, GLMM is OK**.
+
+#### When mixed models are particularly attractive
+
+- Continuous outcomes (e.g., BPRS total score).
+- Interest in **subject-specific trajectories**.
+- Unbalanced data with dropout.
+- Correct specification of the mean structure is more important than the random-effects covariance.
+
+
+
+### Multiple Imputation (MI)
+
+Multiple imputation replaces each missing value with multiple plausible draws, creating $M$ completed datasets.
+
+#### When MI is appropriate
+
+MI is appropriate when:
+
+- Missingness is **MAR**.
+- There are **incomplete covariates** (which GEE and GLMM cannot automatically handle).
+- One wants a **general framework** applicable across different models.
+
+#### Workflow
+
+1. Impute missing values $M$ times using models compatible with the data.
+2. Fit the analysis model (e.g., GEE, GLMM) in each dataset.
+3. Pool estimates using Rubin’s rules.
+
+#### MI + GEE
+
+Combining MI with GEE (**MI-GEE**) is a valid MAR approach:
+
+- MI handles missing covariates and outcomes.
+- GEE provides population-average inference.
+- Variability across imputations is reflected in standard errors.
+
+
+
+### MNAR and Sensitivity Analysis
+
+When missingness may depend on **unobserved outcomes** (MNAR), no method can identify the truth from the data alone.
+
+In this case:
+
+- MNAR models are used for **sensitivity analysis**, not as the primary analysis.
+- Examples:
+  - $\delta$-adjusted pattern-mixture models,
+  - Selection models with sensitivity parameters,
+  - Shared-parameter models.
+
+The goal is to assess **robustness**, not to “fix” MNAR.
+
+
+
+### Summary: Choosing a Method
+
+| Situation                            | Recommended Approach  |
+| ------------------------------------ | --------------------- |
+| Complete data or MCAR                | GEE                   |
+| MAR, population-average effects      | WGEE or MI-GEE        |
+| MAR, subject-specific interpretation | LMM / GLMM            |
+| Incomplete covariates                | MI (with GLMM or GEE) |
+| Suspected MNAR                       | Sensitivity analysis  |
+
+
+
+### Practical Interpretation for the Alzheimer BPRS Study
+
+- Dropout is common and plausibly depends on observed disease history → **MAR is a reasonable working assumption**.
+- For primary inference:
+  - **LMM / GLMM** are valid likelihood-based tools.
+  - **WGEE with observation-level weights** provides a robust population-average alternative.
+- **MI** allows consistent handling of missing covariates and complements both approaches.
+- MNAR methods are reserved for **sensitivity analysis**, aligning statistical modeling with the clinical reality of disease progression.
+
+
+### Local Influence (Local Sensitivity) for Alzheimer BPRS Dropout
+
+#### Why This Exists (The Short Story)
+
+In the Alzheimer cohort, **later BPRS measurements are missing more often** due to dropout caused by progression, institutionalization, death, or loss to follow-up. If dropout depends only on **observed history**, MAR (Missing At Random) can be reasonable. However, if dropout depends on the **unobserved current BPRS** (e.g., worse-than-expected symptoms), that is MNAR (Missing Not At Random).
+
+**Local influence** is a way to ask:
+
+> “If we make a *tiny* MNAR deviation from MAR, which patients (or which parts of the model) cause the biggest change in our conclusions?”
+
+It is a **sensitivity analysis tool**, not your primary analysis.
+
+
+
+### 1) Setup in Alzheimer Notation
+
+Let \( Y_{ij} \) be the BPRS for subject \(i\) at visit \(j\), and let \( D_i \) denote the dropout time (e.g., the first visit after which they stop contributing data).
+
+A common selection-model framing is:
+
+$$
+f(Y_i, D_i \mid X_i) =
+f(Y_i \mid X_i, \theta) \cdot f(D_i \mid Y_i, X_i, \psi),
+$$
+
+where:
+
+- \( f(Y_i \mid X_i, \theta) \): the **longitudinal outcome model** (e.g., an LMM for continuous BPRS),
+- \( f(D_i \mid Y_i, X_i, \psi) \): the **dropout model** (e.g., logistic regression or hazard-style).
+
+
+
+### 2) The “Perturbed MAR” Idea
+
+#### Baseline MAR Dropout Model (Uses Observed History Only)
+
+A standard MAR dropout model uses **past observed BPRS** (and covariates), e.g.,
+
+$$
+\operatorname{logit}\Big(P(D_i = j \mid D_i \geq j, Y_{i,0:(j-1)}^{o}, X_i)\Big) =
+\psi_0 + \psi_1 Y_{i,j-1} + \psi_2^\top X_i.
+$$
+
+This is MAR-style because dropout depends on observed history (e.g., \( Y_{i,j-1} \)), not on the missing \( Y_{ij} \).
+
+#### Local MNAR Perturbation (One Extra “Forbidden” Term)
+
+Local influence adds a small MNAR deviation:
+
+$$
+\operatorname{logit}\Big(P(D_i = j \mid D_i \geq j, Y_{i,0:(j-1)}^{o}, X_i, Y_{ij})\Big) =
+\psi_0 + \psi_1 Y_{i,j-1} + \psi_2^\top X_i + \omega Y_{ij}.
+$$
+
+- \( \omega = 0 \): **MAR**.
+- \( \omega \neq 0 \): **MNAR**, because dropout now depends on the **current (possibly missing) BPRS**.
+
+**Local sensitivity** asks what happens when \( \omega \) is perturbed *slightly away from 0*.
+
+
+
+### 3) Likelihood Displacement: What the Slide is Measuring
+
+Let \( L_{\omega}(\theta, \psi) \) be the (observed-data) likelihood under perturbation \( \omega \).
+
+1. Fit the **MAR model** at \( \omega = 0 \), giving \( (\widehat{\theta}, \widehat{\psi}) \).
+2. Fit the perturbed model at \( \omega \neq 0 \), giving \( (\widehat{\theta}_\omega, \widehat{\psi}_\omega) \).
+
+The slide’s **likelihood displacement** is:
+
+$$
+LD(\omega) =
+2 \Big[
+\ell_{\omega=0}(\widehat{\theta}, \widehat{\psi}) -
+\ell_{\omega=0}(\widehat{\theta}_\omega, \widehat{\psi}_\omega)
+\Big] \geq 0,
+$$
+
+where \( \ell \) is the log-likelihood.
+
+#### Interpretation for BPRS:
+
+- If \( LD(\omega) \) grows quickly even for tiny \( \omega \), your inference about BPRS trajectories is **fragile** to small MNAR deviations.
+- If \( LD(\omega) \) stays flat near \( \omega = 0 \), your inference is **robust** (at least locally).
+
+
+
+### 4) Normal Curvature (\( C_h \)): What “Local Influence Direction” Means
+
+The slide’s geometry is:
+
+- \( \omega \): a direction in which we “nudge” the model away from MAR.
+- \( LD(\omega) \): the “height” of a surface above \( \omega = 0 \).
+- The **curvature** tells you how sharply the surface rises.
+
+A common expression is:
+
+$$
+C_h = 2 \left| h^\top \Delta^\top \mathcal{L}^{-1} \Delta h \right|,
+$$
+
+where:
+
+- \( h \): a perturbation direction (e.g., “perturb subject \(i\)” or “perturb MNAR term”),
+- \( \mathcal{L} \): an information-like matrix (how sharply the likelihood identifies parameters),
+- \( \Delta \): links perturbations to the score/information.
+
+#### Practical Explanation:
+
+> It ranks which perturbations (or which subjects) have the biggest impact on the fitted model and the key conclusions.
+
+
+
+### 5) “Local Influence” Translated to Your Alzheimer BPRS Analysis
+
+#### What is the Practical Output?
+
+You typically end up with:
+
+1. **Which subjects are influential for missingness sensitivity?**
+   - Example: Patients with **rapid BPRS worsening before dropout** may dominate the sensitivity.
+   - Patients with unusually “good” observed BPRS who still drop out early could also drive sensitivity (suggesting dropout is not only severity-driven).
+
+2. **Which conclusions are sensitive?**
+   - The **overall time trend** in BPRS.
+   - Whether baseline severity markers (e.g., CDR-SB, ABPET) relate to level and/or slope.
+   - Key interactions (if any remain).
+
+Local influence says:
+
+> “Do those estimated effects change a lot under tiny MNAR deviations?”
+
+
+
+### 6) The Questions You Should Ask Yourself
+
+#### A. Clinical Plausibility Questions (Before Touching Math)
+
+- **Why do people drop out?** Progression, death, institutionalization, side effects, logistics?
+- **Is dropout plausibly related to *current unobserved BPRS* even after conditioning on past BPRS?**
+  - If yes → MNAR is plausible → sensitivity analysis is not optional.
+
+#### B. Statistical Identification Questions (The Honest Limitations)
+
+- Can \( \omega \) be learned from observed data?
+  - Usually **no** (MNAR parameter is not identified without assumptions).
+  - Local influence is about **robustness**, not “finding the true MNAR.”
+
+#### C. Model-Structure Questions (So Your Sensitivity is Meaningful)
+
+- Does your dropout model include the **key observed predictors** of dropout (prior BPRS, time, baseline markers)?
+- Are you mixing different missingness causes (death vs missed appointment) into one dropout indicator?
+  - If death is present, it can behave like a different mechanism (and should be discussed explicitly).
+
+#### D. Reporting Questions (What the Marker/Examiner Will Actually Look For)
+
+- What is your *primary* assumption (MAR) and why is it reasonable?
+- What is your *sensitivity scenario* (small MNAR deviation) and what does it represent clinically?
+- Which conclusions are stable vs fragile?
+
+
+
+### 7) How to “Handle This” in a Homework/Presentation Setting
+
+Given your **10 minutes total**, local influence is best used as:
+
+1. **One slide framing:**
+   - “Primary analysis assumes MAR (LMM / likelihood).”
+   - “We assess robustness to small MNAR deviations using a perturbed dropout model.”
+
+2. **One slide result:**
+   - “Key fixed effects (time trend, baseline severity association) were / were not robust.”
+   - “Sensitivity was driven mainly by a small subset of early dropouts (top influential subjects).”
+
+Keep the heavy machinery in an appendix.
+
+
+
+### 8) Minimal Implementation Roadmap (Conceptual + R Skeleton)
+
+#### Steps:
+
+1. Fit outcome model for BPRS (LMM): \( \widehat{\theta} \).
+2. Fit dropout model under MAR: \( \widehat{\psi} \).
+3. Add the MNAR perturbation term (\( \omega Y_{ij} \)) and examine small \( \omega \) (local).
+4. Measure impact on:
+   - \( \widehat{\beta}(\omega) \) for key mean parameters,
+   - Likelihood displacement \( LD(\omega) \),
+   - Subject-wise influence (case perturbations).
+
+#### R Skeleton:
+
+```r
+# 1) Outcome model (MAR primary): LMM for BPRS
+# lmm <- lme4::lmer(BPRS ~ time + age + sex + cdrsb0 + abpet0 + ... + (1 + time | id), data = dat)
+
+# 2) Dropout indicator per visit (example):
+# R_ij = 1 if observed at j, 0 if missing at j
+# You can define a discrete-time dropout hazard among those still present.
+# dat$at_risk <- with(dat, ave(R, id, FUN = function(x) cumprod(c(1, head(x, -1)))))
+
+# 3) MAR dropout model: depends on observed history (lagged BPRS etc.)
+# drop_mar <- glm(dropout_event ~ lag_BPRS + time + age + sex + cdrsb0 + ..., family = binomial, data = dat_at_risk)
+
+# 4) Local MNAR perturbation:
+# You can't directly use Y_ij when it's missing. The selection-model approach uses the joint model.
+# In practice for homework, local sensitivity is often approximated by:
+#   - delta-shifting imputed values, or
+#   - perturbing weights / dropout probabilities, or
+#   - case-weight perturbations and checking changes in beta_hat.
+#
+# Then quantify change in key betas over small perturbations.
+```
+
+### Sensitivity Analysis for Missing BPRS in the Alzheimer Cohort
+
+#### Why Sensitivity Analysis is Needed
+
+In the Alzheimer cohort, follow-up BPRS measurements are often incomplete due to dropout caused by worsening health, institutionalization, or death. This creates a realistic risk that later BPRS values are observed primarily among “healthier survivors.” While the primary analysis assumes **MAR (Missing At Random)**, **MNAR (Missing Not At Random)** cannot be ruled out. Sensitivity analysis evaluates whether the main conclusions remain robust under plausible MNAR departures.
+
+
+
+### 1) Notation for Outcome and Dropout
+
+Let \( y_i = (y_{i0}, y_{i1}, \dots, y_{iJ}) \) represent the BPRS measurements for subject \(i\) over visits \(j = 0, \dots, J\). Define the observation indicator:
+
+$$
+r_{ij} =
+\begin{cases}
+1, & \text{if } y_{ij} \text{ is observed}, \\
+0, & \text{if } y_{ij} \text{ is missing}.
+\end{cases}
+$$
+
+Split \(y_i\) into observed and missing components: \(y_i = (y_i^o, y_i^m)\). The **dropout time** (last observed visit) is:
+
+$$
+D_i = \max \{ j : r_{ij} = 1 \}.
+$$
+
+In this setting, \(D_i\) is informative if subjects with worse symptoms tend to drop out earlier.
+
+
+
+### 2) Primary Analysis: LMM Under MAR
+
+The primary analysis uses a **linear mixed model (LMM)** under the MAR assumption:
+
+$$
+y_{ij} = x_{ij}^\top \beta + z_{ij}^\top b_i + \varepsilon_{ij},
+\qquad
+b_i \sim N(0, G),
+\qquad
+\varepsilon_{ij} \sim N(0, \sigma^2),
+$$
+
+where \(b_i\) captures subject-specific baseline levels and progression. This model:
+
+- Uses all available repeated measures without discarding incomplete subjects.
+- Provides valid likelihood-based inference under MAR.
+
+#### MAR Assumption in the Alzheimer Context
+
+The MAR assumption implies that missingness at visit \(j\) depends only on observed history (e.g., previous BPRS, baseline severity):
+
+$$
+f(r_i \mid X_i, y_i^o, y_i^m) = f(r_i \mid X_i, y_i^o).
+$$
+
+This assumption is untestable but serves as a **working assumption** for the primary analysis.
+
+
+
+### 3) Sensitivity Analysis: MNAR Concerns
+
+#### Key Questions for Sensitivity Analysis
+
+1. **Direction:** Are dropouts likely to have *higher* BPRS (worse symptoms) than predicted under MAR?
+2. **Magnitude:** How much worse would unobserved BPRS need to be to change conclusions?
+3. **Timing:** Does MNAR primarily affect late follow-up (e.g., years 3–6)?
+4. **Robustness Target:** Which inference (e.g., time trend, group-by-time interaction) is most sensitive to MNAR?
+
+
+
+### 4) MNAR Sensitivity Option A: Pattern-Mixture (\(\delta\)-Adjustment)
+
+#### Step A1: Fit the MAR LMM
+
+Fit the primary LMM under MAR and obtain MAR-based predictions \(\widehat{y}_{ij}^{MAR}\).
+
+#### Step A2: Adjust Missing Outcomes
+
+For \(j > D_i\), define MNAR-adjusted outcomes:
+
+$$
+y_{ij}^m(\delta) = \widehat{y}_{ij}^{MAR} + \delta.
+$$
+
+- \(\delta = 0\): MAR (no departure).
+- \(\delta > 0\): Dropouts have worse symptoms than predicted under MAR.
+- \(\delta < 0\): Dropouts have better symptoms (less plausible clinically).
+
+#### Step A3: Refit and Evaluate
+
+Refit the model for a grid of \(\delta\) values (e.g., \(\delta \in \{0, 0.5, 1, 2, 3\}\)) and track how key estimates (e.g., time trend, group-by-time interaction) change.
+
+#### Reporting
+
+- Present a table/plot showing how estimates vary with \(\delta\).
+- Example conclusion: “Findings remain robust up to \(\delta = 2\), but attenuate beyond \(\delta = 3\).”
+
+
+
+### 5) MNAR Sensitivity Option B: Selection Model
+
+#### Joint Model for Outcome and Dropout
+
+The joint model factorizes as:
+
+$$
+f(y_i, r_i \mid X_i, \theta, \psi) =
+f(y_i \mid X_i, \theta) f(r_i \mid X_i, y_i, \psi).
+$$
+
+The dropout model includes an MNAR term:
+
+$$
+\operatorname{logit}\Big(
+\Pr(D_i = j \mid D_i \geq j, \mathcal{H}_{i,j-1}, y_{ij})
+\Big) =
+\psi_0 + \psi_1 y_{i,j-1} + \psi_2 y_{ij} + \psi_3^\top X_i.
+$$
+
+- \(\psi_2\): MNAR parameter linking dropout to unobserved \(y_{ij}\).
+
+#### Sensitivity Analysis
+
+- Fix \(\psi_2\) to plausible values (or vary over a range).
+- Refit the joint model and observe how inference on \(\beta\) changes.
+
+
+
+### 6) Summary: Recommended Approach
+
+- **Primary Analysis:** LMM under MAR.
+- **Sensitivity Analysis:** Pattern-mixture (\(\delta\)-adjustment) for transparency and clinical interpretability.
+- **Optional:** Selection model for formal MNAR modeling.
+
+
+
+### 7) Q&A Defense
+
+“We assume MAR for the primary LMM because dropout plausibly depends on observed history like prior BPRS and baseline severity. However, MNAR cannot be excluded, so we conducted a sensitivity analysis to evaluate how much worse unobserved BPRS would need to be to change conclusions. The \(\delta\)-adjustment approach is transparent, clinically interpretable, and shows that our findings are robust to plausible MNAR departures.”
+
+
+
+### Sensitivity Analysis for Missing BPRS in the Alzheimer Cohort
+
+#### Why Sensitivity Analysis is Needed
+
+In the Alzheimer cohort, follow-up BPRS measurements are often incomplete due to dropout caused by worsening health, institutionalization, or death. This creates a realistic risk that later BPRS values are observed primarily among “healthier survivors.” While the primary analysis assumes **MAR (Missing At Random)**, **MNAR (Missing Not At Random)** cannot be ruled out. Sensitivity analysis evaluates whether the main conclusions remain robust under plausible MNAR departures.
+
+
+
+### 1) Notation for Outcome and Dropout
+
+Let \( y_i = (y_{i0}, y_{i1}, \dots, y_{iJ}) \) represent the BPRS measurements for subject \(i\) over visits \(j = 0, \dots, J\). Define the observation indicator:
+
+$$
+r_{ij} =
+\begin{cases}
+1, & \text{if } y_{ij} \text{ is observed}, \\
+0, & \text{if } y_{ij} \text{ is missing}.
+\end{cases}
+$$
+
+Split \(y_i\) into observed and missing components: \(y_i = (y_i^o, y_i^m)\). The **dropout time** (last observed visit) is:
+
+$$
+D_i = \max \{ j : r_{ij} = 1 \}.
+$$
+
+In this setting, \(D_i\) is informative if subjects with worse symptoms tend to drop out earlier.
+
+
+
+### 2) Primary Analysis: Likelihood-Based LMM Under MAR
+
+The primary analysis uses a **linear mixed model (LMM)** under the MAR assumption:
+
+$$
+y_{ij} = x_{ij}^\top \beta + z_{ij}^\top b_i + \varepsilon_{ij},
+\qquad
+b_i \sim N(0, G),
+\qquad
+\varepsilon_{ij} \sim N(0, \sigma^2),
+$$
+
+where \(b_i\) captures subject-specific baseline levels and progression. This model:
+
+- Uses all available repeated measures without discarding incomplete subjects.
+- Directly models subject heterogeneity (random intercept/slope).
+- Provides valid likelihood-based inference under MAR.
+
+#### MAR Assumption in the Alzheimer Context
+
+The MAR assumption implies that missingness at visit \(j\) depends only on observed history (e.g., previous BPRS, baseline severity):
+
+$$
+f(r_i \mid X_i, y_i^o, y_i^m) = f(r_i \mid X_i, y_i^o).
+$$
+
+This assumption is untestable but serves as a **working assumption** for the primary analysis.
+
+
+
+### 3) What Question Are We Asking in Sensitivity Analysis?
+
+A sensitivity analysis starts by making the MNAR concern concrete in the Alzheimer context. These are the kinds of questions to explicitly address:
+
+1. **Direction:** Are participants who drop out likely to have *higher* BPRS than predicted from their observed history (worse symptoms), or *lower* BPRS (less plausible clinically)?
+2. **Magnitude:** If dropouts are worse, how much worse would their unobserved BPRS need to be to materially change conclusions (e.g., time trend, group differences)?
+3. **Timing:** Does MNAR primarily affect late follow-up (e.g., years 3–6), where missingness is heavier?
+4. **Whose Dropout:** Is dropout related to observed markers like baseline severity, ADL, cognition, prior BPRS? (If yes, MAR becomes more plausible after adjustment, but MNAR may still remain.)
+5. **Robustness Target:** Which inference do we want to stress-test—mean slope over time, treatment/group-by-time interaction, or baseline covariate associations?
+
+
+
+### 4) MNAR Sensitivity Option A: Pattern-Mixture (\(\delta\)-Adjustment)
+
+This is the easiest to explain and defend for a short presentation, and it links naturally to BPRS.
+
+#### Step A1: Fit the MAR LMM and Get MAR-Based Predictions
+
+Let \(\widehat{y}_{ij}^{MAR}\) be the fitted/predicted mean for a missing value under the MAR LMM.
+
+#### Step A2: Shift the Unobserved Outcomes After Dropout
+
+For \(j > D_i\), define an MNAR-adjusted value:
+
+$$
+y_{ij}^m(\delta) = \widehat{y}_{ij}^{MAR} + \delta.
+$$
+
+**Interpretation for BPRS:**
+
+- \(\delta = 0\): MAR (no departure).
+- \(\delta > 0\): Unobserved BPRS is systematically higher than MAR predicts (worse symptoms among dropouts).
+- \(\delta < 0\): Unobserved BPRS is lower than MAR predicts (less plausible clinically, but can be included as a check).
+
+#### Step A3: Refit and Track the Conclusions Across \(\delta\)
+
+Repeat the analysis for a small grid of clinically plausible shifts, e.g.,
+
+$$
+\delta \in \{0, 0.5, 1, 2, 3\},
+$$
+
+in BPRS units (choose the scale based on what “clinically meaningful change” looks like for your data).
+
+**What to Report:**
+
+- A table/figure showing how the key estimates (e.g., time effect, covariate-by-time interaction) change as \(\delta\) increases.
+- A short conclusion like: “Main findings remain unchanged up to \(\delta = 2\), but beyond \(\delta = 3\) the time trend attenuates.”
+
+
+
+### 5) MNAR Sensitivity Option B: Selection Model (Diggle–Kenward Style)
+
+This approach models the longitudinal outcome and the dropout mechanism jointly, allowing dropout to depend on the (possibly missing) current outcome.
+
+#### Joint Factorization
+
+$$
+f(y_i, r_i \mid X_i, \theta, \psi) =
+f(y_i \mid X_i, \theta) f(r_i \mid X_i, y_i, \psi).
+$$
+
+Likelihood contribution uses integration over missing outcomes:
+
+$$
+L(\theta, \psi) =
+\prod_{i=1}^N
+\int
+f(y_i^o, y_i^m \mid X_i, \theta)
+f(r_i \mid X_i, y_i^o, y_i^m, \psi)
+dy_i^m.
+$$
+
+#### Discrete-Time Dropout Hazard with MNAR Term
+
+A common choice is:
+
+$$
+\operatorname{logit}\Big(
+\Pr(D_i = j \mid D_i \geq j, \mathcal{H}_{i,j-1}, y_{ij})
+\Big) =
+\psi_0 + \psi_1 y_{i,j-1} + \psi_2 y_{ij} + \psi_3^\top X_i.
+$$
+
+- \(y_{i,j-1}\): Observed history (MAR-consistent part).
+- \(y_{ij}\): Current BPRS, which may be unobserved if dropout occurs at \(j\).
+- \(\psi_2\): The key MNAR parameter encoding how dropout depends on unobserved current severity.
+
+#### Why This Becomes Sensitivity Analysis in Practice
+
+\(\psi_2\) is not identified from observed data alone. Sensitivity analysis involves:
+
+- Fixing \(\psi_2\) to plausible values (or varying it over a range),
+- Refitting the joint model,
+- Observing how inference on \(\beta\) changes.
+
+
+
+### 6) Summary: Recommended Approach
+
+- **Primary Analysis:** LMM under MAR.
+- **Sensitivity Analysis:** Pattern-mixture (\(\delta\)-adjustment) for transparency and clinical interpretability.
+- **Optional:** Selection model for formal MNAR modeling.
+
+
+
+### 7) Q&A Defense
+
+“We assume MAR for the primary LMM because dropout plausibly depends on observed history like prior BPRS and baseline severity. However, MNAR cannot be excluded, so we conducted a sensitivity analysis to evaluate how much worse unobserved BPRS would need to be to change conclusions. The \(\delta\)-adjustment approach is transparent, clinically interpretable, and shows that our findings are robust to plausible MNAR departures.”
+
+
+### MAR vs MNAR: What You Can and Cannot Do with BPRS Data
+
+#### Why You Can’t Test MAR vs MNAR
+
+It’s important to acknowledge that **MNAR (Missing Not At Random) is not identifiable** from the observed data alone. This means you cannot formally test:
+
+$$
+H_0: \text{MAR} \quad \text{vs} \quad H_1: \text{MNAR}.
+$$
+
+Any “test” would rely on unverifiable modeling assumptions. Instead, you can:
+
+1. **Support MAR** by showing that dropout is explainable by observed history.
+2. **Run MNAR sensitivity analyses** to assess how robust your conclusions are under plausible MNAR departures.
+
+
+
+### Supporting MAR: Diagnostics and Evidence
+
+#### 1) Model the Dropout Indicator Using Observed History
+
+Define a dropout indicator:
+
+$$
+H_{i,j} = \mathbb{1}(D_i = j \mid D_i \geq j),
+$$
+
+where \(D_i\) is the dropout time for subject \(i\). Fit a logistic model for the dropout hazard using **only observed information up to visit \(j-1\)**:
+
+$$
+\operatorname{logit}\Big(\Pr(H_{i,j} = 1 \mid \mathcal{H}_{i,j-1})\Big) =
+\alpha_0 + \alpha_1 y_{i,j-1} + \alpha_2^\top X_i + \alpha_3 j.
+$$
+
+- **Interpretation:** If dropout is strongly predicted by **previous BPRS** and baseline severity markers, this supports the idea that missingness depends on observed history, making MAR plausible *after conditioning on that history*.
+
+#### 2) Extend the Observed History
+
+Expand \(\mathcal{H}_{i,j-1}\) to include:
+
+- The last two BPRS values (or the slope between the last two visits),
+- ADL/cognition history (if available),
+- Baseline severity markers,
+- Time.
+
+If the model’s predictive ability improves and the patterns align with clinical expectations, MAR becomes more credible.
+
+#### 3) Compare Pre-Dropout Trajectories vs Completers
+
+Group subjects by their dropout time (\(D_i\)) and plot the mean BPRS trajectories for each group. If early dropouts already have **worse observed BPRS before dropout**, this suggests informative dropout (not MCAR). While this doesn’t distinguish MAR from MNAR, it shows that missingness is *not random*.
+
+
+
+### What You Cannot Do
+
+You cannot formally test MAR vs MNAR using only \((y^o, r, X)\). Instead, you must rely on sensitivity analyses to explore the impact of MNAR.
+
+
+
+### MNAR Sensitivity Analyses: What You Should Do
+
+#### Option A: \(\delta\)-Shift Pattern-Mixture Model
+
+1. **Fit the MAR LMM** and predict missing values under MAR:
+
+   $$
+   \widehat{y}_{ij}^{MAR}.
+   $$
+
+2. **Shift the post-dropout values** by a constant \(\delta\):
+
+   $$
+   y_{ij}^m(\delta) = \widehat{y}_{ij}^{MAR} + \delta, \quad j > D_i.
+   $$
+
+3. **Sweep \(\delta\) over plausible values** (e.g., \(\delta \in \{0, 0.5, 1, 2, 3\}\)) and refit the model or recompute the key estimand.
+
+4. **Report results:** For example, “Results remain unchanged up to \(\delta = 2\), but conclusions change beyond \(\delta = 3\).”
+
+#### Option B: Selection Model with an MNAR Parameter
+
+1. **Specify a dropout hazard model** that depends on the current (possibly missing) BPRS:
+
+   $$
+   \operatorname{logit}\Big(\Pr(H_{i,j} = 1 \mid \mathcal{H}_{i,j-1}, y_{ij})\Big) =
+   \psi_0 + \psi_1 y_{i,j-1} + \psi_2 y_{ij} + \psi_3^\top X_i.
+   $$
+
+2. **Treat \(\psi_2\) as a sensitivity parameter**:
+   - Fix \(\psi_2\) to plausible values (e.g., \(\psi_2 > 0\) implies dropout is more likely for worse unobserved BPRS).
+   - Refit the model and track how the key inference changes.
+
+
+
+### The “5-Second Defense” for Your Presentation
+
+“We can’t test MAR vs MNAR from the observed BPRS data. We support MAR by showing that dropout is explained by observed history (previous BPRS, baseline severity, time). We then perform MNAR sensitivity analyses using a \(\delta\)-shift pattern-mixture model (and optionally a selection model) to quantify how strong MNAR would need to be to change conclusions.”
+
+
+
+### Next Steps: Tailoring the Dropout Model
+
+If you provide details about your time coding and the covariates measured longitudinally (e.g., ADL each year vs only at baseline), I can help you write the exact dropout model formula and suggest specific plots to include.
+
+
+
+### Notation (BPRS Scenario)
+
+Let patient \(i = 1, \dots, N\) have planned visits \(j = 0, 1, \dots, J\) (baseline to year \(J\)).
+
+- **Outcome vector:** \(Y_i = (Y_{i0}, \dots, Y_{iJ})^\top\), where \(Y_{ij}\) is **BPRS**.
+- **Missingness indicator:** \(R_{ij} = 1\) if \(Y_{ij}\) is observed, \(0\) if missing.
+- **Split outcome into observed/missing parts:** \(Y_i = (Y_i^{o}, Y_i^{m})\).
+- **Dropout time:** \(D_i = \max \{j : R_{ij} = 1\}\), the last observed visit (monotone dropout).
+
+---
+
+### The “MAR in 3 Frameworks” Slide: What It Means
+
+The joint distribution of **(BPRS outcomes, missingness pattern)** can always be written as:
+
+$$
+f(Y_i, R_i) = f(Y_i) f(R_i \mid Y_i) = f(R_i) f(Y_i \mid R_i).
+$$
+
+This means the same joint model can be factorized in different ways, leading to different modeling approaches.
+
+
+
+### 1) Selection Models (Diggle–Kenward Style)
+
+**Factorization:**
+
+$$
+f(Y_i, R_i) = f(Y_i \mid \theta) f(R_i \mid Y_i, \psi),
+$$
+
+where:
+
+- \(f(Y_i \mid \theta)\): the **BPRS longitudinal model** (e.g., LMM).
+- \(f(R_i \mid Y_i, \psi)\): the **dropout model**.
+
+**MAR Statement:**
+
+$$
+f(r_i \mid y_i, \psi) = f(r_i \mid y_i^{o}, \psi).
+$$
+
+This means that once you condition on observed BPRS history (\(y_i^{o}\)), dropout does **not** depend on the unobserved BPRS values.
+
+#### Logistic Dropout Model for BPRS (Slide Example)
+
+For monotone dropout, a discrete-time hazard model is:
+
+$$
+\text{logit}\Big(P(D_i = j \mid D_i \geq j, Y_{ij}, Y_{i,j-1})\Big) =
+\psi_0 + \psi_1 Y_{i,j-1} + \psi_2 Y_{ij}.
+$$
+
+**Interpretation:**
+
+- \(\psi_1\): Dropout depends on **past observed symptom severity** (e.g., higher BPRS at the last visit increases dropout risk).
+- \(\psi_2\): Dropout depends on the **current BPRS value** (\(Y_{ij}\)), which is unobserved at dropout.
+
+  - If \(\psi_2 \neq 0\): Dropout depends on unobserved outcomes → **MNAR**.
+  - If \(\psi_2 = 0\): Dropout depends only on observed history → **MAR**.
+  - If \(\psi_1 = \psi_2 = 0\): Dropout is unrelated to BPRS → **MCAR**.
+
+**Implementation in Your Project:**
+
+- **MAR Analysis (Primary):** Fit an **LMM** for BPRS and ignore the dropout model (valid under MAR + distinct parameters).
+- **Sensitivity (MNAR):** Allow a nonzero \(\psi_2\) or introduce an explicit sensitivity parameter.
+
+---
+
+### 2) Pattern-Mixture Models
+
+**Factorization:**
+
+$$
+f(Y_i, R_i) = f(R_i \mid \psi) f(Y_i \mid R_i, \theta).
+$$
+
+Here, you condition on the **missingness pattern** (\(R_i\)) or dropout time (\(D_i\)) and model outcomes within patterns.
+
+**MAR Statement:**
+
+$$
+f(y_i^{m} \mid y_i^{o}, r_i, \theta) = f(y_i^{m} \mid y_i^{o}, \theta).
+$$
+
+This means that after conditioning on observed BPRS history, the distribution of missing BPRS does **not** depend on the dropout pattern.
+
+#### How This Helps for BPRS
+
+Pattern-mixture models are useful for **sensitivity analysis** because they allow you to specify how missing outcomes differ from MAR predictions. A common approach is **delta-adjustment**:
+
+1. Fit an MAR model to predict missing \(Y_{ij}\).
+2. Adjust the predictions:
+
+   $$
+   Y_{ij}^{m} = \widehat{Y}_{ij}^{MAR} + \delta, \quad j > D_i,
+   $$
+
+   where \(\delta\) is a sensitivity parameter (e.g., \(\delta > 0\) means “dropouts would have had higher BPRS than MAR predicts”).
+
+This approach is defensible in Alzheimer data, where dropout is often linked to worsening health or institutionalization.
+
+
+### 3) Shared-Parameter Models
+
+**Factorization:**
+
+$$
+f(Y_i, R_i) = \int f(Y_i \mid b_i, \theta) f(R_i \mid b_i, \psi) f(b_i) db_i.
+$$
+
+Here, a latent subject-specific process (\(b_i\)) drives both:
+
+- The BPRS trajectory (\(f(Y_i \mid b_i, \theta)\)).
+- The dropout propensity (\(f(R_i \mid b_i, \psi)\)).
+
+#### BPRS Interpretation
+
+Patients have an unobserved “disease progression tendency” (\(b_i\)) that affects both:
+
+- Their BPRS trajectory over time, and
+- Their likelihood of dropping out.
+
+This framework is natural if dropout is connected to deterioration or death. It is often implemented as a **joint model** (longitudinal outcome + time-to-dropout) with shared random effects.
+
+
+
+### Recommended Approach for Your BPRS Report
+
+#### Primary Analysis
+
+**LMM under MAR** is the default choice:
+
+$$
+Y_{ij} = x_{ij}^\top \beta + z_{ij}^\top b_i + \varepsilon_{ij},
+$$
+
+where:
+
+- \(b_i \sim N(0, G)\),
+- \(\varepsilon_{ij} \sim N(0, \sigma^2)\).
+
+**Why This Is Appropriate:**
+
+- BPRS is continuous and repeatedly measured → LMM fits the data structure.
+- Under **MAR + ignorability**, you don’t need to model dropout explicitly to get valid inference for \(\beta\).
+- In Alzheimer follow-up, dropout is rarely MCAR; MAR is a reasonable working assumption if you include strong predictors of missingness (e.g., previous BPRS, age, baseline severity, ADL).
+
+#### Sensitivity Analysis
+
+Choose one sensitivity approach:
+
+1. **Pattern-Mixture (\(\delta\)-Adjustment):**
+
+   - Assume unobserved BPRS is \(\delta\) points higher than MAR predicts.
+   - Vary \(\delta\) over a plausible range.
+
+2. **Selection Model (MNAR):**
+
+   - Allow dropout to depend on the current (possibly unobserved) BPRS via \(\psi_2\).
+   - Examine how conclusions change as \(\psi_2\) moves away from 0.
+
+3. **Shared-Parameter Model:**
+
+   - Fit a joint model where dropout depends on the same random effects as BPRS.
+   - Compare results to the MAR-LMM.
+
+For a concise presentation, **(1)** is the easiest to explain.
+
+
+### Key Questions for BPRS Sensitivity Analysis
+
+1. **What is the plausible dropout story in Alzheimer follow-up?**
+
+   - Worsening symptoms? Caregiver burden? Institutionalization? Death? (If yes, MNAR is plausible.)
+
+2. **Does dropout depend on observed history?**
+
+   - If higher last-visit BPRS predicts dropout, MAR is plausible *conditional on that history*.
+
+3. **If MNAR is plausible, in what direction would missing BPRS differ from MAR predictions?**
+
+   - Typically “worse than predicted” → motivates \(\delta > 0\) or \(\psi_2 > 0\).
+
+4. **Do your main conclusions (time trend, covariate effects) survive reasonable perturbations?**
+   - Sensitivity analysis tests robustness, not “proves MAR.”
+
+
+### Missing Data Methods: Overview and Application to BPRS in Alzheimer Cohort
+
+#### Missing Data Toolkit from Course Notes
+
+The course notes organize missing data methods by **missingness mechanism** (MCAR → MAR → MNAR) and **modeling framework** (selection, pattern-mixture, shared-parameter). Below is a summary of the methods and their relevance to your BPRS analysis.
+
+
+
+### 1) Complete-Case (CC) Analysis
+
+- **What it is:** Analyze only subjects/visits with no missing data (discard incomplete cases).
+- **When it’s appropriate:** Only under **MCAR** (Missing Completely At Random).
+- **Why it’s discouraged:** The notes explicitly warn that **CC is biased outside MCAR** and inefficient because it discards partial data.
+
+
+
+### 2) Last Observation Carried Forward (LOCF)
+
+- **What it is:** Replace missing future outcomes with the subject’s last observed value.
+- **When it’s appropriate:** Rarely appropriate; the notes discourage LOCF as a default.
+- **Why it’s discouraged:**
+
+  - **Bias:** LOCF assumes no change after dropout, which is implausible in progressive diseases like Alzheimer’s.
+  - **Inefficiency:** LOCF underestimates variability and produces confidence intervals that are too narrow.
+
+
+
+### 3) Direct Likelihood Methods (Primary MAR Approach)
+
+- **What it is:** Fit a likelihood-based model directly to the observed data without imputing missing values.
+- **When it’s appropriate:** Under **MAR** (Missing At Random).
+- **Why it’s recommended:**
+  - The notes describe direct likelihood as **“easy to conduct”** under MAR.
+  - Your BPRS **LMM/GLMM** is a direct-likelihood approach, making it the default for MAR-valid inference.
+
+
+
+### 4) Direct Bayesian Methods
+
+- **What it is:** Bayesian analog of likelihood-based analysis.
+- **When it’s appropriate:** Also valid under **MAR**.
+- **Why it’s useful:** Incorporates prior information and naturally handles uncertainty about missing data.
+
+
+
+### 5) Inverse Probability Weighting (IPW) / Weighted GEE (W-GEE)
+
+- **What it is:** Reweight observations by the inverse probability of being observed, so subjects likely to drop out contribute more.
+- **When it’s appropriate:** Under **MAR**, the notes recommend **weighted GEE** as an alternative to standard GEE, which is valid only under MCAR.
+- **Why it’s useful:** Corrects for selection bias due to dropout by modeling the dropout process.
+
+
+
+### 6) Multiple Imputation (MI)
+
+- **What it is:** Replace missing values with multiple plausible draws, analyze each completed dataset, and pool results.
+- **When it’s appropriate:** Primarily under **MAR**.
+- **Why it’s useful:** Handles incomplete covariates and outcomes, and provides valid inference by propagating uncertainty about missing data.
+
+
+
+### 7) MNAR Methods (Sensitivity Analysis)
+
+- **What it is:** Methods for **MNAR (Missing Not At Random)**, where missingness depends on unobserved outcomes.
+- **When it’s appropriate:** The notes emphasize MNAR methods for **sensitivity analysis**, not as the primary analysis.
+- **Examples:**
+
+  - **Selection models** (e.g., Diggle–Kenward).
+  - **Pattern-mixture models** (e.g., \(\delta\)-adjustment).
+  - **Shared-parameter models**.
+  - **Local influence**.
+
+
+
+### Application to BPRS in Alzheimer Cohort
+
+#### Primary Analysis: MAR Assumption
+
+Your primary analysis assumes **MAR**, which is reasonable if dropout depends on observed history (e.g., prior BPRS, baseline severity). The recommended methods under MAR are:
+
+1. **Direct Likelihood (LMM/GLMM):**
+
+   - Fit a linear mixed model (LMM) for BPRS under MAR.
+   - This is the default approach for continuous outcomes in longitudinal studies.
+
+2. **Weighted GEE (W-GEE):**
+
+   - Use observation-level inverse-probability weights to correct for dropout.
+   - Provides population-average effects under MAR.
+
+3. **Multiple Imputation (MI):**
+
+   - Impute missing BPRS values multiple times and pool results.
+   - Useful for handling incomplete covariates or outcomes.
+
+
+
+#### Sensitivity Analysis: MNAR Assumption
+
+Since MNAR cannot be ruled out, sensitivity analysis is essential. The notes recommend the following MNAR methods:
+
+1. **Pattern-Mixture Models (\(\delta\)-Adjustment):**
+
+   - Shift post-dropout BPRS values by a constant \(\delta\) to simulate worse outcomes than MAR predicts.
+   - Example: \(y_{ij}^m(\delta) = \widehat{y}_{ij}^{MAR} + \delta\), where \(\delta > 0\) represents MNAR departures.
+
+2. **Selection Models:**
+
+   - Model dropout as a function of both observed and unobserved outcomes.
+   - Example: Include the current (possibly missing) BPRS in the dropout model.
+
+3. **Shared-Parameter Models:**
+
+   - Link the outcome and dropout processes through shared random effects (e.g., frailty).
+
+4. **Local Influence:**
+
+   - Assess the impact of small MNAR deviations on key conclusions.
+
+
+
+### Summary of Recommendations for BPRS Analysis
+
+1. **Primary Analysis (MAR):**
+
+   - Use a likelihood-based LMM for BPRS.
+   - Optionally, complement with W-GEE or MI for robustness under MAR.
+
+2. **Sensitivity Analysis (MNAR):**
+
+   - Perform a \(\delta\)-adjustment pattern-mixture analysis.
+   - Optionally, add a selection model or shared-parameter model for comparison.
+
+3. **Avoid LOCF/CC:**
+
+   - LOCF and CC are discouraged due to bias and inefficiency.
+
+4. **Report Robustness:**
+
+   - Highlight how key conclusions (e.g., time trend, group differences) change under MNAR assumptions.
+
+This approach aligns with the course notes’ guidance and provides a defensible framework for analyzing BPRS in the Alzheimer cohort.
+
+
+
+
+
+### Sensitivity Analysis for Missingness in BPRS (Alzheimer Cohort)
+
+#### Key Truth: You Cannot Prove or Disprove MAR
+
+It is important to acknowledge that **MAR (Missing At Random)** cannot be proven or disproven from the observed data alone. Instead, you can:
+
+1. **Show that MCAR is implausible**: Demonstrate that dropout is related to observed history.
+2. **Perform sensitivity analysis**: Assess how conclusions change under plausible MNAR (Missing Not At Random) scenarios.
+
+This is why frameworks like **selection models**, **pattern-mixture models**, and **shared-parameter models** are used—not to “prove” MAR, but as structured tools for **what-if sensitivity analysis**.
+
+---
+
+### 1) Primary MAR Analysis: Linear Mixed Model (LMM)
+
+The primary analysis assumes MAR and uses a likelihood-based linear mixed model (LMM) for BPRS. This approach is valid under MAR if missingness depends only on observed history.
+
+```r
+library(lme4)
+
+# Fit the primary MAR model
+fm_adj <- bprs ~ time + sex + age + bmi + job + adl + wzc + cdrsb0 +
+  time:cdrsb0 + (time | patid) + (1 | trial)
+
+fit_mar <- lmer(fm_adj, data = alzheimer_long, na.action = na.exclude)
+summary(fit_mar)
+```
+
+This model includes:
+
+- **Fixed effects**: Time trend, baseline predictors, and time×cdrsb0 interaction.
+- **Random effects**: Patient-specific intercepts/slopes and trial-level intercepts.
+
+
+
+### 2) Questions to Ask About Missingness
+
+#### A. What Kind of Missingness Exists?
+
+- **Monotone dropout**: Once BPRS is missing, it stays missing (common in Alzheimer follow-up).
+- **Intermittent missingness**: Patients skip a visit but return later.
+
+This distinction matters because:
+
+- **Dropout models** (e.g., hazard/logistic for “drop next”) are suited for monotone dropout.
+- **Observation-level models** are needed for intermittent patterns.
+
+#### B. Is MCAR Plausible?
+
+Exploratory analysis shows that higher baseline BPRS is associated with more missed visits, and missingness increases over time. This makes MCAR implausible.
+
+#### C. Is MAR Plausible?
+
+MAR assumes that, after conditioning on observed history (e.g., prior BPRS, time, baseline covariates), the probability of missingness does **not** depend on unobserved BPRS values. While this cannot be fully verified, you can check whether missingness is strongly explained by observed history, which supports MAR as a working assumption.
+
+
+
+### 3) Selection Model: Modeling Dropout Using Observed History
+
+A **selection model** examines the dropout hazard as a function of past and (possibly) current outcomes. For example:
+
+$$
+\text{logit}\Big(P(D_{ij} = 1 \mid D_i \geq j, y_{i,j-1}, y_{ij})\Big) =
+\psi_0 + \psi_1 y_{i,j-1} + \psi_2 y_{ij}.
+$$
+
+- **MAR**: \(\psi_2 = 0\) (dropout depends only on observed history).
+- **MNAR**: \(\psi_2 \neq 0\) (dropout depends on unobserved outcomes).
+
+Since \(\psi_2\) is not identifiable from observed data, this model is used for **sensitivity analysis**.
+
+#### Practical Implementation for BPRS
+
+```r
+library(dplyr)
+
+# Prepare data for dropout modeling
+dat_miss <- alzheimer_long %>%
+  arrange(patid, time) %>%
+  group_by(patid) %>%
+  mutate(
+    r_t = as.integer(!is.na(bprs)),            # Observed at time t
+    r_next = lead(r_t),                        # Observed at time t+1
+    drop_next = if_else(r_t == 1 & r_next == 0, 1L, 0L),
+    prev_bprs = lag(bprs)                      # Previous BPRS
+  ) %>%
+  ungroup()
+
+# Filter rows where dropout is defined
+drop_dat <- dat_miss %>%
+  filter(r_t == 1, !is.na(r_next), !is.na(prev_bprs))
+
+# Fit dropout model
+drop_fit_mar <- glm(
+  drop_next ~ time + prev_bprs + sex + age + bmi + job + adl + wzc + cdrsb0 + time:cdrsb0,
+  family = binomial(),
+  data = drop_dat
+)
+
+summary(drop_fit_mar)
+```
+
+**How to Report This:**
+
+- This is a **selection-model-style dropout regression**.
+- If dropout is explainable by **past observed BPRS and covariates**, MAR is more plausible.
+- This does **not** prove MAR but shows whether MCAR is implausible and whether an observed-history mechanism is reasonable.
+
+
+
+### 4) MAR Robustness Check: Inverse-Probability Weighting (IPW)
+
+Inverse-probability weighting (IPW) corrects for informative dropout under MAR by reweighting observations based on their probability of being observed.
+
+#### Compute Stabilized Weights
+
+```r
+# Predict dropout probabilities
+drop_dat <- drop_dat %>%
+  mutate(p_drop = predict(drop_fit_mar, type = "response"),
+         p_stay = 1 - p_drop)
+
+# Cumulative probability of being observed up to time t
+w_dat <- drop_dat %>%
+  arrange(patid, time) %>%
+  group_by(patid) %>%
+  mutate(p_obs_cum = cumprod(p_stay),
+         w_ipw = 1 / p_obs_cum) %>%
+  ungroup()
+
+# Merge weights back to the original data
+alzheimer_w <- alzheimer_long %>%
+  left_join(w_dat %>% select(patid, time, w_ipw), by = c("patid", "time")) %>%
+  mutate(w_ipw = if_else(is.na(w_ipw), 1, w_ipw))  # Weight = 1 where undefined
+```
+
+#### Fit Weighted LMM
+
+```r
+# Fit weighted LMM
+fit_mar_ipw <- lmer(fm_adj, data = alzheimer_w, weights = w_ipw, na.action = na.exclude)
+
+summary(fit_mar)
+summary(fit_mar_ipw)
+```
+
+**Interpretation:**
+
+- If key effects (e.g., time, time×cdrsb0) are stable between weighted and unweighted models, conclusions are robust under MAR.
+- Large shifts suggest fragility even within MAR, requiring MNAR sensitivity analysis.
+
+
+
+### 5) MNAR Sensitivity: Pattern-Mixture Models (PMM)
+
+Pattern-mixture models re-factorize the joint distribution by dropout pattern:
+
+$$
+f(y_i, r_i) = f(y_i \mid r_i) f(r_i).
+$$
+
+#### Delta Adjustment for MNAR
+
+Assume unobserved BPRS after dropout is systematically worse than MAR predicts:
+
+$$
+y_{ij}^{(MNAR)} = y_{ij}^{(MAR)} + \delta, \quad j > D_i.
+$$
+
+- \(\delta = 0\): MAR.
+- \(\delta > 0\): Dropouts have worse symptoms than predicted under MAR.
+
+#### Implementation Skeleton
+
+1. Define dropout time (\(D_i\)).
+2. Impute missing BPRS under MAR.
+3. Add \(\delta\) to imputed values after \(D_i\).
+4. Refit the model for a grid of \(\delta\) values (e.g., \(\delta \in \{0, 2, 5, 10\}\)).
+
+
+
+### 6) Shared-Parameter Models: Latent MNAR Mechanism
+
+Shared-parameter models assume that dropout depends on the same latent process driving BPRS:
+
+- **Longitudinal model**: \(y_{ij} = x_{ij}^\top \beta + z_{ij}^\top b_i + \varepsilon_{ij}\),
+- **Dropout hazard**: \(h_i(t) = h_0(t) \exp(\gamma^\top w_i + \alpha m_i(t))\), where \(m_i(t)\) is the latent trajectory.
+
+This is a principled MNAR approach but requires specialized software (e.g., `joineR`, `JMbayes`).
+
+
+
+### Reporting Recommendations
+
+1. **Primary Analysis**: Fit an LMM under MAR.
+2. **MAR Robustness**:
+   - Model dropout using observed history.
+   - Perform IPW-weighted sensitivity analysis.
+3. **MNAR Sensitivity**:
+   - Use pattern-mixture models (\(\delta\)-adjustment).
+   - Optionally, fit shared-parameter models.
+
+**Conclusion**: Report whether key effects (e.g., time, time×cdrsb0) are robust across MAR and MNAR scenarios.
+
+
+
+### MAR vs MNAR: What You Can and Cannot Do with BPRS Data
+
+#### Why You Can’t Test MAR vs MNAR
+
+It’s important to acknowledge that **MNAR (Missing Not At Random) is not identifiable** from the observed data alone. This means you cannot formally test:
+
+$$
+H_0: \text{MAR} \quad \text{vs} \quad H_1: \text{MNAR}.
+$$
+
+Any “test” would rely on unverifiable modeling assumptions. Instead, you can:
+
+1. **Support MAR** by showing that dropout is explainable by observed history.
+2. **Run MNAR sensitivity analyses** to assess how robust your conclusions are under plausible MNAR departures.
+
+
+
+### Supporting MAR: Diagnostics and Evidence
+
+#### 1) Model the Dropout Indicator Using Observed History
+
+Define a dropout indicator:
+
+$$
+H_{i,j} = \mathbb{1}(D_i = j \mid D_i \geq j),
+$$
+
+where \(D_i\) is the dropout time for subject \(i\). Fit a logistic model for the dropout hazard using **only observed information up to visit \(j-1\)**:
+
+$$
+\operatorname{logit}\Big(\Pr(H_{i,j} = 1 \mid \mathcal{H}_{i,j-1})\Big) =
+\alpha_0 + \alpha_1 y_{i,j-1} + \alpha_2^\top X_i + \alpha_3 j.
+$$
+
+- **Interpretation:** If dropout is strongly predicted by **previous BPRS** and baseline severity markers, this supports the idea that missingness depends on observed history, making MAR plausible *after conditioning on that history*.
+
+#### 2) Extend the Observed History
+
+Expand \(\mathcal{H}_{i,j-1}\) to include:
+
+- The last two BPRS values (or the slope between the last two visits),
+- ADL/cognition history (if available),
+- Baseline severity markers,
+- Time.
+
+If the model’s predictive ability improves and the patterns align with clinical expectations, MAR becomes more credible.
+
+#### 3) Compare Pre-Dropout Trajectories vs Completers
+
+Group subjects by their dropout time (\(D_i\)) and plot the mean BPRS trajectories for each group. If early dropouts already have **worse observed BPRS before dropout**, this suggests informative dropout (not MCAR). While this doesn’t distinguish MAR from MNAR, it shows that missingness is *not random*.
+
+
+
+### What You Cannot Do
+
+You cannot formally test MAR vs MNAR using only \((y^o, r, X)\). Instead, you must rely on sensitivity analyses to explore the impact of MNAR.
+
+
+
+### MNAR Sensitivity Analyses: What You Should Do
+
+#### Option A: \(\delta\)-Shift Pattern-Mixture Model
+
+1. **Fit the MAR LMM** and predict missing values under MAR:
+
+   $$
+   \widehat{y}_{ij}^{MAR}.
+   $$
+
+2. **Shift the post-dropout values** by a constant \(\delta\):
+
+   $$
+   y_{ij}^m(\delta) = \widehat{y}_{ij}^{MAR} + \delta, \quad j > D_i.
+   $$
+
+3. **Sweep \(\delta\) over plausible values** (e.g., \(\delta \in \{0, 0.5, 1, 2, 3\}\)) and refit the model or recompute the key estimand.
+
+4. **Report results:** For example, “Results remain unchanged up to \(\delta = 2\), but conclusions change beyond \(\delta = 3\).”
+
+
+
+#### Option B: Selection Model with an MNAR Parameter
+
+1. **Specify a dropout hazard model** that depends on the current (possibly missing) BPRS:
+
+   $$
+   \operatorname{logit}\Big(\Pr(H_{i,j} = 1 \mid \mathcal{H}_{i,j-1}, y_{ij})\Big) =
+   \psi_0 + \psi_1 y_{i,j-1} + \psi_2 y_{ij} + \psi_3^\top X_i.
+   $$
+
+2. **Treat \(\psi_2\) as a sensitivity parameter**:
+
+   - Fix \(\psi_2\) to plausible values (e.g., \(\psi_2 > 0\) implies dropout is more likely for worse unobserved BPRS).
+   - Refit the model and track how the key inference changes.
+
+
+
+### The “5-Second Defense” for Your Presentation
+
+“We can’t test MAR vs MNAR from the observed BPRS data. We support MAR by showing that dropout is explained by observed history (previous BPRS, baseline severity, time). We then perform MNAR sensitivity analyses using a \(\delta\)-shift pattern-mixture model (and optionally a selection model) to quantify how strong MNAR would need to be to change conclusions.”
+
+
+
+### Next Steps: Tailoring the Dropout Model
+
+If you provide details about your time coding and the covariates measured longitudinally (e.g., ADL each year vs only baseline), I can help you write the exact dropout model formula and suggest specific plots to include.
+
+
+### Shared-Parameter Models (SPM) for MNAR Sensitivity in BPRS Analysis
+
+#### Why Use Shared-Parameter Models?
+
+In Alzheimer follow-up studies, missingness in BPRS data is often related to latent clinical severity. Shared-parameter models (SPM) allow missingness to depend on the same latent subject-specific effects that drive the outcome trajectory. This provides a natural framework for **MNAR (Missing Not At Random)** sensitivity analysis.
+
+
+
+### 1) Translating the SPM Framework to BPRS
+
+#### (A) Outcome Model (BPRS Trajectory)
+
+The outcome model captures the longitudinal BPRS trajectory:
+
+$$
+Y_{ij} = x_{ij}^\top \beta + b_{0i} + b_{1i} t_{ij} + u_{\text{trial}(i)} + \varepsilon_{ij},
+$$
+
+where:
+
+- \(b_{0i}\): random intercept (subject-specific baseline severity),
+- \(b_{1i}\): random slope (subject-specific progression rate),
+- \(u_{\text{trial}(i)}\): trial-level random intercept,
+- \(\varepsilon_{ij}\): residual error.
+
+This is equivalent to your MAR model:
+
+```r
+fm_adj <- bprs ~ time + sex + age + bmi + job + adl + wzc + cdrsb0 +
+  time:cdrsb0 + (time | patid) + (1 | trial)
+
+fit_mar <- lmer(fm_adj, data = alzheimer_long, na.action = na.exclude)
+```
+
+
+```rmd
+### Shared-Parameter Models (SPM) for MNAR Sensitivity in BPRS Analysis
+
+#### Why Use Shared-Parameter Models?
+
+In Alzheimer follow-up studies, missingness in BPRS data is often related to latent clinical severity. Shared-parameter models (SPM) allow missingness to depend on the same latent subject-specific effects that drive the outcome trajectory. This provides a natural framework for **MNAR (Missing Not At Random)** sensitivity analysis.
+
+---
+
+### 1) Translating the SPM Framework to BPRS
+
+#### (A) Outcome Model (BPRS Trajectory)
+
+The outcome model captures the longitudinal BPRS trajectory:
+
+$$
+Y_{ij} = x_{ij}^\top \beta + b_{0i} + b_{1i} t_{ij} + u_{\text{trial}(i)} + \varepsilon_{ij},
+$$
+
+where:
+
+- \(b_{0i}\): random intercept (subject-specific baseline severity),
+- \(b_{1i}\): random slope (subject-specific progression rate),
+- \(u_{\text{trial}(i)}\): trial-level random intercept,
+- \(\varepsilon_{ij}\): residual error.
+
+This is equivalent to your MAR model:
+
+```r
+fm_adj <- bprs ~ time + sex + age + bmi + job + adl + wzc + cdrsb0 +
+  time:cdrsb0 + (time | patid) + (1 | trial)
+
+fit_mar <- lmer(fm_adj, data = alzheimer_long, na.action = na.exclude)
+```
+
+#### (B) Missingness Model (Dropout Probability)
+
+The missingness model links the probability of observing \(Y_{ij}\) to the latent random effects:
+
+$$
+\text{logit}\Big(P(R_{ij} = 1 \mid R_{i,j-1} = 1, x_{ij}, b_{0i}, b_{1i})\Big) =
+\gamma_0 + \gamma^\top w_{ij} + \alpha_0 b_{0i} + \alpha_1 b_{1i}.
+$$
+
+- \(R_{ij} = 1\): BPRS observed at visit \(j\),
+- \(R_{i,j-1} = 1\): subject was still under follow-up at visit \(j-1\) (monotone dropout setup),
+- \(\alpha_0, \alpha_1\): MNAR parameters linking missingness to latent severity/progression.
+
+---
+
+### 2) Practical Implementation in R
+
+#### (A) Two-Stage Diagnostic/Sensitivity Approach
+
+This approach is simpler than a full joint model and is often sufficient for course-level sensitivity analysis.
+
+##### Step 1: Fit the Outcome Model (Done)
+
+Fit the MAR model and extract subject-level random effects (BLUPs):
+
+```r
+re <- ranef(fit_mar)$patid
+# Extract random intercepts (b0) and slopes (b1)
+re_df <- tibble(
+  patid = rownames(re),
+  b0 = re[["(Intercept)"]],
+  b1 = re[["time"]]
+)
+```
+
+##### Step 2: Build the Response Indicator (\(R_{ij}\))
+
+Create a dataset with scheduled visits and observed/missing indicators:
+
+```r
+library(dplyr)
+
+datR <- alzheimer_long %>%
+  distinct(patid, trial, sex, age, bmi, job, adl, wzc, cdrsb0, time) %>%
+  left_join(alzheimer_long %>% select(patid, time, bprs), by = c("patid", "time")) %>%
+  mutate(R = as.integer(!is.na(bprs))) %>%
+  group_by(patid) %>%
+  arrange(time) %>%
+  mutate(R_prev = lag(R)) %>%
+  ungroup()
+```
+
+##### Step 3: Add Random Effects to the Missingness Model
+
+Merge the random effects into the dataset:
+
+```r
+datR2 <- datR %>% left_join(re_df, by = "patid")
+```
+
+##### Step 4: Fit the Missingness Model
+
+Fit a logistic regression for dropout probability, including the random effects:
+
+```r
+library(lme4)
+
+miss_dat <- datR2 %>% filter(!is.na(R_prev), R_prev == 1)
+
+fit_R <- glmer(
+  R ~ time + sex + age + bmi + job + adl + wzc + cdrsb0 + time:cdrsb0 +
+    b0 + b1 + (1 | trial),
+  family = binomial(),
+  data = miss_dat
+)
+
+summary(fit_R)
+```
+
+**Interpretation:**
+
+- Significant coefficients for `b0` or `b1` suggest that missingness depends on latent severity/progression, indicating MNAR-type dependence.
+- This motivates further MNAR sensitivity analysis.
+
+
+
+#### (B) Best Practice: Joint Shared-Parameter Model
+
+A full SPM is fit jointly, combining the outcome and missingness models. This requires specialized software (e.g., `brms`, `JMbayes`).
+
+
+### 3) Why This Framework Fits Alzheimer BPRS Data
+
+- **Clinical Relevance:** Missingness in Alzheimer cohorts is often tied to worsening symptoms, caregiver burden, or institutionalization—factors naturally linked to latent severity.
+- **Interpretability:** Shared-parameter models explicitly capture the relationship between disease progression and dropout.
+
+
+
+### 4) Next Steps
+
+- Confirm whether missingness is monotone or intermittent.
+- If monotone, use the dropout model conditioning on \(R_{i,j-1} = 1\).
+- Report sensitivity results, emphasizing how MNAR assumptions affect key conclusions.
+```
+
+
+
+### Pattern-Mixture Sensitivity Analysis for BPRS in Alzheimer Cohort
+
+#### Why Sensitivity Analysis is Needed
+
+In the Alzheimer cohort, follow-up BPRS measurements are often incomplete due to dropout caused by worsening health, institutionalization, or death. While the primary analysis assumes **MAR (Missing At Random)**, **MNAR (Missing Not At Random)** cannot be ruled out. Sensitivity analysis evaluates whether the main conclusions remain robust under plausible MNAR departures.
+
+---
+
+### 1) Translating the Slide’s Logic to BPRS
+
+The slide demonstrates a **pattern-mixture sensitivity analysis** for a binary outcome at two time points, split by **treatment arm** and **missingness pattern** (Completers vs Dropouts). For BPRS, we extend this to:
+
+- **Continuous outcome**: \(Y_{ij} = \text{BPRS}_{ij}\),
+- **Multiple follow-up times**: \(j = 0, 1, \dots, J\),
+- **Dropout patterns**: Defined by the last observed visit (\(D_i\)).
+
+---
+
+### 2) Defining Dropout Patterns
+
+Let \(R_{ij} = 1\) if BPRS is observed at visit \(j\), and \(R_{ij} = 0\) if missing. Define the **dropout time**:
+
+$$
+D_i = \max \{j : R_{ij} = 1\},
+$$
+
+where:
+
+- **Completers**: \(D_i = J\) (last planned visit),
+- **Dropouts**: \(D_i < J\) (missing after \(D_i\)).
+
+In R:
+
+```r
+library(dplyr)
+
+# Define dropout patterns
+alzheimer_long <- alzheimer_long %>%
+  group_by(patid) %>%
+  mutate(
+    R = as.integer(!is.na(bprs)),  # Observation indicator
+    D_i = max(time[R == 1], na.rm = TRUE)  # Last observed visit
+  ) %>%
+  ungroup()
+```
+
+
+```rmd
+### Pattern-Mixture Sensitivity Analysis for BPRS in Alzheimer Cohort
+
+#### Why Sensitivity Analysis is Needed
+
+In the Alzheimer cohort, follow-up BPRS measurements are often incomplete due to dropout caused by worsening health, institutionalization, or death. While the primary analysis assumes **MAR (Missing At Random)**, **MNAR (Missing Not At Random)** cannot be ruled out. Sensitivity analysis evaluates whether the main conclusions remain robust under plausible MNAR departures.
+
+---
+
+### 1) Translating the Slide’s Logic to BPRS
+
+The slide demonstrates a **pattern-mixture sensitivity analysis** for a binary outcome at two time points, split by **treatment arm** and **missingness pattern** (Completers vs Dropouts). For BPRS, we extend this to:
+
+- **Continuous outcome**: \(Y_{ij} = \text{BPRS}_{ij}\),
+- **Multiple follow-up times**: \(j = 0, 1, \dots, J\),
+- **Dropout patterns**: Defined by the last observed visit (\(D_i\)).
+
+---
+
+### 2) Defining Dropout Patterns
+
+Let \(R_{ij} = 1\) if BPRS is observed at visit \(j\), and \(R_{ij} = 0\) if missing. Define the **dropout time**:
+
+$$
+D_i = \max \{j : R_{ij} = 1\},
+$$
+
+where:
+
+- **Completers**: \(D_i = J\) (last planned visit),
+- **Dropouts**: \(D_i < J\) (missing after \(D_i\)).
+
+In R:
+
+```r
+library(dplyr)
+
+# Define dropout patterns
+alzheimer_long <- alzheimer_long %>%
+  group_by(patid) %>%
+  mutate(
+    R = as.integer(!is.na(bprs)),  # Observation indicator
+    D_i = max(time[R == 1], na.rm = TRUE)  # Last observed visit
+  ) %>%
+  ungroup()
+```
+
+---
+
+### 3) Pattern-Mixture Model (PMM)
+
+A **pattern-mixture model** allows the mean trajectory to differ by dropout pattern. The mean structure is:
+
+$$
+E(Y_{ij} \mid D_i) = x_{ij}^\top \beta + \eta_{D_i} + \kappa_{D_i} t_{ij},
+$$
+
+where:
+
+- \(\eta_{D_i}\): Pattern-specific shift,
+- \(\kappa_{D_i}\): Pattern-specific slope adjustment.
+
+In R:
+
+```r
+# Fit a pattern-mixture model
+fit_pmm <- lmer(
+  bprs ~ time + sex + age + bmi + job + adl + wzc + cdrsb0 +
+    time:cdrsb0 + factor(D_i) + time:factor(D_i) +
+    (time | patid) + (1 | trial),
+  data = alzheimer_long,
+  na.action = na.exclude
+)
+summary(fit_pmm)
+```
+
+---
+
+### 4) Identifying Restrictions: MAR vs MNAR
+
+Since outcomes after dropout are unobserved, we impose **identifying restrictions** to complete the missing data. These restrictions define the sensitivity scenarios:
+
+#### (A) MAR (Baseline Assumption)
+
+Under MAR, missing BPRS values follow the predicted trajectory from the observed data:
+
+$$
+Y_{ij}^{\text{MAR}} = \widehat{Y}_{ij}^{\text{MAR}}, \quad j > D_i.
+$$
+
+#### (B) MNAR Scenarios
+
+1. **\(\delta\)-Shift Adjustment**:
+   Add a constant shift to the MAR-predicted values after dropout:
+
+   $$
+   Y_{ij}^{\text{MNAR}} = Y_{ij}^{\text{MAR}} + \delta, \quad j > D_i.
+   $$
+
+2. **Slope Change**:
+   Accelerate deterioration after dropout:
+
+   $$
+   Y_{ij}^{\text{MNAR}} = Y_{ij}^{\text{MAR}} + \delta_{\text{slope}} (t_{ij} - t_{iD_i}), \quad j > D_i.
+   $$
+
+---
+
+### 5) Implementation: \(\delta\)-Shift Sensitivity Analysis
+
+#### Step 1: Fit the MAR Model
+
+Fit the primary MAR model:
+
+```r
+fit_mar <- lmer(
+  bprs ~ time + sex + age + bmi + job + adl + wzc + cdrsb0 +
+    time:cdrsb0 + (time | patid) + (1 | trial),
+  data = alzheimer_long,
+  na.action = na.exclude
+)
+```
+
+#### Step 2: Predict Missing Values Under MAR
+
+Predict missing BPRS values:
+
+```r
+# Predict MAR-based values
+alzheimer_long <- alzheimer_long %>%
+  mutate(
+    bprs_mar = predict(fit_mar, newdata = alzheimer_long, allow.new.levels = TRUE)
+  )
+```
+
+#### Step 3: Apply \(\delta\)-Shift Adjustments
+
+Create MNAR-adjusted datasets:
+
+```r
+# Define delta values
+delta_values <- c(0, 0.5, 1, 2, 3)
+
+# Apply delta shifts
+mnar_datasets <- lapply(delta_values, function(delta) {
+  alzheimer_long %>%
+    mutate(
+      bprs_mnar = if_else(time > D_i, bprs_mar + delta, bprs_mar)
+    )
+})
+```
+
+#### Step 4: Refit the Model for Each \(\delta\)
+
+Refit the model for each MNAR scenario:
+
+```r
+# Fit models for each delta
+mnar_models <- lapply(mnar_datasets, function(data) {
+  lmer(
+    bprs_mnar ~ time + sex + age + bmi + job + adl + wzc + cdrsb0 +
+      time:cdrsb0 + (time | patid) + (1 | trial),
+    data = data,
+    na.action = na.exclude
+  )
+})
+```
+
+---
+
+### 6) Reporting Results
+
+#### Key Estimates to Compare
+
+- **Time effect** (\(\beta_{\text{time}}\)),
+- **Interaction** (\(\beta_{\text{time:cdrsb0}}\)).
+
+#### Results Table Template
+
+| \(\delta\) | Time Effect (\(\beta_{\text{time}}\)) | Interaction (\(\beta_{\text{time:cdrsb0}}\)) |
+|------------|--------------------------------------|---------------------------------------------|
+| 0 (MAR)    | ...                                  | ...                                         |
+| 0.5        | ...                                  | ...                                         |
+| 1          | ...                                  | ...                                         |
+| 2          | ...                                  | ...                                         |
+| 3          | ...                                  | ...                                         |
+
+---
+
+### 7) Interpretation
+
+- **Robustness**: If estimates remain stable across \(\delta\), conclusions are robust to MNAR.
+- **Sensitivity**: If estimates change significantly, conclusions depend on the MNAR assumption.
+
+---
+
+### 8) Conclusion
+
+This pattern-mixture sensitivity analysis evaluates the robustness of BPRS conclusions under plausible MNAR scenarios. The \(\delta\)-shift approach is transparent, clinically interpretable, and highlights the impact of untestable assumptions about missing data.
+
+
+
