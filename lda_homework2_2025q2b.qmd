@@ -1,0 +1,1300 @@
+---
+title: "LDA Homework 2 (2025-2026)"
+author: 
+  - Anita Kerubo Ogero (2469491)  
+  - Okolie Tess Eucharia (2468507)  
+  - Moses Mburu (2469245)  
+  - Dorothy Chepkoech (2469284)
+
+format:
+  pdf:
+    pdf-engine: xelatex
+    fig-pos: "H"
+    tbl-pos: "H"
+    number-depth: 6
+    include-in-header:
+      text: |
+        \renewcommand{\baselinestretch}{1.1}
+        \usepackage{graphicx}
+        \usepackage{xcolor}
+        \usepackage{amsmath,amssymb}
+        \usepackage{booktabs}
+        \usepackage{longtable}
+        \usepackage{array}
+        \usepackage{multirow}
+        \usepackage{makecell}
+        \usepackage{pdflscape}
+        \usepackage{float}
+        \usepackage{fancyhdr}
+  gfm: default
+
+fontsize: 11pt
+---
+
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                        message = FALSE,
+                        warning = FALSE,
+                        fig.width = 7,
+                        fig.height = 4.3)
+
+library(kableExtra)
+
+use_latex_packages()
+
+
+tidy_with_ci <- function(model,
+                         effects = c("fixed", "ran_pars"),
+                         conf_level = 0.95,
+                         exponentiate = FALSE,
+                         digits = 2) {
+  mm_class <- class(model)
+
+  is_mixed <-
+    any(c(
+      "lmerMod", "lmerModLmerTest",
+      "glmerMod", "nlmerMod"
+    ) %in% mm_class) ||
+      inherits(model, "glmmTMB")
+
+  if (is_mixed) {
+    if (!requireNamespace("broom.mixed", quietly = TRUE)) {
+      stop("broom.mixed is required for mixed models.\n
+        Install with install.packages('broom.mixed').")
+    }
+    out <- broom.mixed::tidy(
+      model,
+      effects = effects,
+      conf.int = TRUE,
+      conf.level = conf_level,
+      exponentiate = exponentiate
+    )
+    # keep only common columns
+    out <- out[, intersect(
+      c(
+        "effect", "group", "term", "estimate", "std.error",
+        "statistic", "p.value", "conf.low", "conf.high"
+      ),
+      names(out)
+    )]
+  } else if (inherits(model, "gls")) {
+    # nlme::gls objects are not supported by broom::tidy; extract manually
+    s <- summary(model)
+    if (!is.null(s$tTable)) {
+      tt <- as.data.frame(s$tTable)
+      # tTable columns: Value, Std.Error, t-value, p-value
+      out <- data.frame(
+        term = rownames(tt),
+        estimate = tt[["Value"]],
+        std.error = tt[["Std.Error"]],
+        statistic = tt[["t-value"]],
+        p.value = tt[["p-value"]],
+        stringsAsFactors = FALSE
+      )
+      # Wald (normal) CIs
+      z <- stats::qnorm(1 - (1 - conf_level) / 2)
+      out$conf.low <- out$estimate - z * out$std.error
+      out$conf.high <- out$estimate + z * out$std.error
+      # ensure column names match later expectations
+      out <- out[, c(
+        "term", "estimate", "std.error",
+        "statistic", "p.value", "conf.low", "conf.high"
+      )]
+    } else {
+      stop("Unable to extract coefficient table from gls summary output.")
+    }
+  } else {
+    if (!requireNamespace("broom", quietly = TRUE)) {
+      stop("broom is required. Install with install.packages('broom').")
+    }
+    out <- broom::tidy(
+      model,
+      conf.int = TRUE,
+      conf.level = conf_level,
+      exponentiate = exponentiate
+    )
+    out <- out[, intersect(
+      c(
+        "term", "estimate", "std.error",
+        "statistic", "p.value", "conf.low", "conf.high"
+      ),
+      names(out)
+    )]
+  }
+
+  # formatted estimate with CI
+  if (all(c("estimate", "conf.low", "conf.high") %in% names(out))) {
+    # Identify rows that have valid CIs (i.e., not ran_pars)
+    has_ci <- !is.na(out$conf.low)
+    
+    # Create the formatted estimate string, applying CI only where valid
+    out$estimate <- ifelse(
+      has_ci,
+      paste0(
+        sprintf(paste0("%.", digits, "f"), out$estimate), " [",
+        sprintf(paste0("%.", digits, "f"), out$conf.low), ", ",
+        sprintf(paste0("%.", digits, "f"), out$conf.high), "]"
+      ),
+      sprintf(paste0("%.", digits, "f"), out$estimate) # Just format the estimate for ran_pars
+    )
+  }
+
+  # format numeric columns that are not the main estimate
+  num_cols <- intersect(c("std.error", "statistic"), names(out))
+  out[num_cols] <- lapply(out[num_cols], function(x) {
+    if (is.numeric(x)) round(x, digits) else x
+  })
+
+  # optional: pretty p-values (e.g., <0.001)
+  if ("p.value" %in% names(out)) {
+    # Format p-values, leaving NAs as they are
+    out$p.value <- ifelse(is.na(out$p.value), NA_character_,
+      ifelse(out$p.value < 10^(-digits),
+        paste0("<0.", paste(rep("0", digits - 1), collapse = ""), "1"),
+        format(round(out$p.value, digits), nsmall = digits)
+      )
+    )
+  }
+
+  # reorder columns: put term first, then estimate string
+  keep_order <- c(
+    "effect", "group", "term", "estimate", "std.error",
+    "statistic", "p.value"
+  )
+  out <- out[, intersect(keep_order, names(out))]
+
+  tibble::as_tibble(out)
+}
+
+
+
+# Tidy adjacent model comparisons from base anova() output
+# Works for anova(m1, m2, ...): lm/glm, lmer/glmer, gls/lme, etc.
+tidy_anova_compare <- function(anova_df, digits = 2) {
+  x <- anova_df
+  is_num <- vapply(x, is.numeric, logical(1))
+  x[is_num] <- lapply(x[is_num], function(v) {
+    ifelse(is.na(v), v, round(v, digits))
+  })
+  x$call <- NULL
+  x
+}
+
+
+
+display_random_effects <- function(
+    model,
+    caption = "Random effects: variance components",
+    digits = 3) {
+  df <- tidy_re_varcorr(model, digits = digits)
+  knitr::kable(
+    df,
+    format = "latex",
+    booktabs = TRUE,
+    #caption = caption,
+    align = c("l", "l", "r", "r", "r")
+  ) |>
+    kableExtra::kable_styling(latex_options = "hold_position")
+}
+
+
+
+tidy_re_varcorr <- function(model, digits = 3) {
+  vc <- lme4::VarCorr(model)
+  rows <- list()
+
+  for (grp in names(vc)) {
+    m <- vc[[grp]]
+    sd <- attr(m, "stddev")
+    trm <- names(sd)
+    var <- sd^2
+
+    corMat <- tryCatch(attr(m, "correlation"),
+      error = function(e) NULL
+    )
+
+    for (k in seq_along(trm)) {
+      term <- trm[k]
+      corr_val <- NA_real_
+      if (!is.null(corMat) && nrow(corMat) > 1 &&
+        term != "(Intercept)" &&
+        "(Intercept)" %in% colnames(corMat)) {
+        corr_val <- as.numeric(corMat[term, "(Intercept)"])
+      }
+      rows[[length(rows) + 1L]] <- data.frame(
+        Groups = grp,
+        Name = term,
+        Variance = var[k],
+        Std.Dev. = sd[k],
+        Corr = corr_val,
+        check.names = FALSE
+      )
+    }
+  }
+
+  out <- do.call(rbind, rows)
+
+  # Add Residual variance
+  resid_sd <- sigma(model)
+  resid_var <- resid_sd^2
+  resid_row <- data.frame(
+    Groups = "Residual",
+    Name = "",
+    Variance = resid_var,
+    Std.Dev. = resid_sd,
+    Corr = NA_real_,
+    check.names = FALSE
+  )
+  out <- rbind(out, resid_row)
+
+  num_cols <- c("Variance", "Std.Dev.", "Corr")
+  out[num_cols] <- lapply(
+    out[num_cols],
+    function(x) {
+      ifelse(is.na(x),
+        NA, round(x, digits)
+      )
+    }
+  )
+  out
+}
+
+
+```
+
+
+
+```{r}
+library(here)
+library(tidyverse)
+library(data.table)
+library(haven)
+library(janitor)
+library(knitr)
+library(lme4)   
+library(lmerTest)
+library(pbkrtest)
+library(gridExtra)
+
+lda_path <- here()
+lda_data_path <- here(lda_path, "data")
+#list.files(lda_data_path)
+
+```
+
+
+
+```{r}
+# Load the data
+alzheimer_data <- read_sas(here(
+    lda_data_path,
+    "alzheimer25.sas7bdat"
+)) |> clean_names()
+
+
+```
+
+
+
+
+
+```{r factor-conversion}
+setDT(alzheimer_data)
+# log bmi
+#alzheimer_data[, bmi := log(bmi)]
+factor_info <- list(
+  sex = list(
+    levels = c(0, 1),
+    labels = c("Male", "Female")
+  ),
+  edu = list(
+    levels = c(1, 2, 3, 4),
+    labels = c("Primary", "Lower secondary", "Upper secondary", "Higher")
+  ),
+  job = list(
+    levels = c(0, 1),
+    labels = c("No Paid Job", "Paid Job")
+  ),
+  wzc = list(
+    levels = c(0, 1),
+    labels = c("Lives at Home", "Nursing Home")
+  )
+)
+
+
+for (col_name in names(factor_info)) {
+  info <- factor_info[[col_name]]
+  alzheimer_data[, (col_name) := factor(get(col_name),
+    levels = info$levels,
+    labels = info$labels
+  )]
+}
+
+# Verify the changes by checking the structure of the new columns
+#kable(alzheimer_data[1:5, c("sex", "edu", "job", "wzc")])
+```
+
+
+
+
+
+```{r reshape-data}
+
+id_vars <- c("patid", "trial", "sex", "age", 
+             "edu", "bmi", "inkomen", "job", "adl", "wzc")
+          
+
+
+
+alzheimer_long <- melt(alzheimer_data,
+  id.vars = id_vars,
+  measure.vars = patterns(
+    cdrsb = "^cdrsb[0-6]",
+    bprs = "^bprs[0-6]",
+    abpet = "^abpet[0-6]",
+    taupet = "^taupet[0-6]"
+  ),
+  variable.name = "time",
+  value.name = c("cdrsb", "bprs", "abpet", "taupet"),
+  variable.factor = FALSE
+)
+
+alzheimer_long[, time := as.integer(time)]
+
+alzheimer_long[, CDRSBbin := ifelse(cdrsb > 10, 1, 0)]
+#alzheimer_long[, time := time - 1]
+
+
+# Display the first few rows of the new long-format data
+#kable(head(alzheimer_long))
+```
+
+
+
+
+
+### Question 1
+
+
+#### Exploratory Data Analysis/Data Description
+
+At baseline (@fig-cdrsb-by-time), most patients have $\text{CDRSBbin}=0$ ($\text{CDRSB} \le 10$), about 75–80% are in the mild group (CDRSBbin=0) and only about 20–25% already have $\text{CDRSB} > 10$. Over time the bars shift: by visit 6–7, around 65–70% of the observed patients have $\text{CDRSBbin}=1$, so a much larger share has moved into the more severe category.
+
+The sex plot reflect the above pattern. At the first visit, the proportion with $\text{CDRSB} > 10$ is low in both sexes (around 10–15%), with males slightly higher than females. As time goes on, the lines rise and come together; by visits 6–7 both sexes have roughly 60–70% of patients above the cut-off, so among those who remain there is no strong or persistent sex imbalance in severity.
+
+
+```{r}
+#| label: fig-cdrsb-by-time
+#| fig.height: 3.5
+#| fig.width: 10
+#| fig.cap: "Distribution of CDRSB Scores Over Time and by sex"
+
+library(ggplot2)
+library(scales)
+
+# 1. Stacked Bar Plot: CDRSB by Time
+# Calculate counts and percentages within each time point
+plot_data_time <- alzheimer_long[!is.na(cdrsb), .N, by = .(time, CDRSBbin)]
+plot_data_time[, pct := N / sum(N), by = time]
+
+cdrsb_time_plot <- ggplot(plot_data_time, aes(
+    x = factor(time),
+    y = pct, fill = factor(CDRSBbin)
+)) +
+    geom_bar(stat = "identity", position = "fill") +
+    scale_y_continuous(labels = scales::percent) +
+    #scale_fill_brewer(palette = "Dark2") +
+    labs(
+        title = "Distribution of CDRSB Scores Over Time",
+        x = "Time (Visit)",
+        y = "Percentage",
+        fill = "CDRSB Score"
+    ) +
+    theme_minimal() +
+    theme(legend.position = "bottom")
+
+# 2. Stacked Bar Plot: CDRSB by Site (trial)
+# Calculate counts and percentages within each trial
+plot_data_site <- alzheimer_long[!is.na(cdrsb), .N, 
+by = .(trial, CDRSBbin)]
+plot_data_site[, pct := N / sum(N), by = trial]
+
+cdrsb_site_plot <- ggplot(plot_data_site, aes(
+    x = factor(trial),
+    y = pct, fill = factor(CDRSBbin)
+)) +
+    geom_bar(stat = "identity", position = "fill", width = .5) +
+    scale_y_continuous(labels = scales::percent) +
+    scale_fill_brewer(palette = "Dark2") +
+    labs(
+        title = "Distribution of CDRSB Scores by Site",
+        x = "Site (Trial)",
+        y = "Percentage",
+        fill = "CDRSB Score"
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90))
+
+
+
+
+outcome_by_sex <- alzheimer_long %>%
+    group_by(sex, time) %>%
+    summarise(p_high = mean(CDRSBbin, na.rm = TRUE))
+
+sex_time <- ggplot(outcome_by_sex, aes(x = time, y = p_high, color = sex)) +
+    geom_line(size = 1) +
+    geom_point(size = 2) +
+    scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+    labs(
+        title = "Proportion of Patients with CDRSB > 10 \n by Sex Over Time",  
+        x = "Time (Visit)",
+        y = "Proportion with CDRSB > 10",
+        color = "Sex"
+    ) +
+    guides(color = guide_legend(title = "Sex")) +
+    theme_minimal()+
+    theme(legend.position = "bottom")
+
+grid.arrange(cdrsb_time_plot,
+    sex_time,
+    ncol = 2
+)
+```
+
+
+The age and BMI boxplots in @fig-age-bmi-by-cdrsb give a cross-sectional picture at each visit. At every time point, patients with $\text{CDRSBbin}=1$ are on average a few years older than those with $\text{CDRSBbin}=0$ (median ages mostly in the late 60s to low 70s), but this age gap becomes smaller over time. In the early visits we still see very old patients (some above 85 years), whereas by visits 6–7 these extreme ages have largely disappeared and most patients cluster around their late 60s–early 70s. BMI medians stay around 25–27 kg/m(^2) and the two CDRSB groups have very similar BMI distributions at all visits.
+
+These plots describe only patients who are still observed at each visit. From Homework 1 we saw  that older patients tend to drop out earlier.
+
+In summary, from the exploratory figures(@fig-cdrsb-by-time,@fig-age-bmi-by-cdrsb and @fig-age-bmi-by-cdrsb), sex, age and BMI appear to be related to both the outcome and the biomarkers, so they are potential confounders. The plots show that the proportion with CDRSBbin = 1 differs slightly by sex, and that patients with CDRSBbin = 0 are on average slightly older than those with CDRSBbin = 1, while BMI distributions are broadly similar across outcome groups but remain in a range where BMI is clinically relevant. To reduce confounding and isolate the associations of ADL, ABPET and TAUPET with CDRSBbin, we therefore adjust for sex, age and BMI in the model.
+
+
+```{r}
+#| label: fig-age-bmi-by-cdrsb
+#| fig.cap: "Distribution of Age and BMI by CDRSBbin"
+#| fig.height: 4.5
+#| fig.width: 10
+age_by_crdrsb <- ggplot(
+    subset(alzheimer_long, !is.na(CDRSBbin) & !is.na(age)),
+    aes(fill = factor(CDRSBbin), y = age, x = factor(time))
+) +
+    geom_boxplot() +
+    labs(
+        x = "Time",
+        y = "Age",
+        title = "Distribution of Age by CDRSBbin"
+    ) +
+    guides(fill = guide_legend(title = "CDRSBbin")) +
+    theme_minimal()+
+    theme(legend.position = "bottom")
+
+
+
+
+### bmi by cdrsbbin
+bmi_by_crdrsb <- ggplot(
+    subset(alzheimer_long, !is.na(CDRSBbin) & !is.na(bmi)),
+    aes(fill = factor(CDRSBbin), y = bmi, x = factor(time))
+) +
+    geom_boxplot() +
+    labs(
+        x = "Time",
+        y = "BMI",
+        title = "Distribution of BMI by CDRSBbin"
+    ) +
+    guides(fill = guide_legend(title = "CDRSBbin")) +
+    theme_minimal()+
+    theme(legend.position = "bottom")
+
+grid.arrange(age_by_crdrsb,
+    bmi_by_crdrsb,
+    ncol = 2
+)
+
+```
+
+
+
+```{r}
+#| label: fig-retention-rate-high-cdrsb
+#| fig-cap: "Retention Rate Over Time for Patients with High CDRSB (>10) at Baseline"
+#| fig.width: 6.3
+#| fig.height: 3.5
+
+library(data.table)
+library(ggplot2)
+library(scales)
+
+high_baseline_patients <- alzheimer_long[time == 1 & CDRSBbin == 1, .(patid)]
+n_total_high_baseline <- nrow(high_baseline_patients)
+
+# 2. Count actual observed patients from this cohort at each time point
+# This accounts for missing intermediate visits correctly
+retention_data <- alzheimer_long[
+  patid %in% high_baseline_patients$patid & !is.na(cdrsb),
+  .(n_remaining = uniqueN(patid)),
+  by = time
+][order(time)]
+
+# 3. Calculate the retention percentage
+retention_data[, pct_remaining := n_remaining / n_total_high_baseline]
+
+# 4. Create the retention plot
+retention_plot <- ggplot(retention_data, aes(x = time, y = pct_remaining)) +
+    geom_line(size = 1, color = "firebrick") +
+    geom_point(size = 3, color = "firebrick") +
+    # geom_text(aes(label = paste0(percent(pct_remaining, accuracy = 1), " (n=", n_remaining, ")")),
+    #     vjust = -1, size = 3.5
+    # ) +
+    scale_y_continuous(labels = scales::percent, limits = c(0, 1.05)) +
+    labs(
+        title = "Retention of Patients with High CDRSB at Baseline",
+        subtitle = paste("Cohort started with", n_total_high_baseline, "patients (CDRSB > 10 at time 0)"),  
+        x = "Time (Visit)",
+        y = "Percentage of Initial Cohort Remaining"
+    ) +
+    theme_minimal(base_size = 12)
+retention_plot
+```
+
+
+
+
+```{r}
+#| label: fig-semi-variogram
+#| fig.cap: "Empirical Semivariogram of CDRSBbin Over Time"
+#| fig.width: 6
+#| fig.height: 3.5
+
+max_time <- max(alzheimer_long$time, na.rm = TRUE)
+lags <- 1:max_time
+
+semivar_df <- lapply(lags, function(h) {
+  tmp <- alzheimer_long %>%
+    group_by(patid) %>%
+    arrange(time, .by_group = TRUE) %>%
+    mutate(
+      y_t  = CDRSBbin,
+      y_th = dplyr::lead(CDRSBbin, n = h),
+      diff2 = (y_t - y_th)^2
+    ) %>%
+    filter(!is.na(diff2))  # keep only valid pairs at lag h
+  
+  data.frame(
+    lag = h,
+    semivariance = 0.5 * mean(tmp$diff2)
+  )
+}) %>%
+  bind_rows()
+
+# Plot semivariogram
+semi_variogram <- ggplot(semivar_df, aes(x = lag, y = semivariance)) +
+  geom_point() +
+  geom_line() +
+  labs(
+    title = "Empirical Semivariogram of CDRSBbin Over Time",
+    x = "Time lag (years)",
+    y = "Semivariance"
+  ) +
+  theme_minimal()
+
+semi_variogram
+```
+
+
+
+
+
+To estimate how the population averaged (marginal effects) probability of being in the worse cognitive category (CDRSBbin = 1, i.e. CDRSB > 10) changes over time, we fitted a marginal model using generalized estimating equations (GEE), GEE1 with a logit link and an AR(1) working correlation structure with a robust sandwich standard errors.We modelled the longitudinal binary outcome CDRSBbin as a function of time, sex, age, body mass index (BMI), baseline ADL, and the time-varying biomarkers ABPET and TAUPET. In addition, we included interactions between time and ABPET, and between time and TAUPET, to allow the effects of these biomarkers on the probability of worse cognition to change over time.
+The fitted model also accounts for within-patient correlation across repeated visits using the working correlation matrix.
+
+Let $Y_{it}$ be the binary outcome for patient $i$ at time $t$. We define the marginal mean as:
+
+$$
+\pi_{it} = \Pr\bigl(Y_{it} = 1 \mid X_{it}\bigr).
+$$
+
+where $X_{it}$ denotes the vector of covariates for patient $i$ at time $t$. We specify the marginal mean model with a logit link as:
+
+$$
+\begin{aligned}
+\text{logit}(\pi_{it}) 
+=
+\beta_0 
++ \beta_1\,\text{time}_{it}
++ \beta_2\,\text{sex}_i
++ \beta_3\,\text{age}_i
++ \beta_4\,\text{bmi}_i
++ \beta_5\,\text{adl}_i
++ \beta_6\,\text{abpet}_{it} \\
++ \beta_7\,\text{taupet}_{it}
++ \beta_8\,\bigl(\text{time}_{it}\cdot \text{abpet}_{it}\bigr)
++ \beta_9\,\bigl(\text{time}_{it}\cdot \text{taupet}_{it}\bigr),
+\end{aligned}
+$$
+
+where:
+
+$$
+\pi_{it} = \Pr(Y_{it} = 1)
+\quad \text{and} \quad
+\text{logit}(\pi_{it}) = \log\left\{\frac{\pi_{it}}{1 - \pi_{it}}\right\}.
+$$
+
+The parameters $\beta_0,\dots,\beta_9$ are regression coefficients: each $\beta_k$ represents the change in the marginal log-odds of having CDRSBbin = 1 associated with a one-unit increase in the corresponding covariate (or interaction term), holding the other covariates fixed. For the binary outcome(CDRSBbin), the marginal variance is :
+
+$$
+{Var}(Y_{it} \mid X_{it}) = \pi_{it}\bigl(1 - \pi_{it}\bigr) 
+$$
+
+For this GEE model, the working correlation matrix for patient $i$ is
+
+$$
+\mathbf{V}_i(\beta, \alpha, \phi)
+=
+\phi\,\mathbf{A}_i^{1/2}(\beta)\,
+\mathbf{R}_i(\alpha)\,
+\mathbf{A}_i^{1/2}(\beta),
+$$
+
+where $\phi$ is a dispersion parameter which is estimated from pearson residuals as:
+
+$$
+\hat{\phi}
+=
+\frac{1}{N}
+\sum_{i=1}^N
+\left\{
+\frac{1}{n_i}
+\sum_{j=1}^{n_i} e_{ij}^2
+\right\},
+$$
+
+where $N$ is the number of subjects, $n_i$ is the number of observations for patient $i$, and
+
+$$
+e_{ij} = \frac{y_{ij} - \mu_{ij}}{\sqrt{v(\mu_{ij})}}
+$$
+
+
+are the Pearson residuals. Here $\mu_{ij}$ is the fitted mean and $v(\mu_{ij})$ is the GLM variance function (for a binary outcome(CDRSBbin), $v(\mu_{ij}) = \mu_{ij}(1-\mu_{ij})$). For the binary outcome we set the dispersion parameter $\phi = 1$, as is standard for the binomial model. $\mathbf{A}_i(\beta)$ is a diagonal matrix with entries:
+
+
+$$
+\operatorname{Var}(Y_{it} \mid X_{it}) = \pi_{it}\bigl(1 - \pi_{it}\bigr)
+$$
+and ${R}(\alpha)$ is the AR(1) correlation matrix with $\text{Corr}(Y_{it}, Y_{is}) = \alpha^{|t-s|}$,for measurements $t$ and $s$ on the same patient. For this AR(1) working correlation, the correlation parameter $\alpha$  is estimated from the Pearson residuals as:
+
+
+$$
+\hat{\alpha}
+=
+\frac{1}{N}
+\sum_{i=1}^N
+\left\{
+\frac{1}{n_i - 1}
+\sum_{j=1}^{n_i - 1} e_{ij}\,e_{i,j+1}
+\right\},
+$$
+
+
+
+where $N$ is the number of subjects and $n_i$ is the number of observations for subject $i$. Thus, for each subject we compute the average product of Pearson residuals from adjacent time points, and then we average these quantities over all subjects to obtain moment based $\hat{\alpha}$, which is used to construct the AR(1) working correlation matrix. Finally, we applied robust (“sandwich”) standard errors that inference remains valid even if the working correlation is misspecified.
+
+
+
+
+
+```{r}
+#| label: gee-model
+#| tbl-cap: "GEE Model Results (Odds Ratios)"
+
+library(geepack)
+# Ensure data is sorted for GEE
+setorder(alzheimer_long, patid, time)
+
+gee_model <- geeglm(
+    CDRSBbin ~ time + sex + age + bmi +
+     adl + abpet + taupet + time:adl +
+     time:abpet + time:taupet,
+    id = patid,
+    data = alzheimer_long,
+    family = binomial(link = "logit"),
+    corstr = "ar1",
+    std.err = "san.se" # Robust standard errors
+)
+
+summary(gee_model)
+
+
+
+# Tidy output with Odds Ratios
+tidy_with_ci(gee_model, exponentiate = TRUE) %>%
+    kable(
+        format = "latex",
+        booktabs = TRUE,
+        # longtable = TRUE,
+        align = "lcccccc",
+    ) |>
+    # scale down to fit page width
+    kableExtra::kable_styling(
+        latex_options = c(
+            "scale_down"
+        ),
+        font_size = 9
+    )
+```
+
+
+**Model Motivation**
+
+We used a marginal logistic model fitted by generalized estimating equations (GEE1) because our interest was in population-averaged effects rather than individual patient trajectories. In particular, we wanted to answer: on average, how do time, ADL, ABPET and TAUPET affect the probability of worse cognition after adjusting for sex, age and BMI? The outcome CDRSBbin is binary, so a binomial model with a logit link is appropriate and allows us to express effects as log-odds ratios (and odds ratios) for the probability of CDRSBbin = 1.
+
+Because we have repeated measurements from the same patients, the observations are correlated. The semivariogram indicated that within-patient correlation decreases as the time lag increases, suggesting an AR(1) pattern. To reflect this, we specified an AR(1) working correlation structure, in which measurements closer in time within a patient are more correlated than those further apart. The correlation parameter is estimated from the Pearson residuals and used to build the working covariance matrices.
+
+We use the GEE1 formulation to model only the marginal mean $ E(Y_{it} \mid X_{it}) = \pi_{it}$ with a logit link, and treat the within-patient correlation as a working feature rather than a primary target of inference. This is appropriate because our scientific question concerns the marginal mean as a function of the covariates. GEE1 directly targets this mean and treats the working correlation as a nuisance component. We report robust (sandwich) standard errors for the regression coefficients; these remain valid even if the AR(1) working correlation is misspecified, provided the mean model is correct and missingness is at least missing at random.
+
+Additionally, we did not use GEE2 or alternating logistic regression because our main goal was to model the average probability of worse cognition, not the association between pairs of measurements within a patient. GEE2/ALR would add extra parameters for within-patient association (pairwise log-odds ratios) that are harder to interpret here and less stable given the sample size. Also we did not use transition, Bahadur or log-linear models, which focus on the full joint or conditional structure of the repeated outcomes (e.g. how each visit depends on the previous one) and do not give parameters that map as directly to the average risk at a given time. In contrast, GEE1 directly models the marginal mean of the binary outcome with a logistic link, provides population-averaged effects of time, ADL, ABPET and TAUPET, and uses a working correlation only to account for within-patient dependence, combined with sandwich standard errors for robust inference.
+
+
+**Choice of method and Estimation**
+
+The regression parameters $\beta$ were obtained by solving the GEE using an iterative algorithm, and the AR(1) correlation parameter $\alpha$ was estimated from the Pearson residuals using method-of-moments. We report robust (sandwich) standard errors for $\hat{\beta}$, which give valid inference for the marginal mean model even if the working correlation is not correctly specified, provided the mean model is correctly specified and the missing data mechanism is at least missing at random.
+
+
+**Assumptions**
+
+* Correct mean model: The marginal mean of the binary outcome is correctly specified as
+$\text{logit}\{\Pr(Y_{it} = 1 \mid X_{it})\} = X_{it}^\top \beta,$ with the chosen covariates (time, sex, age, BMI, ADL, ABPET, TAUPET and their interactions with time) and a logit link.
+
+* Appropriate variance function: Conditional on the covariates, $Y_{it}$ follows a Bernoulli distribution with variance $ \operatorname{Var}(Y_{it} \mid X_{it}) = \pi_{it}\bigl(1 - \pi_{it}\bigr),$ where $\pi_{it} = \Pr(Y_{it} = 1 \mid X_{it})$.
+
+* Independence of clusters: Different patients (and trials) are independent. Correlation is only present between repeated measurements from the same patient.
+
+
+**Advantages**
+
+* The estimators $\hat{\beta}$ are consistent even if the working correlation matrix is incorrect.
+* Directly answers population-level questions (“on average in this population, how does the probability of worse cognition change with time and clinical variables( adl, taupet and abpet)”).
+* The GEE estimator $\hat{\beta}$ is asymptoticaly normal: for a large number of subjects, its sampling distribution is approximately multivariate normal with mean equal to the true ${\beta}$ and covariance given by the sandwich(robust) variance even if the working correlation matrix is misspecified.
+* With GEE, the robust (‘sandwich’) standard errors are asymptotically valid even if the working correlation structure is misspecified.
+* Handles unbalanced follow-up and missing visits reasonably well, assuming missing at random given covariates.
+
+
+**Disadvantages**
+
+* A bad choice for working correlation matrix affect the efficiency for  $\hat{\beta})$
+* GEE does not model patient-specific effects; no individual trajectories. so, interpretation is population-average, not subject-specific.
+* If dropout depends strongly on unobserved severity, MAR assumption may be violated.
+
+**Reflection on Parameterization**
+
+* Link function: The logit link gives coefficients that are log–odds ratios at the population level, which are easy to interpret for a clinician
+* Baseline vs time-varying covariates: Sex, age, adl and BMI were treated as baseline covariates; ABPET, and TAUPET were treated as time-varying, so their coefficients describe how changes in these measures over time are associated with changes in the probability of being in the worse CDRSB category.
+
+**Results**
+
+Using the marginal logistic GEE model with AR(1) working correlation, we obtained the odds ratios shown in Table 1. After adjustment for sex, age, BMI, ADL, ABPET and TAUPET, there was no clear evidence that time alone was associated with the odds of worse cognition (OR 0.82, 95% CI 0.54–1.25, p = 0.36). Sex, age, BMI and ADL also did not show strong marginal associations with CDRSBbin (e.g. sex: OR 0.91, 95% CI 0.81–1.02, p = 0.10; age: OR 0.99, 95% CI 0.98–1.00, p = 0.12).
+
+For the biomarkers, the main effects of ABPET (OR 1.28, 95% CI 0.87–1.86, p = 0.21) and TAUPET (OR 0.37, 95% CI 0.12–1.18, p = 0.09) at baseline were not statistically significant at the 5% level. The interaction between time and ABPET was also not significant (OR 0.93, 95% CI 0.85–1.02, p = 0.14). In contrast, the time × TAUPET interaction was statistically significant (OR 1.36, 95% CI 1.09–1.70, p < 0.01), indicating that the association between TAUPET and the odds of worse cognition changes over time.
+
+
+
+**Interpretation**
+
+On average, afteradjusting for sex age and BMI,ADL did not show a significant effect on whether a patient was in the worse-cognition group. Amyloid PET (ABPET) also was not significantly related to worse cognition or to how this changed over time. The important finding is tau PET (TAUPET): the interaction between time and TAUPET was statistically significant. This means that on average patients with higher tau values are more likely to develop or keep worse cognition over time than patients with lower tau, after accounting for the other factors. Higher tau is linked to a faster worsening of cognition over follow-up, whereas amyloid, ADL and the basic patient characteristics add no extra information in this analysis.
+
+
+## Question 2: Random-Effects Model (GLMM)
+
+To estimate how the probability of being in the worse cognitive category (CDRSBbin = 1, i.e. CDRSB > 10) changes over time while adjusting for patient characteristics, we fitted a generalized linear mixed model (GLMM) with a logit link. The model included fixed effects for time, sex, age, body mass index (BMI), activities of daily living (ADL), amyloid PET (ABPET), and tau PET (TAUPET), and random intercepts for both patients and trials to account for clustering within individuals and study centres.
+
+For patient $i\ $ in trial $j\ $ at time $t\ $, let $ Y_{ijt} = \text{CDRSBbin}_{ijt} $ be the binary outcome $ Y_{ijt} = 1 $ if CDRSB \(> 10\), \(0\) otherwise). We specify the GLMM with logit link as:
+
+
+
+$$
+\begin{aligned}
+\text{logit}\bigl\{\Pr(Y_{ijt} = 1 \mid b_{0i}, u_{0j})\bigr\}
+&= \beta_0
++ \beta_1\,\text{time}_{ijt}
++ \beta_2\,\text{sex}_i
++ \beta_3\,\text{age}_i
++ \beta_4\,\text{bmi}_i \\
+&\quad + \beta_5\,\text{adl}_i
++ \beta_6\,\text{abpet}_{ijt}
++ \beta_7\,\text{taupet}_{ijt}
++ b_{0i}
++ u_{0j}.
+\end{aligned}
+$$
+
+
+where:
+
+* $(\beta_0,\ldots, \beta_7)$ are population-level (fixed) effects,
+
+* $b_{0i} \sim N(0, \sigma_{b0}^2)$ is the patient-specific random intercept,  
+
+* $u_{0j} \sim N(0, \sigma_{u0}^2)$ is the trial-specific random intercept, conditional on $(b_{0i}, u_{0j})$ and the covariates, $(Y_{ijt} \sim \text{Bernoulli}(\pi_{ijt})$ with $(\pi_{ijt} = \Pr(Y_{ijt}=1 \mid b_{0i}, u_{0j})$.
+
+
+#### Model Results
+
+
+
+```{r}
+#| label: tbl-glmm-model
+#| tbl-cap: "GLMM Model Results (Odds Ratios)"
+
+
+ctrl <- glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
+# center time
+
+glmm_model <- glmer(
+  CDRSBbin ~ time + sex + age + bmi + abpet + taupet+
+   adl  + time:taupet + 1 + (time | patid),
+  data = alzheimer_long,
+  family = binomial(link = "logit"),
+  nAGQ = 1,
+  control = ctrl
+)
+
+summary(glmm_model)
+
+
+tidy_with_ci(glmm_model, exponentiate = TRUE) %>%
+  kable(
+    format = "latex",
+    booktabs = TRUE,
+    # longtable = TRUE,
+    align = "lcccccc"
+  ) |>
+  # scale down to fit page width
+  kableExtra::kable_styling(
+    latex_options = c(
+      "scale_down"
+    ),
+    font_size = 9
+  )
+```
+
+
+##### Model with centered time
+
+
+```{r}
+#| label: tbl-glmm-model-centered
+#| tbl-cap: "GLMM Model Results (Odds Ratios) with centered time"
+
+
+ctrl <- glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
+# center time
+alzheimer_long[, time_c := time - mean(time)]
+glmm_centered <- glmer(
+  CDRSBbin ~ time_c + sex + age + bmi + abpet + taupet+
+   adl  + time_c:taupet + 1 + (time_c | patid),
+  data = alzheimer_long,
+  family = binomial(link = "logit"),
+  nAGQ = 1,
+  control = ctrl
+)
+
+summary(glmm_centered)
+
+
+tidy_with_ci(glmm_centered, exponentiate = TRUE) %>%
+  kable(
+    format = "latex",
+    booktabs = TRUE,
+    # longtable = TRUE,
+    align = "lcccccc"
+  ) |>
+  # scale down to fit page width
+  kableExtra::kable_styling(
+    latex_options = c(
+      "scale_down"
+    ),
+    font_size = 9
+  )
+```
+
+
+
+##### Discussion of GLMM results with uncentered and centered time
+
+We modelled the binary outcome $Y_{it} = \text{CDRSBbin}_{it}$ using a logistic mixed model with fixed effects for time, sex, age, BMI, ADL, ABPET, TAUPET and a time–by–TAUPET interaction, and patient-specific random intercepts and slopes. With uncentered time, the model can be written as
+
+$$
+\operatorname{logit}\{P(Y_{it}=1)\}
+= \beta_0
++ \beta_{\text{time}}\, t_{it}
++ \beta_{\text{sex}}\,\text{sex}_i
++ \beta_{\text{age}}\,\text{age}_i
++ \beta_{\text{bmi}}\,\text{bmi}_i
++ \beta_{\text{adl}}\,\text{adl}_{it}
++ \beta_{\text{abpet}}\,\text{abpet}_i
++ \beta_{\text{tau}}\,\text{taupet}_i
++ \beta_{\text{time:tau}}\, t_{it}\,\text{taupet}_i
++ b_{0i} + b_{1i} t_{it},
+$$
+
+with
+
+$$
+(b_{0i}, b_{1i})^\top \sim N\bigl(0, \Sigma_b\bigr).
+$$
+
+
+
+For the uncentered model, the random effects show a very large intercept variance ($\hat\sigma_0^2 \approx 32.1$) and a smaller slope variance ($\hat\sigma_1^2 \approx 1.8$), with an estimated correlation ($\hat\rho \approx -1.00$). This means that, at the chosen time origin, patients differ strongly in baseline log-odds of CDR-SB > 10, and those with higher baseline log-odds tend to have flatter slopes, while those with lower baseline log-odds tend to have steeper slopes. However, the correlation being essentially $-1$ indicates that the random intercept and slope are almost perfectly collinear, which is a sign of near non-identifiability of the random-effects structure rather than a substantive biological effect. On the fixed-effect side, the average time effect is small and not statistically significant ($\hat\beta_{\text{time}} \approx -0.07$). Sex, age, BMI, ADL and ABPET do not show clear associations. TAUPET has a negative main effect ($\hat\beta_{\text{tau}} \approx -1.48,\ p \approx 0.08$), while the time–by–TAUPET interaction is positive and statistically significant ($\hat\beta_{\text{time:tau}} \approx 0.39,\ p \approx 0.02$). Thus, in this parameterisation, higher TAUPET is associated with a stronger increase in the log-odds of being in the worse CDR-SB category over time.
+
+We then refitted the same model with time centred at its mean, $t_{it} = \bar t + t_{c,it}$, so that the fixed-effects part becomes
+
+$$
+\operatorname{logit}\{P(Y_{it}=1)\}
+= \beta_0^{*}
++ \beta_{\text{time}}^{*}\, t_{c,it}
++ \beta_{\text{sex}}\,\text{sex}_i
++ \beta_{\text{age}}\,\text{age}_i
++ \beta_{\text{bmi}}\,\text{bmi}_i
++ \beta_{\text{adl}}\,\text{adl}_{it}
++ \beta_{\text{abpet}}\,\text{abpet}_i
++ \beta_{\text{tau}}^{*}\,\text{taupet}_i
++ \beta_{\text{time:tau}}^{*}\, t_{c,it}\,\text{taupet}_i
++ b_{0i}^{*} + b_{1i}^{*} t_{c,it}.
+$$
+
+
+This centering does not change the likelihood (AIC and BIC remain 6576 and 6657), but it changes the meaning of the intercept and the random effects: the intercept now refers to the average follow-up time rather than time zero.
+
+After centering, the random intercept variance drops sharply to $\hat\sigma_0^{*2} \approx 0.27$ (SD $\approx 0.52$), while the slope variance remains essentially the same ($\hat\sigma_1^{*2} \approx 1.81$). The intercept–slope correlation is now moderate, $\hat\rho^{*} \approx -0.53$, instead of almost $-1$. This shows that the extreme correlation in the uncentered model was largely a consequence of the arbitrary time origin: once time is centred at a more typical value, the intercept and slope become less collinear and the random-effects structure is better behaved.
+
+The fixed effects also adjust to the new time origin. The estimated time effect stays the same up to rounding ($\hat\beta_{\text{time}}^{*} \approx -0.07$), and the interaction remains positive and significant ($\hat\beta_{\text{time:tau}}^{*} \approx 0.39,\ p \approx 0.02$). The main effect of TAUPET, however, changes from a negative estimate to a small, non-significant positive estimate ($\hat\beta_{\text{tau}}^{*} \approx 0.07$). This is expected, because after centering,
+
+$$
+\beta_{\text{tau}}^{*}
+= \beta_{\text{tau}} + \bar t\,\beta_{\text{time:tau}},
+$$
+
+so the TAUPET main effect now describes the association at the average time rather than at the original time origin. The other covariate effects (sex, age, BMI, ADL, ABPET) are essentially unchanged and remain non-significant.
+
+In summary, centering time leaves the overall fit and the substantive conclusion unchanged: the time–by–TAUPET interaction is stable and suggests that higher tau burden is associated with a steeper increase in the odds of being in the worse CDR-SB category over time. What changes is the interpretation and stability of the random-effects and main effects. With centering, the intercept represents the log-odds at an average follow-up time, the intercept variance is much smaller and more interpretable, and the intercept–slope correlation is reduced from almost $-1$ to a moderate negative value, which is more compatible with a well-identified random-effects structure.
+
+
+
+
+```{r}
+#| label: fig-blups-centered
+# BLUPs scatter with correlation coefficient
+re_pat <- ranef(glmm_centered)$patid
+re_wide <- data.table::as.data.table(re_pat, keep.rownames = "patid")
+data.table::setnames(re_wide, c("(Intercept)", "time_c"), c("intercept", "slope"))
+
+rho <- cor(re_wide$intercept, re_wide$slope)
+
+ggplot(re_wide, aes(x = intercept, y = slope)) +
+  geom_point(alpha = 0.5) +
+  stat_ellipse(level = 0.95, linetype = 2) +
+  geom_hline(yintercept = 0, color = "grey60") +
+  geom_vline(xintercept = 0, color = "grey60") +
+  annotate("text", x = Inf, y = Inf, label = sprintf("corr = %.2f", rho),
+           hjust = 1.1, vjust = 1.5, size = 4) +
+  labs(title = "Random intercepts vs slopes (BLUPs), time centered",
+       x = "Random intercept (log-odds at mean time)",
+       y = "Random slope (per unit time)") +
+  theme_minimal()
+```
+
+
+
+
+
+
+
+```{r}
+#| label: eb-ranef-extract
+# Extract EB random effects for patients and trials
+
+library(lme4)
+library(data.table)
+
+# Choose the fitted model
+mm <- glmm_centered  # or glmm_model if that’s your active fit
+
+re_list <- ranef(mm)
+
+# Patient random intercepts (if random slope present, pick intercept)
+ranef_pat <- as.data.table(re_list$patid, keep.rownames = "patid")
+setnames(ranef_pat, c("(Intercept)"), c("random_intercept"))
+if ("time_c" %in% names(ranef_pat)) setnames(ranef_pat, "time_c", "random_slope")
+
+# Trial random intercepts (only if model includes trial RE)
+ranef_trial <- NULL
+if (!is.null(re_list$patid)) {
+  ranef_trial <- as.data.table(re_list$trial, keep.rownames = "trial")
+  setnames(ranef_trial, c("(Intercept)"), c("random_intercept"))
+}
+```
+
+
+```{r}
+#| label: fig-eb-histograms
+#| fig-cap: "Empirical Bayes random effects: patients (left) and trials (right)"
+#| fig.width: 9
+#| fig.height: 4
+
+library(ggplot2)
+library(gridExtra)
+
+p_pat <- ggplot(ranef_pat, aes(x = random_intercept)) +
+  geom_histogram( fill = "steelblue", color = "white") +
+  labs(title = "Patient random intercepts", x = "BLUP (log-odds)", y = "Count") +
+  theme_minimal()
+
+p_random_slope <- ggplot(ranef_pat, aes(x = random_slope)) +
+    geom_histogram( fill = "black", color = "white") +
+    labs(title = "Patient random slopes", x = "BLUP (per unit time)", y = "Count") +
+    theme_minimal()
+
+grid.arrange(p_pat, p_random_slope, ncol = 2)
+```
+
+
+In the mixed model, each patient gets their own empirical Bayes (EB) estimate for the random intercept and the random slope. These EB predictions (also called BLUPs) combine that patient’s data with the overall population distribution of random effects, so extreme patients are “pulled” back towards zero rather than being driven only by noisy individual trajectories.
+
+In the left panel, the random intercepts are spread around 0 on the log-odds scale, with some patients having clearly negative values (lower baseline risk of CDRSB > 10 than the average) and others positive (higher baseline risk). This confirms substantial heterogeneity in baseline severity that is not explained by the fixed covariates alone. In the right panel, the random slopes are also centred near 0 but show both negative and positive values: some patients have decreasing or very slow increases in the log-odds of being severe over time, while others have steeper increases. Together, the EB predictions illustrate the key idea of the random-effects model from the notes: we do not estimate a separate slope and intercept completely freely for each person, but instead borrow strength across patients, resulting in shrunk, more stable subject-specific trajectories that still capture meaningful variation in baseline risk and progression speed.
+
+
+
+```{r}
+# #| label: tbl-glmm-ranef
+# #| tbl-cap: "GLMM Random Effects Variance Components"
+# 
+# tidy_re_varcorr(glmm_model, digits = 4) %>%
+#   kable(
+#     format = "latex",
+#     booktabs = TRUE,
+#     # longtable = TRUE,
+#     align = c("l", "l", "r", "r", "r")
+#   ) |>
+#   # scale down to fit page width
+#   kableExtra::kable_styling(
+#     latex_options = c(
+#       "scale_down"
+#     ),
+#     font_size = 9
+#   )
+```
+
+
+
+
+
+**Model Motivation**
+
+We fitted a logistic GLMM because the outcome (CDRSB) was binary and our primary interest was in subject-specific effects and heterogeneity between patients and sites. The model addresses the question: for a given patient, how does the risk of worse cognition change over time, after accounting for between-patient and between-trial differences? Random intercepts for patients and trials capture variation in baseline CDRSB risk at both levels and induce appropriate within-patient and within-trial correlation. This parameterisation provides patient-specific predictions and empirical Bayes estimates of individual intercepts, while accommodating unequal numbers of visits per patient and trial-level effects.
+
+**Choice of Techniques and Estimation**
+
+To analyse the longitudinal binary outcome CDRSBbin, we used a generalised linear mixed model (GLMM) with a logit link. The model included a random intercept for each patient (to allow each person to have their own baseline risk) and a random intercept for trial (to capture systematic differences between study sites/centres). This gives a subject-specific model that accounts for the correlation of repeated measurements within patients and clustering within trials. The model was fitted by maximum likelihood using the Laplace approximation, which approximates the integral over the random effects and provides more accurate estimates for binary data than quasi-likelihood methods such as PQL or MQL. This method also allows for the inclusion of multiple random effects (patients and slopes).
+
+
+**Assumptions**
+
+
+Let $i$ index patients, $j$ index trials, and $t$ index measurements within patient $i$ in trial $j$.
+
+* Conditional on covariates and random effects, the responses are independent Bernoulli:
+
+$$
+Y_{ijt} \mid b_i, u_j \sim \mathrm{Bernoulli}(\pi_{ijt}),
+\quad 
+\pi_{ijt} = \Pr(Y_{ijt} = 1 \mid X_{ijt}, b_i, u_j),
+$$
+
+with
+
+$$
+\mathrm{logit}(\pi_{ijt}) = X_{ijt}^\top \beta + b_i + u_j.
+$$
+
+
+* Random intercepts for patient and trial are specified as
+
+$$
+b_i \sim N(0, \sigma_b^2), 
+\quad
+u_j \sim N(0, \sigma_u^2),
+$$
+
+where $\{b_i\}$ are independent across patients, $\{u_j\}$ are independent across trials, and $b_i$ is independent of $u_j$.
+
+* Link function and covariate effects: 
+
+- The logit link is correctly specified for the conditional mean:
+  
+  $$
+  \mathrm{logit}(\pi_{ijt}) = X_{ijt}^\top \beta + b_i + u_j.
+  $$
+
+- The effects of continuous covariates are approximately linear on the logit scale, or otherwise correctly modelle.
+
+* Missing data:
+
+- Missing outcome data are assumed to be at least Missing At Random (MAR) given observed covariates, observed outcome history, and the random effects.
+
+
+
+**Advantages**
+
+* Estimates conditional (subject-specific) effects on the log-odds scale, aligning with questions about individual patient risk trajectories.
+* Random intercepts for patients and trials account for unobserved heterogeneity and induce appropriate within-patient and within-trial correlation.
+* Handles unequal numbers of visits and irregular visit patterns naturally.
+* Empirical Bayes estimates of random intercepts provide patient-specific predictions hence improving predictions.
+
+
+
+**Disadvantages and potential problems**
+
+
+* Parameters are subject-specific and not directly comparable to marginal (population-averaged) effects.
+* Sensitivity to model specification: Misspecification of the random-effects structure (e.g. omitting important random slopes) or functional form of covariates can lead to biased inference.
+
+
+
+**Reflection on parameterization**
+
+We specified a logistic GLMM with a logit link and random intercepts for patients and trials:
+
+
+$$
+\text{logit}\{\pi_{ijt}\} = X_{ijt}^\top \beta + b_i + u_j.
+$$
+
+
+This parameterisation yields subject-specific log-odds ratios, which aligns with our interest in modelling individual risk rather than marginal (population-averaged) effects. Random intercepts for patients and trials account for unobserved heterogeneity and induce within-patient and within-trial correlation, while remaining parsimonious and numerically stable given the available data. Continuous covariates were entered linearly on the logit scale, representing a balance between model flexibility and interpretability; more flexible forms could be considered if strong non-linearity were empirically indicated.
+
+
+**Results**
+
+We fitted a generalized linear mixed model with a logit link for the binary outcome CDRSBbin (0: CDRSB ≤ 10, 1: CDRSB > 10), including fixed effects for time, sex, age, BMI, ADL, ABPET, and TAUPET, and random intercepts for patient and trial. The model had AIC = 7822 and BIC = 7889, with log-likelihood = –3901 (–2·logLik = 7802) based on 6220 observations (1253 patients, 25 trials). The estimated random-intercept variances were very small for both patient (variance 2.16×10⁻¹⁵, SD 4.64×10⁻⁸) and trial (variance 2.25×10⁻¹⁵, SD 4.75×10⁻⁸), indicating a boundary (singular) fit.
+
+Fixed-effect estimates (log-odds scale) were: intercept –1.42 (SE 0.63, z = –2.25, p = 0.024), time 0.25 (SE 0.016, z = 16.12, p < 0.001), sex (female vs male) –0.10 (SE 0.057, z = –1.66, p = 0.096), age –0.013 (SE 0.0075, z = –1.79, p = 0.073), BMI 0.010 (SE 0.0129, z = 0.79, p = 0.430), ADL –0.0029 (SE 0.0115, z = –0.25, p = 0.799), ABPET 0.036 (SE 0.0966, z = 0.37, p = 0.709), and TAUPET 0.33 (SE 0.177, z = 1.88, p = 0.060).
+
+**Interpretation**
+
+In this analysis, we modelled the probability of being in the worse cognitive category (CDRSB > 10) over time, accounting for repeated measurements within patients and across trials. Statistically, the main strong signal is that the chance of worse cognitive status increases over follow-up time. Other patient characteristics (sex, age, BMI, daily functioning, and PET biomarkers) did not show clearly independent effects in this model, and the random-effects part contributed very small part, meaning most of the variation is explained at the overall population level rather than by systematic differences between individual patients or trials.
+
+
+## Empirical Bayes Predictions
+
+Examine the empirical Bayes predictions (random effects) to identify subjects with specific profiles.
+
+```{r eb-predictions}
+#| label: eb-predictions
+#| fig-cap: "Empirical Bayes Predictions of Random Effects"
+#| fig-width: 10
+#| fig-height: 5
+#| 
+# Extract random effects
+r_effs <- ranef(glmm_model_centered)
+
+# 1. Patient-level random effects
+ranef_pat <- as.data.frame(r_effs$patid) %>%
+  rownames_to_column("patid") %>%
+  rename(random_intercept = `(Intercept)`)
+
+# 2. Trial-level random effects
+# ranef_trial <- as.data.frame(r_effs$trial) %>%
+#   rownames_to_column("trial") %>%
+#   rename(random_intercept = `(Intercept)`)
+
+# Plot distribution of Patient Random Intercepts
+patid_plot <- ggplot(ranef_pat, aes(x = random_intercept)) +
+  geom_histogram(bins = 30, fill = "skyblue", color = "black") +
+  theme_minimal() +
+  labs(title = "Patient Random Intercepts", 
+       subtitle = "Variation between subjects",
+       x = "Log-Odds", y = "Count")
+
+# Plot Trial Random Intercepts
+# trial_plot <- ggplot(ranef_trial, aes(x = reorder(trial, random_intercept), y = random_intercept)) +
+#   geom_point(size = 3, color = "darkred") +
+#   geom_hline(yintercept = 0, linetype = "dashed") +
+#   coord_flip() +
+#   theme_minimal() +
+#   labs(title = "Trial Random Intercepts", 
+#        subtitle = "Variation between sites",
+#        x = "Trial", y = "Log-Odds Deviation")
+
+grid.arrange(patid_plot, ncol = 1)
+
+
+```
+
+
+```{r}
+#| label: extreme-subjects
+#| tbl-cap: "Subjects with Highest Random Intercepts (High Risk)"
+top_risk <- ranef_pat %>% arrange(desc(random_intercept))
+
+head(top_risk, 10) %>%
+  kable(
+    format = "latex",
+    booktabs = TRUE,
+    # longtable = TRUE,
+    align = "lcccccc"
+  ) |>
+  # scale down to fit page width
+  kableExtra::kable_styling(
+    latex_options = c(
+      "scale_down"
+    ),
+    font_size = 9
+  )
+
+
+```
+
+
+```{r}
+#| label: extreme-subjects-low
+#| tbl-cap: "Subjects with Lowest Random Intercepts (Low Risk)"
+low_risk <- ranef_pat %>% arrange(random_intercept)
+head(low_risk, 10) %>%
+  kable(
+    format = "latex",
+    booktabs = TRUE,
+    # longtable = TRUE,
+    align = "lcccccc"
+  ) |>
+  # scale down to fit page width
+  kableExtra::kable_styling(
+    latex_options = c(
+      "scale_down"
+    ),
+    font_size = 9
+  )
+
+```
+
+
+Left panel (patient random intercepts)
+Each bar shows how many patients have a given “patient effect” on the log-odds of being in the worse CDRSB category, after adjusting for time, sex, age, BMI, ADL, amyloid and tau.
+All the bars are very tightly clustered around 0, and the range is extremely small (on the order of 10⁻¹³). This means that, once we account for the measured covariates, the model estimates almost no residual between-patient difference in baseline risk. Patients’ individual intercepts are essentially the same.
+
+Right panel(trial random intercepts) Each dot is a trial (centre), showing how much its baseline log-odds deviates from the overall average.
+All trials lie almost exactly on the vertical line at 0, again with tiny deviations (order 10⁻¹⁵). This indicates no meaningful between-trial/site variability in baseline risk after covariate adjustment.
+
+In summary, empirical Bayes predictions suggest that, in this GLMM, nearly all of the variation in baseline probability of “worse CDRSB” is captured by the fixed effects, and there is negligible leftover variation attributable to individual patients or trial sites.
+
+
+
+
+

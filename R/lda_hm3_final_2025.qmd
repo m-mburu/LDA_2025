@@ -369,14 +369,27 @@ alzheimer_long[, time := as.integer(time)]
 #kable(head(alzheimer_long))
 ```
 
+# Abstract
+
+# Introduction
+
+Alzheimer’s disease is a progressive neurodegenerative disorder characterised by a gradual decline in cognitive, psychiatric, and functional abilities. Longitudinal studies play a central role in understanding disease progression and identifying patient characteristics associated with changes in clinical outcomes over time. However, the analysis of longitudinal data is often complicated by within-subject correlation, unbalanced follow-up, and missing data due to dropout, particularly in studies involving elderly or clinically vulnerable populations (Diggle et al., 2002; Fitzmaurice et al., 2011).
+
+The present study follows a cohort of patients diagnosed with Alzheimer’s disease who were recruited across multiple clinical centres and assessed annually for up to six years. Psychiatric symptom severity was measured repeatedly using the Brief Psychiatric Rating Scale (BPRS), alongside cognitive and biomarker assessments. Baseline demographic and clinical characteristics—including age, sex, education, body mass index, functional status, employment status, and living situation—were recorded at study entry. As expected in long-term follow-up studies of Alzheimer’s disease, not all participants remained under observation for the full duration of the study, resulting in unbalanced longitudinal data with increasing missingness over time.
+
+The primary objective of this analysis is to characterise the longitudinal evolution of BPRS and to investigate how psychiatric symptom trajectories relate to baseline patient characteristics and disease severity. To address these aims, a sequence of modelling approaches is adopted. Exploratory analyses are first used to examine the empirical mean, variance, and correlation structure of the data and to assess the nature of missingness. Subsequently, likelihood-based linear mixed-effects models are fitted for the continuous BPRS outcome, allowing for subject-specific trajectories and valid inference under a missing-at-random (MAR) assumption (Laird and Ware, 1982; Verbeke and Molenberghs, 2000).
+
+For a binary cognitive outcome derived from the Clinical Dementia Rating Sum of Boxes (CDR-SB), both subject-specific and population-averaged modelling frameworks are considered. Random-effects logistic regression models are used to obtain subject-specific interpretations, while generalized estimating equations (GEE) are employed to estimate marginal effects. Because standard GEE is not generally valid under MAR dropout, inverse-probability weighted GEE is used to obtain MAR-consistent marginal inference (Robins et al., 1995; Fitzmaurice et al., 2011).
+
+Finally, recognising that the MAR assumption cannot be verified empirically from the observed data, a sensitivity analysis is conducted for the continuous outcome using a pattern-mixture \(\delta\)-adjustment approach. This analysis evaluates the robustness of the substantive conclusions to plausible departures from MAR by allowing unobserved post-dropout outcomes to differ systematically from MAR-based predictions (Little, 1993; Molenberghs et al., 2008). Overall, these methods provide a principled framework for analysing longitudinal Alzheimer’s disease data in the presence of dropout and for assessing the sensitivity of conclusions to assumptions about the missing data mechanism.
 
 
 
+# Methodology
 
+## Missingness in the data
 
-## Methodology
-
-### Notation and data structure
+### Notation and missingness indicators
 
 Let $i=1,\dots,N$ index patients and $j=0,\dots,J$ index scheduled annual visits ($j=0$ baseline). The continuous outcome of interest is the BPRS score $Y_{ij}$. Define the missingness indicator
 
@@ -390,34 +403,180 @@ $$
 
 Let $R_i=(R_{i0},\dots,R_{iJ})$ denote the subject-specific observation pattern, and split the full outcome vector as $Y_i=(Y_i^{obs},Y_i^{mis})$.
 
+### Description of missingness patterns
+
+Missingness patterns were first characterised descriptively to determine whether dropout followed a monotone structure or whether intermittent missingness occurred. For each subject, the last observed visit was defined as $t_i = \max\{j : R_{ij}=1$
+
+A subject was classified as exhibiting monotone dropout if $(R_{ij}=1$ for all $(j \le t_i$ and $R_{ij}=0$ for all $(j > t_i)$. Non-monotone (intermittent) missingness was defined as the presence of at least one missing observation followed by a later observed measurement i.e The pattern is non-monotone if there exist $j<k$ such that $R_{ij}=0 \ \text{and}\ R_{ik}=1$. The distribution of $(t_i)$, the proportion missing at each visit, and the frequency of intermittent gaps were summarised to assess the overall structure of missingness.
+
+These classifications are summarised using (i) the distribution of $t_i$ (retention over time), (ii) the proportion missing at each visit $j$, and (iii) the frequency of intermittent gaps within $R_i$. In this Alzheimer cohort, missingness rises markedly with follow-up, so later-visit summaries are based on a progressively smaller subset of participants.
+
+### Empirical assessment of dependence on observed data
+
+To assess whether missingness was plausibly independent of observed outcomes (MCAR) or related to observed disease severity and covariates (supporting MAR), empirical summaries were examined. First, the relationship between baseline BPRS and the total number of missed follow-up visits was evaluated to assess whether initial psychiatric severity was associated with subsequent dropout. Second, visit-specific missingness rates were calculated and plotted to characterise the evolution of missingness over time and the degree of selection at later follow-up visits.
+
+### Discrete-time model for dropout
+
+To formalise the dependence of missingness on observed history, a discrete-time observation (dropout) model was fitted. Among subjects observed at visit $(j\)$, a next-visit missingness indicator was defined as:
+$$
+D_{i,j+1} = 1 - R_{i,j+1}.
+$$
+
+The conditional probability of dropout at the next visit was modelled using logistic regression:
+$$
+\Pr(D_{i,j+1}=1 \mid \mathcal{H}_{ij})
+= \operatorname{logit}^{-1}\!\left(
+\alpha_0 + \alpha_1 Y_{ij} + \alpha_2^\top X_i + \alpha_3 j
+\right),
+$$
+where ${H}_{ij}$ denotes the observed outcome and covariate history up to visit $(j)$, and $(X_i)$ includes baseline demographic and clinical covariates. Evidence of dependence of $(D_{i,j+1})$ on observed outcomes or covariates was interpreted as evidence against MCAR and supportive of a MAR mechanism.
+
+### Working assumptions and implications for analysis
+
+Under the MAR assumption, the missingness mechanism satisfies:
+$$
+p(R_i \mid Y_i, X_i) = p(R_i \mid Y_i^{\mathrm{obs}}, X_i),
+$$
+so that, conditional on observed data, missingness does not depend on unobserved outcomes. Under this assumption and assuming distinct parameters for the outcome and missingness processes, likelihood-based inference using the observed-data likelihood is valid. Accordingly, MAR was adopted as the primary working assumption for the main longitudinal analyses.
+
+Because MAR cannot be verified empirically and MNAR mechanisms where missingness depends on unobserved outcomes cannot be identified from the observed data alone, sensitivity analyses were conducted for the continuous outcome to assess the robustness of substantive conclusions to plausible departures from MAR.
 
 
-### Missingness pattern and dropout taxonomy
+## Longitudinal outcome models (continuous and binary)
 
-The first goal is to describe whether missingness behaves like monotone dropout (typical in longitudinal follow-up) or intermittent missingness (temporary gaps). For each patient:
+### Notation and outcomes
 
-1. **Completeness.** A patient is complete if $R_{ij}=1$ for all $j$.
+Let $i=1,\ldots,N$ index subjects and $j=0,\ldots,J$ index scheduled annual visits, with $j=0$ denoting baseline. Let $t_{ij}$ denote follow-up time in years (here $t_{ij}=j$). The primary continuous outcome is the BPRS score $Y_{ij}$. A binary cognitive outcome is defined from the CDR-SB score by
+$$
+Z_{ij}=\mathbb{I}\!\left(\mathrm{CDRSB}_{ij}>10\right),
+$$
+where ${I}(\cdot)$ denotes the indicator function. Baseline covariates are collected in the vector $X_i$, and baseline disease-severity markers are denoted by $S_i$ (e.g., ${CDRSB}_{i0}$ and baseline biomarkers).
 
-2. **Monotone missingness (dropout-type).** Define the last observed visit
-   $$
-   t_i=\max{j: R_{ij}=1}.
-   $$
+### Continuous outcome model: linear mixed-effects model (LMM)
+
+To model the longitudinal evolution of BPRS while accounting for within-subject correlation and unbalanced follow-up, a linear mixed-effects model was specified as
+$$
+Y_{ij}
+=
+\beta_0
++
+\beta_1 t_{ij}
++
+\beta^\top X_i
++
+\gamma^\top S_i
++
+\eta\, t_{ij}\,\mathrm{CDRSB}_{i0}
++
+b_{0i}
++
+b_{1i} t_{ij}
++
+\varepsilon_{ij}.
+$$
+Here, $\beta_0$ is the population intercept, $\beta_1$ is the average yearly change in BPRS, $\beta$ and $\gamma$ quantify associations with baseline covariates and baseline severity markers, and $\eta$ captures effect modification of time by baseline CDR-SB. The subject-specific random effects $(b_{0i},b_{1i})$ represent heterogeneity in baseline BPRS and progression rate and are assumed to follow a bivariate normal distribution with mean zero and covariance matrix $D$. Conditional on the random effects, the residuals $\varepsilon_{ij}$ are assumed independent and normally distributed with variance $\sigma^2$.
+
+This model was chosen because it explicitly accounts for within-subject dependence, accommodates unbalanced follow-up due to dropout, and yields likelihood-based inference that is valid under a missing-at-random (MAR) mechanism when the mean and covariance structures are correctly specified.
+
+### Binary outcome models
+
+#### Subject-specific model: logistic generalized linear mixed model (GLMM)
+
+For the binary outcome $Z_{ij}$, a subject-specific logistic mixed model was specified as
+$$
+\Pr\!\left(Z_{ij}=1 \mid b_{0i}\right)
+=
+\operatorname{logit}^{-1}\!\left(
+\alpha_0
++
+\alpha_1 t_{ij}
++
+\alpha^\top X_i
++
+\delta^\top S_i
++
+b_{0i}
+\right),
+$$
+where $b_{0i}\sim N(0,\tau^2)$ is a random intercept capturing within-subject correlation. This model yields subject-specific (conditional) odds ratios and, being likelihood-based, provides valid inference under MAR given standard ignorability conditions. A random-intercept specification was adopted as a parsimonious yet adequate representation of within-subject dependence for the binary outcome.
 
 
-   The pattern is monotone if
+#### Marginal model: generalized estimating equations (GEE)
+
+To estimate population-averaged effects for the binary outcome, a marginal logistic mean model was considered:
+$$
+\Pr\!\left(Z_{ij}=1\right)
+=
+\operatorname{logit}^{-1}\!\left(
+\theta_0
++
+\theta_1 t_{ij}
++
+\theta^\top X_i
++
+\kappa^\top S_i
+\right),
+$$
+with within-subject correlation handled through a working correlation structure. Standard GEE yields consistent regression estimates under MCAR, but it is not generally valid under MAR dropout when the probability of observation depends on observed history. Given the strong time-dependent dropout and its association with observed severity and covariates in these data, a MAR-valid marginal approach was required.
 
 
-   $$
-   R_{ij}=1 \text{ for } j\le t_i,\qquad R_{ij}=0 \text{ for } j>t_i.
-   $$
+### MAR-valid marginal inference: inverse-probability weighted GEE (IPW-GEE)
+
+To obtain marginal estimates valid under MAR, inverse-probability weighted GEE was employed. Let $R_{ij}$ denote the indicator that $Z_{ij}$ is observed, and let $\mathcal{H}_{i,j-1}$ denote the observed history up to visit $j-1$. An observation model was fitted to estimate the probability of being observed at visit $j$:
+$$
+\widehat{\pi}_{ij}
+=
+\Pr\!\left(R_{ij}=1 \mid \mathcal{H}_{i,j-1}\right).
+$$
+Inverse-probability weights were then constructed as
+$$
+w_{ij}=\frac{1}{\widehat{\pi}_{ij}},
+$$
+and incorporated into the GEE estimating equations for the marginal model. Under correct specification of the observation model, this weighting adjusts for the selection induced by MAR dropout and yields consistent population-averaged regression estimates.
+
+IPW-GEE was selected as the marginal approach because missingness depended on observed history and follow-up time (inconsistent with MCAR), the scientific estimand was population-averaged, and inverse-probability weighting provides a transparent and principled correction for MAR dropout while retaining the marginal interpretation of GEE.
+
+### Model selection and primary analysis
+
+For the continuous outcome (BPRS), the linear mixed-effects model was selected as the primary analysis model. This choice is motivated by the continuous nature of the outcome, the presence of strong within-subject correlation, and the unbalanced follow-up arising from monotone dropout. The likelihood-based mixed model provides subject-specific trajectories, accommodates heterogeneity in baseline level and progression rate through random effects, and yields valid inference under the MAR assumption supported by the missingness analyses.
+
+For the binary outcome derived from CDR-SB, both subject-specific and marginal modelling frameworks were considered to address different scientific targets. The logistic generalized linear mixed model (GLMM) was used to obtain subject-specific effects, which are appropriate when interest lies in individual-level disease progression. In contrast, the marginal model was used to estimate population-averaged effects. Because standard GEE is not generally valid under MAR dropout and missingness in this cohort was shown to depend on observed history and follow-up time, inverse-probability weighted GEE (IPW-GEE) was selected as the primary marginal approach. IPW-GEE yields consistent population-averaged estimates under MAR by correcting for the selection induced by dropout.
+
+Together, these modelling choices ensure that inference for both continuous and binary outcomes is aligned with the observed data structure, the missingness mechanism, and the scientific objectives of the study.
 
 
-3. **Non-monotone (intermittent) missingness.** The pattern is non-monotone if there exist $j<k$ such that
-   $$
-   R_{ij}=0 \ \text{and}\ R_{ik}=1.
-   $$
+### MAR-valid model choice and justification (continuous outcome)
 
-These classifications are summarised using (i) the distribution of $t_i$ (retention over time), (ii) the proportion missing at each visit $j$, and (iii) the frequency of intermittent gaps within $R_i$. In this Alzheimer cohort, missingness rises markedly with follow-up, so later-visit summaries are based on a progressively smaller subset of participants. 
+For the continuous outcome, the Brief Psychiatric Rating Scale (BPRS), a likelihood-based linear mixed-effects model (LMM) was selected as the final analysis model. The LMM is appropriate because BPRS is measured on a continuous scale and repeatedly over time, inducing within-subject correlation that is naturally accommodated through random effects. In addition, the model allows for subject-specific trajectories by incorporating random intercepts and slopes, thereby capturing heterogeneity in both baseline psychiatric symptom severity and rates of change over follow-up.
+
+Under the missing-at-random (MAR) assumption supported by the missingness diagnostics, likelihood-based estimation in the LMM yields valid inference using the observed-data likelihood and appropriately handles the unbalanced follow-up arising from monotone dropout. Alternative approaches were considered, but the LMM was selected as the primary and final model because it aligns with the scientific objective of modelling continuous BPRS trajectories, accommodates within-subject dependence and heterogeneity, and provides principled, MAR-valid inference without the need for additional weighting or imputation.
+
+### MAR-valid model choice and justification (binary outcome)
+
+For the binary outcome derived from the continuous CDR-SB score, defined as $Z_{ij}=\mathbb{I}(\mathrm{CDRSB}_{ij}>10)$, a logistic generalized linear mixed model (GLMM) was selected as the primary analysis model. This choice is motivated by the binary nature of $Z_{ij}$ and the longitudinal design, which induces within-subject correlation across repeated measurements. The GLMM accounts for this dependence through subject-specific random effects and allows individuals to have different baseline propensities for $Z_{ij}=1$ (and, if included, different progression rates over time).
+
+The model is specified as
+$$
+\Pr(Z_{ij}=1\mid b_{0i})
+=
+\operatorname{logit}^{-1}\!\left(
+\alpha_0+\alpha_1 t_{ij}+\alpha^\top X_i+\delta^\top S_i+b_{0i}
+\right),
+$$
+with $b_{0i}\sim N(0,\tau^2)$. As a likelihood-based method, the GLMM yields valid inference under a missing-at-random (MAR) mechanism, provided that the outcome model is correctly specified and the missingness process is ignorable (i.e., depends only on observed data and has distinct parameters from the outcome model). Given the observed monotone dropout and evidence that missingness depends on observed covariates and history, the MAR assumption is a reasonable primary working assumption, making the GLMM an appropriate MAR-valid modelling choice for the binary endpoint.
+
+
+# Results
+
+### Missingness structure and missingness mechanism (BPRS)
+
+### Continuous outcome model (BPRS): linear mixed-effects model under MAR
+
+### Binary outcome model: logistic GLMM under MAR
+
+### Agreement between exploratory patterns (Assignment 1) and fitted models
+
+### Sensitivity analysis for MNAR (continuous outcome)
 
 
 ###  Proportion missing by time
@@ -452,6 +611,23 @@ miss_by_time
 ```
 
 
+```{r}
+# --- Choose outcome to study (start with BPRS)
+outcome <- "cdrsb"
+
+# 1) Create missingness indicator R_ij for chosen outcome
+alzheimer_long[, R := as.integer(!is.na(get(outcome)))]
+
+# 2) Proportion missing by time
+miss_by_time1 <- alzheimer_long[, .(
+  n_total = .N,
+  n_obs   = sum(R == 1),
+  n_miss  = sum(R == 0),
+  prop_miss = mean(R == 0)
+), by = time][order(time)]
+
+miss_by_time1
+```
 
 
 ```{r}
@@ -475,7 +651,7 @@ pattern_dt <- alzheimer_long[, {
   Rvec <- R
   # last observed time (t_i); if all missing, set NA (rare if baseline always observed)
   if (all(Rvec == 0)) {
-    list(t_i = NA_integer_, complete = FALSE, monotone = TRUE, non_monotone = FALSE, n_gaps = NA_integer_)
+    list(t_i = NA_integer_, complete = FALSE, monotone = TRUE, non_monotone = FALSE, n_gaps = NA_integer_) 
   } else {
     t_i <- max(time[Rvec == 1])
     n_gaps <- sum(Rvec == 0 & time < t_i)   # missing before last observed => intermittent gap(s)
@@ -744,7 +920,7 @@ summary(lmer_reduced_mean_structure)
 
 #### Marginal Model
 
-```{r reshape-data}
+```{r}
 
 # id_vars <- c("patid", "trial", "sex", "age", 
 # "edu", "bmi", "inkomen", "job", "adl", "wzc")
@@ -1362,422 +1538,4 @@ ggplot(sens_results, aes(x = delta, y = estimate, group = term)) +
 ### MNAR sensitivity analysis (pattern-mixture \(\delta\)-adjustment)
 
 A \(\delta\)-adjustment sensitivity analysis was used to assess how departures from MAR could affect the main mixed-model conclusions for BPRS. Post-dropout missing BPRS values were shifted relative to their MAR-based predictions by \(Y^{mis}_{ij}(\delta)=\widehat{Y}^{MAR}_{ij}+\delta\), and the primary mixed model was refitted over a grid of \(\delta\in\{-10,-5,-2,0,2,5,10\}\). Across this range, the substantive conclusions were highly robust. The estimated time effect remained strongly positive and highly significant for all \(\delta\) values, varying smoothly from 6.22 per year at \(\delta=-10\) to 8.22 per year at \(\delta=10\) (all \(p<10^{-16}\)), indicating that the conclusion of increasing BPRS over time does not depend on the MAR assumption. Similarly, the time-by-baseline severity interaction remained negative and statistically significant throughout, ranging from \(-0.0155\) to \(-0.0285\) (all \(p \le 6.5\times10^{-4}\)), implying that higher baseline CDR-SB is consistently associated with a slower increase in BPRS over time. Overall, even under sizable MNAR shifts in post-dropout outcomes, the direction and statistical significance of the key fixed effects were preserved, suggesting that the main longitudinal inferences are not sensitive to plausible MNAR departures in this dataset.
-
-
-
-
-
-
-
-### Draft 2
-
-### Missing data: assessment, primary (MAR) analysis, and MNAR sensitivity
-
-Longitudinal follow-up in Alzheimer cohorts typically exhibits increasing missingness over time (e.g., missed visits, institutionalisation, illness progression, death). Because later visits are observed on a selected subset of patients, the missing-data strategy was specified *a priori* and integrated with the outcome models.
-
-#### Notation
-
-For subject $i=1,\dots,N$ at visit $j=0,\dots,J$, let $Y_{ij}$ denote the outcome of interest (e.g., continuous BPRS for the psychiatric symptom trajectory). Let
-
-$$
-R_{ij} =
-\begin{cases}
-1, & \text{if } Y_{ij} \text{ is observed},\
-0, & \text{if } Y_{ij} \text{ is missing}.
-\end{cases}
-$$
-
-Write $Y_i = (Y_i^{o}, Y_i^{m})$ for the observed and missing components of the full trajectory, and let $X_i$ denote baseline covariates (e.g., age, sex, education, baseline severity markers).
-
-
-
-## 1) Missingness pattern and dropout characterisation (data-driven diagnostics)
-
-The first step was to describe *how* missingness occurs in this dataset, since the pattern informs which modeling tools are appropriate and how sensitivity analyses should be designed.
-
-### 1.1 Missingness pattern: complete, monotone, non-monotone
-
-For each subject, the vector $R_i = (R_{i0},\dots,R_{iJ})$ was summarised as a binary “response string” (e.g., $1111000$). Subjects were classified as:
-
-* **Complete** if $R_{ij}=1$ for all scheduled visits.
-
-* **Monotone** if missingness begins and then persists. Equivalently, there exists a last observed time $t_i$ such that
-
-$$
-R_{ij}=1 \ \text{for } j \le t_i,
-\qquad
-R_{ij}=0 \ \text{for } j>t_i.
-$$
-
-* **Non-monotone** (intermittent) if there is at least one missing visit followed by a later observed visit, i.e., there exist $j<k$ such that $R_{ij}=0$ and $R_{ik}=1$.
-
-### 1.2 Dropout pattern: complete, dropout, intermittent
-
-A dropout time was defined as
-
-$$
-t_i = \max{ j : R_{ij}=1 }.
-$$
-
-Subjects were summarised by (i) whether they completed follow-up, (ii) the visit of last observation $t_i$, and (iii) whether missingness was intermittent (return after a missed visit). This description provides a clinically interpretable link between follow-up attrition and disease course (e.g., subjects with worse observed BPRS history may be more likely to drop out earlier).
-
-### 1.3 Empirical evidence against MCAR (association with observed history)
-
-Because MCAR implies that missingness is unrelated to observed outcomes, we assessed whether the probability of being observed depended on the observed history. A discrete-time model for observation at visit $j+1$ was used as a diagnostic:
-
-$$
-\Pr(R_{i,j+1}=1 \mid \mathcal{H}_{ij})
-=
-\operatorname{logit}^{-1}!\Big(
-\alpha_0 + \alpha_1 Y_{ij} + \alpha_2^\top X_i + \alpha_3 j
-\Big),
-$$
-
-where $\mathcal{H}_{ij}$ denotes the observed history up to visit $j$. A clear dependence on previously observed BPRS (or other observed markers) is consistent with missingness being related to observed data, which argues against MCAR and motivates methods valid under MAR as the primary analytic framework.
-
-
-
-## 2) Primary missing-data assumption and why “MCAR/simple” methods were not used
-
-### 2.1 Why not complete-case (CC) or LOCF
-
-Two common “simple” approaches under an MCAR mindset are complete-case (CC) analysis and last observation carried forward (LOCF). In longitudinal Alzheimer follow-up, these can be problematic:
-
-* **CC** uses only subjects with complete trajectories and can induce bias if completion is related to severity or prior outcomes; it also reduces efficiency by discarding partially observed profiles.
-
-* **LOCF** implicitly assumes stability after the last observation and can distort the mean trajectory and variance structure, especially when symptoms tend to evolve over time.
-
-Given the observed dropout/intermittency patterns and the clinical plausibility that missingness relates to observed history, the primary analysis proceeded under MAR using methods that retain all observed data without imputing ad hoc values.
-
-
-
-## 3) MAR analysis strategies used for the study outcomes
-
-Under MAR, the missingness mechanism can depend on observed history but not on unobserved outcomes after conditioning on observed data:
-
-$$
-f(R_i \mid X_i, Y_i^{o}, Y_i^{m})
-=
-f(R_i \mid X_i, Y_i^{o}).
-$$
-
-This assumption supports likelihood-based mixed models for subject-specific inference, and marginal models via GEE (with appropriate handling of incomplete data).
-
-### 3.1 Continuous outcome (BPRS): direct likelihood via a linear mixed model
-
-For the continuous BPRS trajectory, a linear mixed model was fitted by maximum likelihood (or REML for variance components where appropriate), using all available BPRS observations per subject. A general form is
-
-$$
-Y_{ij}
-======
-
-x_{ij}^\top \beta
-+
-z_{ij}^\top b_i
-+
-\varepsilon_{ij},
-$$
-
-with
-
-$$
-b_i \sim N(0, D),
-\qquad
-\varepsilon_{ij} \sim N(0,\sigma^2),
-\qquad
-b_i \perp \varepsilon_{ij}.
-$$
-
-Here, $x_{ij}$ contains fixed-effect terms (e.g., time and other covariates) and $z_{ij}$ defines the random-effects structure (e.g., random intercept and potentially random slope for time). The likelihood-based fit provides valid inference under MAR (given correct specification of the mean structure and random-effects distribution), while using partially observed trajectories efficiently.
-
-### 3.2 Binary outcome: random-effects model (GLMM) under MAR
-
-For the binary longitudinal endpoint, a subject-specific (conditional) model was fitted using a GLMM with a logit link:
-
-$$
-\Pr(Y_{ij}=1 \mid b_i, X_i)
-=
-\operatorname{logit}^{-1}!\Big(
-x_{ij}^\top \beta + z_{ij}^\top b_i
-\Big),
-$$
-
-with $b_i \sim N(0,D)$. This formulation captures within-subject correlation through random effects and yields conditional (subject-specific) interpretations of covariate effects.
-
-### 3.3 Binary outcome: marginal model (GEE) under MAR
-
-A marginal model was also fitted using GEE to obtain population-averaged effects:
-
-$$
-\Pr(Y_{ij}=1 \mid X_i)
-=
-\operatorname{logit}^{-1}\Big(
-x_{ij}^\top \beta
-\Big).
-$$
-
-Let $\mu_i(\beta)$ be the mean vector and $V_i$ a working covariance matrix. The estimating equation is
-
-$$
-\sum_{i=1}^N
-D_i^\top
-V_i^{-1}
-\left(
-Y_i - \mu_i(\beta)
-\right)
-=
-0,
-$$
-
-where $D_i = \partial \mu_i(\beta)/\partial \beta^\top$. Robust (sandwich) standard errors were used to protect inference against misspecification of the working correlation.
-
-### 3.4 Weighted GEE as an MAR approach when dropout is informative given observed history
-
-When dropout depends on observed history, inverse probability weighting provides a principled MAR correction for marginal inference. Let $\pi_{ij} = \Pr(R_{ij}=1 \mid \mathcal{H}_{i,j-1})$ be estimated from an observation model (such as the logistic diagnostic model above). Define weights
-
-$$
-w_{ij} = \frac{1}{\pi_{ij}}.
-$$
-
-Weighted GEE solves
-
-$$
-\sum_{i=1}^N
-D_i^\top
-V_i^{-1}
-W_i
-\left(
-Y_i - \mu_i(\beta)
-\right)
-=
-0,
-$$
-
-where $W_i$ is typically diagonal with entries $w_{ij}$ for observed components. Weight behaviour (e.g., presence of extreme weights) was monitored as a practical diagnostic of whether observed history adequately explains missingness.
-
-### 3.5 Multiple imputation (MI) as an MAR alternative (if included)
-
-As an MAR-based alternative, multiple imputation can be used to create $M$ completed datasets by drawing $Y^{m}$ from an imputation model conditional on $(Y^{o},X)$. Each dataset is analysed with the chosen outcome model, and estimates are combined using Rubin’s rules. Inference targets and model specifications match those of the primary analyses, while MI propagates uncertainty due to missingness through between-imputation variability.
-
----
-
-## 4) MNAR: sensitivity analysis anchored on BPRS (continuous outcome)
-
-Because MNAR implies dependence of missingness on unobserved outcomes,
-
-$$
-f(R_i \mid X_i, Y_i^{o}, Y_i^{m}) \ \text{depends on } Y_i^{m},
-$$
-
-it cannot be empirically verified from the observed data alone. Therefore, robustness was assessed via a structured sensitivity analysis using the BPRS trajectory, reflecting the clinical concern that patients may become unobserved because their unmeasured symptom burden is systematically worse than expected under MAR.
-
-### 4.1 Pattern-mixture $\delta$-adjustment after dropout
-
-Let $\widehat{Y}^{MAR}_{ij}$ denote the MAR-based predicted value (from the fitted linear mixed model). For post-dropout visits $j>t_i$, define an MNAR-adjusted missing outcome as
-
-$$
-Y_{ij}^{m}(\delta)
-=
-\widehat{Y}^{MAR}_{ij}
-+
-\delta,
-\qquad
-j>t_i.
-$$
-
-Here, $\delta$ encodes the degree and direction of MNAR departure:
-
-* $\delta=0$ corresponds to MAR.
-* $\delta>0$ represents systematically higher (worse) unobserved BPRS after dropout than MAR would predict.
-* $\delta<0$ represents systematically lower unobserved BPRS.
-
-Key estimands (e.g., time trend and covariate effects) were recomputed across a pre-specified grid of $\delta$ values to evaluate how conclusions change as missingness becomes increasingly non-ignorable. This approach provides an interpretable robustness summary in the Alzheimer context: it quantifies the magnitude of unobserved symptom shift required to materially alter inference.
-
-### 4.2 Interpretation
-
-Sensitivity analysis results were reported as ranges (or profiles) of the main parameters of interest across $\delta$, emphasizing whether substantive conclusions are stable under clinically plausible MNAR deviations.
-
----
-
-If you paste the exact fixed-effect structure you used for time (e.g., linear time, quadratic time, or categorical visit indicators) and which binary outcome you modelled, I can rewrite the model equations *verbatim* to match your final formulas (same covariate symbols, same link functions, same random-effects structure).
-
-
-
-## Results
-
-
-```{r missingness-taxonomy-code, echo=TRUE}
-#| label: q1-missingness-taxonomy-code
-#| message: false
-#| warning: false
-
-library(data.table)
-library(ggplot2)
-
-# ------------------------------------------------------------
-# 1) Taxonomy helpers: complete / monotone / non-monotone
-#    and complete / dropout / intermittent
-# ------------------------------------------------------------
-
-classify_missingness <- function(dt, id, cols, time = NULL) {
-  stopifnot(is.data.table(dt))
-  if (is.null(time)) time <- seq_along(cols) - 1L
-
-  # enforce time ordering
-  ord  <- order(time)
-  cols <- cols[ord]
-  time <- time[ord]
-
-  # R_ij = 1 if observed, 0 if missing
-  R_dt <- dt[, lapply(.SD, function(x) as.integer(!is.na(x))), .SDcols = cols]
-  Rmat <- as.matrix(R_dt)
-
-  # complete cases
-  is_complete <- rowSums(1L - Rmat) == 0L
-
-  # monotone missingness (dropout-type): once missing then always missing
-  is_monotone <- apply(Rmat, 1, function(r) {
-    if (all(r == 1L)) return(TRUE)                 # complete is monotone, but we separate later
-    last1 <- if (any(r == 1L)) max(which(r == 1L)) else 0L
-    all(r[(last1 + 1L):length(r)] == 0L)
-  })
-
-  # non-monotone: intermittent gaps exist
-  is_nonmon <- !is_monotone
-
-  # dropout time T_i = last observed visit time
-  last_obs_idx <- apply(Rmat, 1, function(r) if (any(r == 1L)) max(which(r == 1L)) else NA_integer_)
-  T_i <- ifelse(is.na(last_obs_idx), NA_integer_, time[last_obs_idx])
-
-  pattern_missingness <- fifelse(is_complete, "complete",
-                                fifelse(is_monotone, "monotone", "non-monotone"))
-  pattern_dropout <- fifelse(is_complete, "complete",
-                             fifelse(is_monotone, "dropout", "intermittent"))
-
-  pattern_string <- apply(Rmat, 1, paste0, collapse = "")
-
-  out <- dt[, .(patid = get(id))]
-  out[, `:=`(
-    missingness_pattern = pattern_missingness,
-    dropout_pattern     = pattern_dropout,
-    last_observed_time  = T_i,
-    n_missing           = rowSums(1L - Rmat),
-    pattern             = pattern_string
-  )]
-  out
-}
-
-summarise_missing_by_time <- function(dt, id, cols, time = NULL) {
-  stopifnot(is.data.table(dt))
-  if (is.null(time)) time <- seq_along(cols) - 1L
-
-  ord  <- order(time)
-  cols <- cols[ord]
-  time <- time[ord]
-
-  long <- melt(
-    dt[, c(id, cols), with = FALSE],
-    id.vars = id,
-    variable.name = "visit",
-    value.name = "y",
-    variable.factor = FALSE
-  )
-  long[, time := time[match(visit, cols)]]
-  long[, observed := !is.na(y)]
-
-  long[, .(
-    n_patients  = uniqueN(get(id)),
-    n_obs       = sum(observed),
-    pct_missing = 100 * (uniqueN(get(id)) - sum(observed)) / uniqueN(get(id))
-  ), by = time][order(time)]
-}
-
-# ------------------------------------------------------------
-# 2) Apply to the continuous outcome (BPRS)
-# ------------------------------------------------------------
-
-bprs_cols <- paste0("bprs", 0:6)
-tax_bprs  <- classify_missingness(alzheimer_data, id = "patid", cols = bprs_cols, time = 0:6)
-miss_t_bprs <- summarise_missing_by_time(alzheimer_data, id = "patid", cols = bprs_cols, time = 0:6)
-
-# summaries for reporting
-tab_missingness_bprs <- tax_bprs[, .(n = .N), by = missingness_pattern][order(missingness_pattern)]
-tab_missingness_bprs[, pct := 100 * n / sum(n)]
-
-tab_dropout_bprs <- tax_bprs[, .(n = .N), by = dropout_pattern][order(dropout_pattern)]
-tab_dropout_bprs[, pct := 100 * n / sum(n)]
-
-top_patterns_bprs <- tax_bprs[, .(n = .N), by = pattern][order(-n)][1:10]
-
-# ------------------------------------------------------------
-# 3) Plots: missingness by time + pattern heatmap (optional)
-# ------------------------------------------------------------
-
-p_miss_time_bprs <- ggplot(miss_t_bprs, aes(x = time, y = pct_missing)) +
-  geom_line(linewidth = 1) +
-  geom_point(size = 2) +
-  labs(x = "Time (years)", y = "Percent missing", title = "Missingness over time (BPRS)") +
-  theme_minimal()
-
-# Heatmap of individual patterns (use a sample if too many patients)
-set.seed(1)
-tax_sample <- tax_bprs[sample(.N, min(.N, 200L))]
-
-# Expand the pattern string into columns for plotting
-pat_mat <- t(vapply(strsplit(tax_sample$pattern, ""), as.integer, integer(7)))
-colnames(pat_mat) <- paste0("t", 0:6)
-
-heat_dt <- data.table(patid = tax_sample$patid, pat_mat)
-heat_long <- melt(heat_dt, id.vars = "patid", variable.name = "time", value.name = "R")
-heat_long[, time := as.integer(sub("^t", "", time))]
-
-p_heat_bprs <- ggplot(heat_long, aes(x = time, y = factor(patid), fill = factor(R))) +
-  geom_tile() +
-  labs(x = "Time (years)", y = "Patient (sample)", title = "Observation indicator R_ij (BPRS)") +
-  theme_minimal() +
-  theme(axis.text.y = element_blank(), axis.ticks.y = element_blank()) +
-  guides(fill = "none")
-
-# print(p_miss_time_bprs)
-# print(p_heat_bprs)
-
-# ------------------------------------------------------------
-# 4) Objects that map to SEM / PMM / SPM frameworks
-#    (these are the building blocks you will reuse later)
-# ------------------------------------------------------------
-
-# SEM-style: long data with R_ij and observed history (lagged outcome)
-# (works off your existing long dataset)
-alz_sem_bprs <- copy(alzheimer_long)
-alz_sem_bprs[, R_bprs := as.integer(!is.na(bprs))]
-setorder(alz_sem_bprs, patid, time)
-alz_sem_bprs[, bprs_lag1 := shift(bprs, 1L, type = "lag"), by = patid]
-alz_sem_bprs[, dbprs_lag1 := bprs_lag1 - shift(bprs, 2L, type = "lag"), by = patid]
-
-# PMM-style: dropout groups via T_i (pattern-mixture stratification variable)
-alz_pmm_bprs <- merge(alzheimer_long, tax_bprs, by = "patid", all.x = TRUE)
-alz_pmm_bprs[, dropout_group := factor(last_observed_time, levels = 0:6)]
-
-# SPM-style: for shared-parameter ideas you typically need the same ingredients:
-# - longitudinal outcome (bprs)
-# - missingness indicator (R_bprs)
-# - shared random effects (later in modelling, not in preprocessing)
-# So the key dataset is alz_sem_bprs (contains both bprs and R_bprs).
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
