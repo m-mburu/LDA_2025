@@ -5090,3 +5090,52 @@ This pattern-mixture sensitivity analysis evaluates the robustness of BPRS concl
 
 
 
+### Which other missingness models are in our **revision.md**, besides the MAR LMM?
+
+In the revision notes, we essentially laid out **two MNAR sensitivity families** (plus the MAR primary model):
+
+1. **Pattern-mixture model (PMM)** sensitivity (your main plan)
+
+   * Define dropout pattern by the last observed visit (D_i).
+   * Let the **mean BPRS trajectory depend on the dropout pattern**, e.g. a pattern-specific shift and/or slope:
+     
+     [
+     E(Y_{ij}\mid D_i)=x_{ij}^\top\beta+\eta_{D_i}+\kappa_{D_i}t_{ij},
+     ]
+
+     and then impose *identifying restrictions* for the unobserved part (your (\delta)-shift and slope-change ideas). 
+
+2. **Selection model (Diggle–Kenward style)** MNAR sensitivity (optional in the notes)
+
+   * Jointly model outcomes and dropout via
+
+     [
+     f(y_i,r_i\mid X_i)=f(y_i\mid X_i,\theta),f(r_i\mid X_i,y_i,\psi),
+     ]
+     
+     with a dropout hazard that can depend on the **current (possibly unobserved) outcome** through an MNAR parameter (your (\psi_2)). 
+   * This aligns with the course notes idea that in selection models, MNAR corresponds to allowing dropout to depend on the current (y_{ij}) (not just observed history). 
+
+A third family is also covered in the course notes (even if we didn’t build it out in the revision file): **shared-parameter models** (a.k.a. joint models with shared random effects), where dropout depends on latent subject-specific effects that also drive the longitudinal outcome. 
+
+---
+
+### Which is better for *our* BPRS case, and why?
+
+For your setting (Alzheimer follow-up, **very high dropout ~60% by later years**, and the scientific goal is “how does BPRS evolve over time?”), the best *practical* choice is:
+
+**Primary:** MAR **direct likelihood** via the LMM (your Homework 1 model).
+**Sensitivity:** PMM with **(\delta)-adjustment / slope-change** scenarios.
+
+Here’s why I’d pick **PMM sensitivity** as the main MNAR check:
+
+* **Clinician-facing interpretability:** a (\delta)-shift is literally “after dropout, symptoms are on average (\delta) points worse (or better) than what MAR would predict,” and slope-change is “progression accelerates after dropout.” That maps cleanly to clinical stories (dropout because worsening, institutionalisation, etc.). 
+
+* **With ~60% missingness, extrapolation is unavoidable no matter what.** PMM makes that extrapolation explicit and tunable (you show *how large* an MNAR departure is needed to change the conclusion). That’s exactly the spirit of sensitivity analysis emphasized in the course material: MNAR methods require **strong, untestable assumptions** and are often most useful as sensitivity tools rather than “the one true model.” 
+
+* **Selection models are powerful but fragile in practice.** The Diggle–Kenward MNAR term (dependence on the unobserved current outcome) is not identified from observed data alone, so you end up fixing/varying (\psi_2) and checking robustness—i.e., sensitivity analysis again. 
+  Also, the Molenberghs et al. paper explicitly warns that it’s hard to interpret “evidence for MNAR” using only the observed data and notes that complicated MNAR fits can become computationally prohibitive. 
+
+* **Shared-parameter models** are elegant, but they typically add another layer of latent structure that’s harder to defend clinically (“dropout depends on an unobserved frailty/random effect”), and with heavy dropout they can become very model-dependent. 
+
+So: keep the **LMM under MAR** as the clean estimand-driven primary analysis, and use **PMM (\delta)/slope** as the sensitivity analysis you can explain to both a statistician *and* a clinician without hand-waving. That pairing is also consistent with the message from Molenberghs et al. that likelihood-based ignorable methods are generally more justifiable than crude rules like CC/LOCF, while MNAR work should be handled carefully. 

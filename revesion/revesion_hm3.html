@@ -5979,6 +5979,85 @@ conclusions depend on the MNAR assumption.</li>
 BPRS conclusions under plausible MNAR scenarios. The <span class="math inline">\(\delta\)</span>-shift approach is transparent,
 clinically interpretable, and highlights the impact of untestable
 assumptions about missing data.</p>
+<h3 id="which-other-missingness-models-are-in-our-revisionmd-besides-the-mar-lmm">Which
+other missingness models are in our <strong>revision.md</strong>,
+besides the MAR LMM?</h3>
+<p>In the revision notes, we essentially laid out <strong>two MNAR
+sensitivity families</strong> (plus the MAR primary model):</p>
+<ol style="list-style-type: decimal">
+<li><p><strong>Pattern-mixture model (PMM)</strong> sensitivity (your
+main plan)</p>
+<ul>
+<li><p>Define dropout pattern by the last observed visit (D_i).</p></li>
+<li><p>Let the <strong>mean BPRS trajectory depend on the dropout
+pattern</strong>, e.g. a pattern-specific shift and/or slope:</p>
+<p>[ E(Y_{ij}D_i)=x_{ij}^+<em>{D_i}+</em>{D_i}t_{ij},]</p>
+<p>and then impose <em>identifying restrictions</em> for the unobserved
+part (your ()-shift and slope-change ideas).</p></li>
+</ul></li>
+<li><p><strong>Selection model (Diggle–Kenward style)</strong> MNAR
+sensitivity (optional in the notes)</p>
+<ul>
+<li><p>Jointly model outcomes and dropout via</p>
+<p>[ f(y_i,r_iX_i)=f(y_iX_i,),f(r_iX_i,y_i,),]</p>
+<p>with a dropout hazard that can depend on the <strong>current
+(possibly unobserved) outcome</strong> through an MNAR parameter (your
+(_2)).</p></li>
+<li><p>This aligns with the course notes idea that in selection models,
+MNAR corresponds to allowing dropout to depend on the current (y_{ij})
+(not just observed history).</p></li>
+</ul></li>
+</ol>
+<p>A third family is also covered in the course notes (even if we didn’t
+build it out in the revision file): <strong>shared-parameter
+models</strong> (a.k.a. joint models with shared random effects), where
+dropout depends on latent subject-specific effects that also drive the
+longitudinal outcome.</p>
+<hr />
+<h3 id="which-is-better-for-our-bprs-case-and-why">Which is better for
+<em>our</em> BPRS case, and why?</h3>
+<p>For your setting (Alzheimer follow-up, <strong>very high dropout ~60%
+by later years</strong>, and the scientific goal is “how does BPRS
+evolve over time?”), the best <em>practical</em> choice is:</p>
+<p><strong>Primary:</strong> MAR <strong>direct likelihood</strong> via
+the LMM (your Homework 1 model). <strong>Sensitivity:</strong> PMM with
+<strong>()-adjustment / slope-change</strong> scenarios.</p>
+<p>Here’s why I’d pick <strong>PMM sensitivity</strong> as the main MNAR
+check:</p>
+<ul>
+<li><p><strong>Clinician-facing interpretability:</strong> a ()-shift is
+literally “after dropout, symptoms are on average () points worse (or
+better) than what MAR would predict,” and slope-change is “progression
+accelerates after dropout.” That maps cleanly to clinical stories
+(dropout because worsening, institutionalisation, etc.).</p></li>
+<li><p><strong>With ~60% missingness, extrapolation is unavoidable no
+matter what.</strong> PMM makes that extrapolation explicit and tunable
+(you show <em>how large</em> an MNAR departure is needed to change the
+conclusion). That’s exactly the spirit of sensitivity analysis
+emphasized in the course material: MNAR methods require <strong>strong,
+untestable assumptions</strong> and are often most useful as sensitivity
+tools rather than “the one true model.”</p></li>
+<li><p><strong>Selection models are powerful but fragile in
+practice.</strong> The Diggle–Kenward MNAR term (dependence on the
+unobserved current outcome) is not identified from observed data alone,
+so you end up fixing/varying (_2) and checking robustness—i.e.,
+sensitivity analysis again. Also, the Molenberghs et al. paper
+explicitly warns that it’s hard to interpret “evidence for MNAR” using
+only the observed data and notes that complicated MNAR fits can become
+computationally prohibitive.</p></li>
+<li><p><strong>Shared-parameter models</strong> are elegant, but they
+typically add another layer of latent structure that’s harder to defend
+clinically (“dropout depends on an unobserved frailty/random effect”),
+and with heavy dropout they can become very model-dependent.</p></li>
+</ul>
+<p>So: keep the <strong>LMM under MAR</strong> as the clean
+estimand-driven primary analysis, and use <strong>PMM ()/slope</strong>
+as the sensitivity analysis you can explain to both a statistician
+<em>and</em> a clinician without hand-waving. That pairing is also
+consistent with the message from Molenberghs et al. that
+likelihood-based ignorable methods are generally more justifiable than
+crude rules like CC/LOCF, while MNAR work should be handled
+carefully.</p>
 
 </body>
 </html>

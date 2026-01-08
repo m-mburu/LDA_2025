@@ -1,0 +1,881 @@
+---
+title: "Longitudinal Analysis of Alzheimer’s Disease Progression: Modeling Cognitive and Psychiatric Trajectories with Informative Dropout"
+author: 
+  - Anita Kerubo Ogero (2469491)  
+  - Okolie Tess Eucharia (2468507)  
+  - Moses Mburu (2469245)  
+  - Dorothy Chepkoech (2469284)
+
+format:
+  pdf:
+    pdf-engine: xelatex
+    fig-pos: "H"
+    tbl-pos: "H"
+    number-depth: 6
+    include-in-header:
+      text: |
+        \renewcommand{\baselinestretch}{1.1}
+        \usepackage{graphicx}
+        \usepackage{xcolor}
+        \usepackage{amsmath,amssymb}
+        \usepackage{booktabs}
+        \usepackage{longtable}
+        \usepackage{array}
+        \usepackage{multirow}
+        \usepackage{makecell}
+        \usepackage{pdflscape}
+        \usepackage{float}
+        \usepackage{fancyhdr}
+  gfm: default
+
+fontsize: 9pt
+bibliography: ref/lda3.bib
+csl: ref/harvard.csl
+link-citations: true
+reference-location: block
+---
+
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,
+                        message = FALSE,
+                        warning = FALSE,
+                        fig.width = 7,
+                        fig.height = 4.3,
+                        eval = FALSE)
+
+library(kableExtra)
+
+use_latex_packages()
+
+
+tidy_with_ci <- function(model,
+                         effects = c("fixed", "ran_pars"),
+                         conf_level = 0.95,
+                         exponentiate = FALSE,
+                         digits = 2) {
+  mm_class <- class(model)
+
+  is_mixed <-
+    any(c(
+      "lmerMod", "lmerModLmerTest",
+      "glmerMod", "nlmerMod"
+    ) %in% mm_class) ||
+      inherits(model, "glmmTMB")
+
+  if (is_mixed) {
+    if (!requireNamespace("broom.mixed", quietly = TRUE)) {
+      stop("broom.mixed is required for mixed models.\n
+        Install with install.packages('broom.mixed').")
+    }
+    out <- broom.mixed::tidy(
+      model,
+      effects = effects,
+      conf.int = TRUE,
+      conf.level = conf_level,
+      exponentiate = exponentiate
+    )
+    # keep only common columns
+    out <- out[, intersect(
+      c(
+        "effect", "group", "term", "estimate", "std.error",
+        "statistic", "p.value", "conf.low", "conf.high"
+      ),
+      names(out)
+    )]
+  } else if (inherits(model, "gls")) {
+    # nlme::gls objects are not supported by broom::tidy; extract manually
+    s <- summary(model)
+    if (!is.null(s$tTable)) {
+      tt <- as.data.frame(s$tTable)
+      # tTable columns: Value, Std.Error, t-value, p-value
+      out <- data.frame(
+        term = rownames(tt),
+        estimate = tt[["Value"]],
+        std.error = tt[["Std.Error"]],
+        statistic = tt[["t-value"]],
+        p.value = tt[["p-value"]],
+        stringsAsFactors = FALSE
+      )
+      # Wald (normal) CIs
+      z <- stats::qnorm(1 - (1 - conf_level) / 2)
+      out$conf.low <- out$estimate - z * out$std.error
+      out$conf.high <- out$estimate + z * out$std.error
+      # ensure column names match later expectations
+      out <- out[, c(
+        "term", "estimate", "std.error",
+        "statistic", "p.value", "conf.low", "conf.high"
+      )]
+    } else {
+      stop("Unable to extract coefficient table from gls summary output.")
+    }
+  } else {
+    if (!requireNamespace("broom", quietly = TRUE)) {
+      stop("broom is required. Install with install.packages('broom').")
+    }
+    out <- broom::tidy(
+      model,
+      conf.int = TRUE,
+      conf.level = conf_level,
+      exponentiate = exponentiate
+    )
+    out <- out[, intersect(
+      c(
+        "term", "estimate", "std.error",
+        "statistic", "p.value", "conf.low", "conf.high"
+      ),
+      names(out)
+    )]
+  }
+
+  # formatted estimate with CI
+  if (all(c("estimate", "conf.low", "conf.high") %in% names(out))) {
+    # Identify rows that have valid CIs (i.e., not ran_pars)
+    has_ci <- !is.na(out$conf.low)
+    
+    # Create the formatted estimate string, applying CI only where valid
+    out$estimate <- ifelse(
+      has_ci,
+      paste0(
+        sprintf(paste0("%.", digits, "f"), out$estimate), " [",
+        sprintf(paste0("%.", digits, "f"), out$conf.low), ", ",
+        sprintf(paste0("%.", digits, "f"), out$conf.high), "]"
+      ),
+      sprintf(paste0("%.", digits, "f"), out$estimate) # Just format the estimate for ran_pars
+    )
+  }
+
+  # format numeric columns that are not the main estimate
+  num_cols <- intersect(c("std.error", "statistic"), names(out))
+  out[num_cols] <- lapply(out[num_cols], function(x) {
+    if (is.numeric(x)) round(x, digits) else x
+  })
+
+  # optional: pretty p-values (e.g., <0.001)
+  if ("p.value" %in% names(out)) {
+    # Format p-values, leaving NAs as they are
+    out$p.value <- ifelse(is.na(out$p.value), NA_character_,
+      ifelse(out$p.value < 10^(-digits),
+        paste0("<0.", paste(rep("0", digits - 1), collapse = ""), "1"),
+        format(round(out$p.value, digits), nsmall = digits)
+      )
+    )
+  }
+
+  # reorder columns: put term first, then estimate string
+  keep_order <- c(
+    "effect", "group", "term", "estimate", "std.error",
+    "statistic", "p.value"
+  )
+  out <- out[, intersect(keep_order, names(out))]
+
+  tibble::as_tibble(out)
+}
+
+
+
+# Tidy adjacent model comparisons from base anova() output
+# Works for anova(m1, m2, ...): lm/glm, lmer/glmer, gls/lme, etc.
+tidy_anova_compare <- function(anova_df, digits = 2) {
+  x <- anova_df
+  is_num <- vapply(x, is.numeric, logical(1))
+  x[is_num] <- lapply(x[is_num], function(v) {
+    ifelse(is.na(v), v, round(v, digits))
+  })
+  x$call <- NULL
+  x
+}
+
+
+
+display_random_effects <- function(
+    model,
+    caption = "Random effects: variance components",
+    digits = 3) {
+  df <- tidy_re_varcorr(model, digits = digits)
+  knitr::kable(
+    df,
+    format = "latex",
+    booktabs = TRUE,
+    #caption = caption,
+    align = c("l", "l", "r", "r", "r")
+  ) |>
+    kableExtra::kable_styling(latex_options = "hold_position")
+}
+
+
+
+tidy_re_varcorr <- function(model, digits = 3) {
+  vc <- lme4::VarCorr(model)
+  rows <- list()
+
+  for (grp in names(vc)) {
+    m <- vc[[grp]]
+    sd <- attr(m, "stddev")
+    trm <- names(sd)
+    var <- sd^2
+
+    corMat <- tryCatch(attr(m, "correlation"),
+      error = function(e) NULL
+    )
+
+    for (k in seq_along(trm)) {
+      term <- trm[k]
+      corr_val <- NA_real_
+      if (!is.null(corMat) && nrow(corMat) > 1 &&
+        term != "(Intercept)" &&
+        "(Intercept)" %in% colnames(corMat)) {
+        corr_val <- as.numeric(corMat[term, "(Intercept)"])
+      }
+      rows[[length(rows) + 1L]] <- data.frame(
+        Groups = grp,
+        Name = term,
+        Variance = var[k],
+        Std.Dev. = sd[k],
+        Corr = corr_val,
+        check.names = FALSE
+      )
+    }
+  }
+
+  out <- do.call(rbind, rows)
+
+  # Add Residual variance
+  resid_sd <- sigma(model)
+  resid_var <- resid_sd^2
+  resid_row <- data.frame(
+    Groups = "Residual",
+    Name = "",
+    Variance = resid_var,
+    Std.Dev. = resid_sd,
+    Corr = NA_real_,
+    check.names = FALSE
+  )
+  out <- rbind(out, resid_row)
+
+  num_cols <- c("Variance", "Std.Dev.", "Corr")
+  out[num_cols] <- lapply(
+    out[num_cols],
+    function(x) {
+      ifelse(is.na(x),
+        NA, round(x, digits)
+      )
+    }
+  )
+  out
+}
+
+
+```
+
+
+
+```{r}
+library(here)
+library(tidyverse)
+library(data.table)
+library(haven)
+library(janitor)
+library(knitr)
+library(lme4)   
+library(lmerTest)
+library(pbkrtest)
+library(gridExtra)
+
+lda_path <- here()
+lda_data_path <- here(lda_path, "data")
+#list.files(lda_data_path)
+
+```
+
+
+
+```{r}
+# Load the data
+alzheimer_data <- read_sas(here(
+    lda_data_path,
+    "alzheimer25.sas7bdat"
+)) |> clean_names()
+
+
+```
+
+
+
+
+
+```{r factor-conversion}
+setDT(alzheimer_data)
+# log bmi
+#alzheimer_data[, bmi := log(bmi)]
+factor_info <- list(
+  sex = list(
+    levels = c(0, 1),
+    labels = c("Male", "Female")
+  ),
+  edu = list(
+    levels = c(1, 2, 3, 4),
+    labels = c("Primary", "Lower secondary", "Upper secondary", "Higher")
+  ),
+  job = list(
+    levels = c(0, 1),
+    labels = c("No Paid Job", "Paid Job")
+  ),
+  wzc = list(
+    levels = c(0, 1),
+    labels = c("Lives at Home", "Nursing Home")
+  )
+)
+
+
+for (col_name in names(factor_info)) {
+  info <- factor_info[[col_name]]
+  alzheimer_data[, (col_name) := factor(get(col_name),
+    levels = info$levels,
+    labels = info$labels
+  )]
+}
+
+# Verify the changes by checking the structure of the new columns
+#kable(alzheimer_data[1:5, c("sex", "edu", "job", "wzc")])
+```
+
+
+```{r reshape-data}
+
+id_vars <- c("patid", "trial", "sex", "age", 
+             "edu", "bmi", "inkomen", "job", "adl", "wzc",
+            "cdrsb0",  "abpet0", "taupet0" )
+
+
+
+alzheimer_long <- melt(alzheimer_data,
+  id.vars = id_vars,
+  measure.vars = patterns(
+    cdrsb = "^cdrsb[0-6]",
+    bprs = "^bprs[0-6]",
+    abpet = "^abpet[0-6]",
+    taupet = "^taupet[0-6]"
+  ),
+  variable.name = "time",
+  value.name = c("cdrsb", "bprs", "abpet", "taupet"),
+  variable.factor = FALSE
+)
+
+alzheimer_long[, time := as.integer(time)]
+
+#alzheimer_long[, time := time - 1]
+
+
+# Display the first few rows of the new long-format data
+#kable(head(alzheimer_long))
+```
+
+## Abstract
+
+## Introduction
+
+
+
+Alzheimer’s disease is the most common cause of dementia and is a progressive neurodegenerative condition that leads to worsening cognition, neuropsychiatric symptoms, and day-to-day functioning [@scheltens2016ad]. Dementia is a major global health burden—WHO estimates that 57 million people were living with dementia in 2021, with nearly 10 million new cases each year, and the burden falls mainly on older adults [@who_dementia]. Because symptoms change gradually and heterogeneously across patients, longitudinal studies are central for describing average progression, quantifying between-patient differences, and identifying baseline factors linked to faster or slower deterioration. In Alzheimer research and clinical trials, cognitive-functional progression is commonly tracked with the Clinical Dementia Rating–Sum of Boxes (CDR-SB), which captures both cognitive and functional impairment and tends to worsen in a roughly steady way over follow-up in symptomatic disease [@cedarbaum2013cdrsb; @williams2013cdrsb]. Psychiatric symptom burden can be summarised using clinician-rated scales such as the Brief Psychiatric Rating Scale (BPRS), which has been applied in Alzheimer populations to characterise behavioural and psychological symptoms [@ownby1994bprs].
+
+This study follows a cohort of patients diagnosed with Alzheimer’s disease who
+were recruited across multiple clinical centres and assessed annually for up to
+six years after enrolment at first diagnosis. Psychiatric symptom severity was
+measured repeatedly using the Brief Psychiatric Rating Scale (BPRS). Cognitive
+status was derived from the Clinical Dementia Rating Sum of Boxes (CDR-SB) and
+dichotomised using the rule CDR-SB > 10 to indicate a worse cognitive
+category. Biomarker assessments were also taken annually, including
+amyloid-beta positron emission tomography (amyloid PET) and tau positron
+emission tomography (tau PET), alongside baseline demographic and clinical
+characteristics such as age, sex, education, body mass index, income,
+functional status, employment status, and living situation.
+
+In long-term longitudinal studies, dropout is expected, and this is
+particularly common in studies of elderly and clinically vulnerable
+populations. When dropout is related to a patient’s health status, missing
+outcomes can increase over follow-up and complete-case summaries may give a
+distorted picture of progression [@diggle1994informative].
+
+The objectives of this analysis are fourfold: First, to describe and explore
+the extent and patterns of missing data over follow-up. As part of this, we
+assess whether the data are consistent with missing completely at random (MCAR)
+by examining associations between missingness and observed patient
+characteristics and earlier outcomes. Second, to describe and model the
+evolution of psychiatric symptom severity (BPRS) over time and how it relates
+to baseline patient characteristics and disease severity, using methods that
+account for correlation between repeated measurements within the same patient
+and unbalanced follow-up [@laird1982random].
+Third, to model how the probability of being in the worst cognitive category
+(CDR-SB > 10) changes over time and how it relates to baseline
+characteristics and biomarkers, using marginal and subject-specific frameworks
+for longitudinal binary outcomes [@liang1986longitudinal].
+Fourth, since the missing-at-random (MAR) assumption cannot be verified from
+the observed data and MAR and MNAR mechanisms can lead to the same observed
+patterns, we perform a sensitivity analysis that explores clinically plausible
+departures from MAR toward missing not at random (MNAR) for the continuous BPRS
+outcome [@little1993pattern; @leacy2017delta; @diggle1994informative].
+
+## Methodology
+
+### Study design, outcomes, and covariates
+
+We analysed data from a multicentre cohort of patients diagnosed with Alzheimer’s disease who were assessed annually for up to six years. Psychiatric symptom severity was measured repeatedly using the Brief Psychiatric Rating Scale (BPRS). Cognitive status was measured using the Clinical Dementia Rating Sum of Boxes (CDR-SB). Two positron emission tomography biomarkers were also assessed annually: amyloid positron emission tomography (amyloid PET) and tau positron emission tomography (tau PET).
+
+For the cognitive endpoint, the continuous CDR-SB score was dichotomised to define a clinically severe category:
+
+$$
+Z_{ij} = \mathbb{I}\!\left(\mathrm{CDR\text{-}SB}_{ij} > 10\right),
+$$
+
+where $i=1,\dots,N$ indexes patients and $j=0,\dots,J$ indexes the scheduled annual visits, with $j=0$ baseline.
+
+Baseline characteristics included age, sex, education, body mass index, functional status (activities of daily living), employment status, and living situation. These are denoted collectively by $X_i$. Baseline disease severity measures are denoted by $S_i$ (including baseline CDR-SB, and baseline biomarker measures where relevant).
+
+### Analysis objectives
+
+The analysis had four linked objectives:
+
+1. Describe the amount and structure of missing follow-up data and assess whether missingness depends on observed outcomes or covariates.
+2. Characterise the average evolution of BPRS over time and how it relates to baseline characteristics and baseline disease severity.
+3. Characterise the evolution over time of the dichotomised cognitive outcome based on CDR-SB.
+4. Assess how sensitive the BPRS conclusions are to departures from the primary missing-data assumption.
+
+### Missing follow-up data
+
+#### Notation for missingness
+
+Let $Y_{ij}$ denote BPRS at visit $j$ for patient $i$. Define the indicator
+
+$$
+R_{ij} =
+\begin{cases}
+1, & \text{if } Y_{ij} \text{ is observed}, \\
+0, & \text{if } Y_{ij} \text{ is missing}.
+\end{cases}
+$$
+
+Let $R_i=(R_{i0},\dots,R_{iJ})$ denote a patient’s observation pattern, and split the full outcome vector as $Y_i=(Y_i^{obs},Y_i^{mis})$.
+
+#### Describing missingness patterns
+
+Missingness patterns were first characterised descriptively to determine whether dropout followed a monotone structure or whether intermittent missingness occurred. For each subject, the last observed visit was defined as
+
+$$
+t_i = \max\{j : R_{ij}=1\}.
+$$
+
+A subject was classified as exhibiting monotone dropout if $R_{ij}=1$ for all $j \le t_i$ and $R_{ij}=0$ for all $j > t_i$. Non-monotone (intermittent) missingness was defined as the presence of at least one missing observation followed by a later observed measurement, i.e. the pattern is non-monotone if there exist $j<k$ such that $R_{ij}=0$ and $R_{ik}=1$.
+
+These classifications were summarised using (i) the distribution of $t_i$ (retention over time), (ii) the proportion missing at each visit $j$, and (iii) the frequency of intermittent gaps within $R_i$.
+
+#### Assessing dependence of missingness on observed data (showing data are not MCAR)
+
+We examined whether missingness is plausibly independent of observed information (more consistent with MCAR) or related to observed disease severity and covariates (supporting a MAR working assumption). This included descriptive comparisons (for example, baseline BPRS by the number of missed follow-up visits) and a discrete-time model for dropout. The goal is not to “prove MAR”, but to demonstrate that missingness is not consistent with a completely random observation process and to motivate methods that remain appropriate when dropout depends on observed history [@molenberghs2004incomplete].
+
+A convenient way to formalise dropout is to model the probability of becoming missing at the next visit among those observed at the current visit. Define
+
+$$
+D_{i,j+1} = 1 - R_{i,j+1},
+$$
+
+and fit a logistic model of the form
+
+$$
+\Pr(D_{i,j+1}=1 \mid \mathcal{H}_{ij})
+=
+\operatorname{logit}^{-1}\!\left(
+\alpha_0 + \alpha_1 Y_{ij} + \alpha_2^\top X_i + \alpha_3 j
+\right),
+$$
+
+where $\mathcal{H}_{ij}$ denotes the observed history up to visit $j$.
+
+If dropout is associated with observed outcomes or covariates, this argues against MCAR. In the terminology of Diggle and Kenward, such a mechanism is compatible with “random dropout” (dropout depending on observed history), for which likelihood-based inference for the measurement model can proceed without explicitly modelling the dropout process, provided standard ignorability/distinct-parameter conditions hold [@diggle1994informative].
+
+
+#### Handling missing data in longitudinal models
+
+##### Complete case analysis
+
+Complete case analysis restricts the analysis to patients with a fully observed BPRS profile across all scheduled visits. In long follow-up studies, this can remove a large proportion of the cohort and shifts the analysis toward patients who remain under observation. When dropout is related to disease course (for example, patients with worse psychiatric symptoms or faster deterioration being more likely to miss later visits), the complete-case estimate of the BPRS trajectory reflects the evolution among “stayers” rather than the evolution in the full cohort. In that setting, the average yearly change in BPRS can be biased because it is estimated from a selected subgroup, and precision is reduced because many observed BPRS measurements are discarded [@molenberghs2004incomplete].
+
+##### Last observation carried forward (LOCF) and related single-imputation rules
+
+LOCF replaces each missing BPRS value after dropout with the last observed BPRS score for that patient. For a progressive condition, this effectively assumes that a patient’s psychiatric symptom level stays constant after the last attended visit. In terms of BPRS evolution, LOCF tends to flatten the estimated mean trajectory at later follow-up because patients who drop out contribute repeated copies of their last score rather than a plausible continued change. This can lead to underestimation (or distortion) of the average change over time, and it treats imputed values as if they were observed when estimating uncertainty, which can make confidence intervals look too narrow [@molenberghs2004incomplete].
+
+
+
+##### Multiple imputation (MI)
+
+Multiple imputation treats the missing outcomes as additional unknown quantities and replaces each missing value with $m$ plausible draws from an imputation model. Each imputed dataset is analysed using the same substantive model, and results are then combined using Rubin’s rules so that standard errors reflect both within-imputation variability and the extra uncertainty due to missingness [@rubin1976inference].
+
+Let $\hat\theta^{(k)}$ and $\widehat{\mathrm{Var}}(\hat\theta^{(k)})$ denote the estimate and its variance from imputed dataset $k=1,\dots,m$. The pooled estimate is
+
+$$
+\bar\theta = \frac{1}{m}\sum_{k=1}^m \hat\theta^{(k)}.
+$$
+
+Define the within-imputation variance
+
+$$
+\bar U = \frac{1}{m}\sum_{k=1}^m \widehat{\mathrm{Var}}(\hat\theta^{(k)}),
+$$
+
+and the between-imputation variance
+
+$$
+B = \frac{1}{m-1}\sum_{k=1}^m \left(\hat\theta^{(k)}-\bar\theta\right)^2.
+$$
+
+The total variance is
+
+$$
+T = \bar U + \left(1+\frac{1}{m}\right)B.
+$$
+
+In principle, MI can be used for longitudinal outcomes by specifying an imputation model that reflects the repeated-measures structure (time trends, within-patient correlation, and key interactions). In practice, when the proportion missing becomes large (in this study, missingness reaches approximately 60% at later follow-up), MI can become more sensitive to imputation-model specification because a larger fraction of the information about late follow-up trajectories is coming from modelling assumptions rather than directly observed data. Simulation work has shown that the amount of information that can be recovered by MI decreases as missingness increases, and that careful model specification becomes increasingly important at high levels of missingness [@leecarlin2012mi].
+
+For these reasons, MI was not used as the primary analysis strategy here. Instead, we relied on likelihood-based mixed models for the main longitudinal analyses under a working MAR assumption, and we used a dedicated sensitivity analysis to quantify how conclusions change under plausible departures from MAR.
+
+
+
+##### Likelihood-based approaches (primary analyses under a working MAR assumption)
+
+Our primary longitudinal models for BPRS (LMM) and for the dichotomised CDR-SB endpoint (GLMM) are likelihood-based. Under MAR, missingness depends only on observed information and not on unobserved outcomes:
+
+$$
+p(R_i \mid Y_i, X_i)=p(R_i \mid Y_i^{\mathrm{obs}}, X_i).
+$$
+
+Under standard ignorability conditions—most importantly, that parameters of the measurement model and the missingness model are distinct—likelihood inference based on the observed-data likelihood yields valid estimation for the outcome-model parameters without requiring a fully specified joint model for dropout [@rubin1976inference; @molenberghs2004incomplete]. MAR cannot be confirmed from the observed data, so we complemented the primary continuous-outcome analysis with a sensitivity analysis that probes clinically plausible departures from MAR [@molenberghs2004incomplete].
+
+### Longitudinal models
+#### Continuous outcome (BPRS): linear mixed model (LMM)
+
+This model describes how psychiatric symptom severity (BPRS) changes over time in the cohort, while allowing different patients to start at different symptom levels and to change at different rates. It accounts for within-patient correlation from repeated measurements and accommodates unequal follow-up due to dropout.
+
+To model the BPRS trajectory, we used the linear mixed model specification from Homework 1:
+
+$$
+\begin{aligned}
+\mathrm{BPRS}_{it} &= (\beta_0 + b_{0i} + u_{0j}) + (\beta_1 + b_{1i})\,\mathrm{time}_{it} \\
+&\quad + \beta_2\,\mathrm{sex}_i + \beta_3\,\mathrm{age}_i + \beta_4\,\mathrm{bmi}_i + \beta_5\,\mathrm{job}_i \\
+&\quad + \beta_6\,\mathrm{adl}_i + \beta_7\,\mathrm{wzc}_i + \beta_8\,\mathrm{CDR\text{-}SB}_{i0} \\
+&\quad + \beta_9\!\left(\mathrm{time}_{it}\cdot \mathrm{CDR\text{-}SB}_{i0}\right) + \varepsilon_{it}.
+\end{aligned}
+$$
+
+**fixed effects**
+
+- $\beta_0$ is the cohort-average baseline BPRS for a reference patient (given the covariate coding), before adding patient- and centre-level deviations.
+- $\beta_1$ is the cohort-average yearly change in BPRS. A positive value indicates worsening psychiatric symptoms on average over time, while a negative value indicates improvement.
+- $\beta_2,\dots,\beta_7$ represent average differences in BPRS associated with baseline characteristics (sex, age, BMI, employment status, activities of daily living, and living situation), holding the other covariates fixed.
+- $\beta_8$ quantifies the association between baseline cognitive/functional severity (baseline CDR-SB) and baseline psychiatric symptom severity (BPRS).
+- $\beta_9$ captures effect modification of the time trend by baseline CDR-SB. For example, if $\beta_9>0$, patients with higher baseline CDR-SB tend to show a faster increase in BPRS over follow-up.
+
+The model includes patient-specific random effects collected in $b_i=(b_{0i},b_{1i})^\top$, where $b_{0i}$ represents the patient’s deviation from the cohort-average baseline BPRS and $b_{1i}$ represents the patient’s deviation from the cohort-average yearly change. The term $u_{0j}$ is a centre/trial-specific random intercept for centre/trial $j$, capturing systematic baseline differences between centres.
+
+The random effects and residual errors are assumed to follow:
+
+$$
+\begin{pmatrix}
+b_{0i} \\
+b_{1i}
+\end{pmatrix}
+\sim
+N\!\left(
+\begin{pmatrix}
+0 \\
+0
+\end{pmatrix},
+D
+\right),
+\qquad
+u_{0j} \sim N(0,\sigma^2_{\text{trial}}),
+\qquad
+\varepsilon_{it} \sim N(0,\sigma^2).
+$$
+
+Here, $D$ quantifies between-patient variability in baseline BPRS and in progression rate and allows correlation between them. The residual term $\varepsilon_{it}$ captures within-patient fluctuations and measurement error around the patient-specific trajectory.
+
+This likelihood-based model uses all available BPRS measurements and supports inference under the working MAR/ignorability conditions described earlier [@molenberghs2004incomplete].
+
+
+
+#### Binary outcome (CDR-SB > 10): logistic GLMM (subject-specific)
+
+For the dichotomised cognitive endpoint, the logistic mixed model describes how the probability of being in the severe cognitive/functional category changes over time and with biomarkers, while allowing each patient to have their own baseline risk and their own rate of change. This answers a patient-level clinical question: among patients with the same observed covariates, do individuals still differ in their underlying propensity for severe status, and do they progress at different speeds?
+
+Using the final centred random-intercept and random-slope specified below, the conditional mean model was:
+
+$$
+\begin{aligned}
+\text{logit}(\pi_{it}) &= \beta_0 + \beta_1\,\mathrm{time}_{c,it} + \beta_2\,\mathrm{sex}_i + \beta_3\,\mathrm{age}_{c,i} + \beta_4\,\mathrm{bmi}_{c,i} \\
+&\quad + \beta_5\,\mathrm{adl}_{c,i} + \beta_6\,\mathrm{abpet}_{c,it} + \beta_7\,\mathrm{taupet}_{c,it} \\
+&\quad + \beta_8\!\left(\mathrm{time}_{c,it}\cdot \mathrm{taupet}_{c,it}\right) + b_{0i} + b_{1i}\,\mathrm{time}_{c,it},
+\end{aligned}
+$$
+
+where $\pi_{it}=\Pr(Y_{it}=1 \mid b_i, X_{it})$ and
+
+$$
+\begin{pmatrix}
+b_{0i} \\
+b_{1i}
+\end{pmatrix}
+\sim
+N\!\left(
+\begin{pmatrix}
+0 \\
+0
+\end{pmatrix},
+\Sigma_b
+\right).
+$$
+
+**fixed effects (the $\beta$’s).**  
+
+Because this is a logistic model, each $\beta$ is a log-odds effect. Exponentiating gives an odds ratio, interpreted conditionally on the patient’s random effects.
+
+**How to read the fixed effects (the $\beta$’s).**  
+
+Because this is a logistic model, each $\beta$ is a log-odds effect. Exponentiating gives an odds ratio, interpreted conditionally on the patient’s random effects (i.e., comparing two patients with the same random effects).
+
+- $\beta_0$ is the baseline log-odds of being in the severe category at the reference (centred) time for a reference patient, with centred covariates at zero and biomarkers at their reference levels.
+- $\beta_1$ is the average yearly change in the log-odds of being in the severe category as follow-up time increases (conditional on the random effects).
+- $\beta_2$ compares males vs females (or the coded reference group) in terms of the log-odds of severe status, holding the other covariates fixed.
+- $\beta_3$ is the association between age and severe status on the log-odds scale, expressed per one unit increase in centred age (so it represents the effect relative to the sample mean age).
+- $\beta_4$ is the association between BMI and severe status on the log-odds scale, per one unit increase in centred BMI.
+- $\beta_5$ is the association between functional status (ADL) and severe status on the log-odds scale, per one unit increase in centred ADL.
+- $\beta_6$ quantifies the association between amyloid PET (centred, time-varying) and the odds of severe status at a given visit, holding the other covariates fixed.
+- $\beta_7$ quantifies the association between tau PET (centred, time-varying) and the odds of severe status at a given visit, holding the other covariates fixed.
+- $\beta_8$ captures effect modification of the time trend by tau PET. If $\beta_8>0$, then higher tau PET is associated with a steeper increase over time in the odds of severe status; if $\beta_8<0$, the time trend is less steep at higher tau PET.
+
+
+**random effects (the $b$’s).**  
+
+- $b_{0i}$ is patient $i$’s deviation in baseline log-odds (their underlying propensity to be in the severe category at the reference time, given covariates).
+- $b_{1i}$ is patient $i$’s deviation in the time trend (some patients progress faster or slower than average, beyond what is explained by observed covariates and biomarkers).
+
+As a likelihood-based model, the GLMM uses all available outcome data under the same working MAR/ignorability conditions described earlier [@molenberghs2004incomplete].
+
+
+##### Population-averaged model: GEE and MAR-consistent weighting (WGEE)
+
+**Clinical target**  
+
+The GEE model targets population-average effects: it describes how the average probability of severe cognitive status (e.g., $\Pr(Y_{it}=1)$) changes over time and with covariates in the study population, rather than modelling patient-specific trajectories. In plain terms, it estimates “on average in this cohort, how does risk change with time / biomarkers / baseline characteristics?”, not “how does *this particular* patient’s latent risk evolve?”.
+
+Let $Y_{it}$ be the binary outcome for patient $i$ at annual visit $t$ (e.g., $Y_{it}=1$ if $\mathrm{CDR\text{-}SB}_{it}>10$), and let the covariate vector match Homework 2:
+
+$$
+X_{it} =
+\Big(
+t,\ \text{sex}_i,\ \text{age}_i,\ \text{bmi}_i,\ \text{adl}_i,\ 
+\text{abpet}_{it},\ \text{taupet}_{it},\ 
+t \cdot \text{abpet}_{it},\ t \cdot \text{taupet}_{it}
+\Big).
+$$
+
+
+The marginal mean model is
+
+$$
+\mu_{it} = \Pr(Y_{it}=1 \mid X_{it}), 
+\qquad
+\text{logit}(\mu_{it}) = X_{it}^\top \beta.
+$$
+:contentReference[oaicite:1]{index=1}
+
+
+
+###### Standard GEE estimating equations 
+
+Write $Y_i = (Y_{i1},\dots,Y_{iT})^\top$ and $\mu_i(\beta)=(\mu_{i1},\dots,\mu_{iT})^\top$.  
+GEE estimates $\beta$ by solving
+
+$$
+U(\beta)=\sum_{i=1}^{N} D_i^\top V_i^{-1}\big(Y_i-\mu_i(\beta)\big)=0,
+$$
+
+where $D_i=\partial \mu_i(\beta)/\partial \beta^\top$ and $V_i$ is a working covariance for repeated measures within patient $i$:contentReference[oaicite:2]{index=2}. In Homework 2, the within-patient serial dependence across yearly visits was represented using an AR(1) working correlation, i.e.
+
+$$
+\text{Corr}(Y_{ij},Y_{ik})=\rho^{|j-k|},
+$$
+
+so correlation decays as visits get further apart in  Robust (“sandwich”) standard errors are then used to protect inference on $\beta$ against misspecification of this working correlation (the correlation choice mainly affects efficiency, not the marginal mean target).
+
+**Interpretation** 
+
+Each $\beta$ is a population-average log-odds effect. For example, $\beta_1$ is the average yearly change in the log-odds of being in the severe category, holding the other covariates fixed; $\exp(\beta_1)$ is the corresponding population-average odds ratio per year.
+
+
+
+###### MAR-consistent weighting (WGEE)
+
+With long Alzheimer follow-up, later-visit data can become a selected subset of patients (often healthier / less severe / more adherent). If dropout depends on observed history, unweighted GEE can drift toward describing the “survivors” rather than the original cohort:contentReference[oaicite:4]{index=4}.
+
+Weighted GEE (WGEE) incorporates inverse-probability weights so that observed visits represent both those who remained and those with similar observed history who tended to drop out. Concretely, WGEE replaces $U(\beta)$ by
+
+$$
+U_w(\beta)=\sum_{i=1}^{N} D_i^\top V_i^{-1} W_i\big(Y_i-\mu_i(\beta)\big)=0,
+$$
+
+where $W_i$ is diagonal with entries based on the probability that the visit is observed:contentReference[oaicite:5]{index=5}.
+
+
+
+###### Weight model and construction (observation-level weights)
+
+Define the observation indicator
+
+$$
+R_{it}=
+\begin{cases}
+1, & \text{if } Y_{it}\ \text{is observed},\\
+0, & \text{if } Y_{it}\ \text{is missing}.
+\end{cases}
+$$
+
+
+Under a working MAR assumption for weighting, we model the conditional probability of being observed at visit $t$ given observed history up to $t-1$:
+
+$$
+\Pr(R_{it}=1 \mid R_{i,t-1}=1,\ \mathcal{H}_{i,t-1})
+=
+\text{logit}^{-1}\Big(
+\psi_0
++ \psi_1 Y_{i,t-1}
++ \psi_2^\top X_i
++ \psi_3 t
++ \psi_4 \text{abpet}_{i,t-1}
++ \psi_5 \text{taupet}_{i,t-1}
+\Big),
+$$
+
+with fitted values
+$$
+\hat{p}_{it}=\widehat{\Pr}(R_{it}=1 \mid R_{i,t-1}=1,\ \mathcal{H}_{i,t-1}).
+$$
+
+
+The cumulative probability of being observed through visit $t$ is
+
+$$
+\hat{\pi}_{it}=\prod_{s=1}^{t}\hat{p}_{is},
+\qquad \hat{\pi}_{i0}=1,
+$$
+
+and the inverse-probability weight is
+
+$$
+w_{it}=\frac{1}{\hat{\pi}_{it}}.
+$$
+
+
+To reduce the influence of extreme weights (and improve precision), we use stabilized weights,
+
+$$
+w_{it}^{\text{stab}}=\frac{\hat{\pi}_{it}^{\text{num}}}{\hat{\pi}_{it}^{\text{den}}},
+$$
+
+where the numerator uses a simpler model (e.g., baseline covariates + time) and the denominator uses the full history model:contentReference[oaicite:9]{index=9}. In practice we implement observation-level weights (a separate weight per measurement), which is the more precise option and is commonly used in standard software workflows
+
+**Interpretation**  
+
+The mean model $\text{logit}(\mu_{it})=X_{it}^\top\beta$ stays the same; weighting changes who counts how much. Visits from patients who were unlikely to remain observed (given their observed history) receive more weight, so the fitted population-average trend better reflects the intended cohort rather than only the healthier remainers
+
+
+### Sensitivity analysis for departures from MAR (continuous outcome: BPRS)
+
+#### Motivation
+
+In this cohort, follow-up BPRS measurements are often incomplete because participants may drop out due to worsening health, institutionalisation, or death. A practical consequence is that later BPRS values may be observed mainly among “healthier survivors,” so analyses that ignore the unobserved post-dropout course can be optimistic about symptom evolution. Our primary analysis therefore works under MAR as a *working* assumption, but MNAR (dependence on unobserved outcomes) cannot be ruled out from the observed data alone; a sensitivity analysis asks whether our main BPRS conclusions remain stable under clinically plausible MNAR departures. 
+
+#### Notation: outcome, missingness, and dropout time
+
+Let
+
+$$
+y_i=(y_{i0},y_{i1},\dots,y_{iJ})
+$$
+
+denote subject $i$’s BPRS measurements over planned visits $j=0,\dots,J$. Define the missingness indicator
+
+$$
+r_{ij}=
+\begin{cases}
+1, & \text{if } y_{ij}\text{ is observed},\\
+0, & \text{if } y_{ij}\text{ is missing}.
+\end{cases}
+$$
+
+Write $y_i=(y_i^{o},y_i^{m})$ for the observed and missing components. For monotone dropout, define the **dropout time** (last observed visit)
+
+$$
+D_i=\max\{j:r_{ij}=1\}.
+$$
+
+Dropout is clinically informative if subjects with worse psychiatric symptoms tend to drop out earlier, because then the observed late follow-up may over-represent people with slower/wetter symptom progression. :contentReference[oaicite:1]{index=1}
+
+#### Primary analysis under MAR (reference point)
+
+Our primary BPRS analysis is likelihood-based (LMM). The MAR assumption can be written as
+
+$$
+f(r_i\mid X_i,y_i^{o},y_i^{m})=f(r_i\mid X_i,y_i^{o}),
+$$
+
+i.e., conditional on covariates and observed outcome history, missingness does not depend further on unobserved BPRS values. This assumption is not testable from the observed data, so we treat it as a working reference model and explicitly probe departures from it. :contentReference[oaicite:2]{index=2}
+
+#### Pattern-mixture sensitivity analysis using a $\delta$-shift (MNAR perturbation)
+
+A sensitivity analysis should make the MNAR concern concrete for BPRS by stating (i) the *direction* (are dropouts likely worse than predicted?), (ii) the *magnitude* (how much worse would they need to be to change conclusions?), and (iii) the *timing* (late follow-up where missingness is highest). :contentReference[oaicite:3]{index=3}
+
+We implement a pattern-mixture model for sensitivity analysis via a transparent $\delta$-adjustment:
+
+1. Fit the MAR LMM and obtain MAR-based predictions for each scheduled visit:
+   
+$$
+\widehat{y}_{ij}^{MAR}.
+$$
+
+2. Impose an MNAR departure after dropout by shifting the *unobserved* post-dropout BPRS values upward by a constant $\delta$ (interpreted clinically as “dropouts would have been $\delta$ points worse than MAR predicts”):
+
+$$
+y_{ij}^{m}(\delta)=\widehat{y}_{ij}^{MAR}+\delta,\qquad j>D_i.
+$$
+
+3. Sweep $\delta$ over a clinically plausible grid (e.g., $\delta\in\{0,0.5,1,2,3\}$) and refit the same BPRS model on each $\delta$-adjusted completed dataset, tracking the key estimands (notably the time effect and the time-by-baseline-severity interaction). :contentReference[oaicite:4]{index=4}:contentReference[oaicite:5]{index=5}
+
+**Interpretation**
+
+- $\delta=0$ reproduces the MAR-based analysis.
+- $\delta>0$ encodes the clinically plausible scenario that participants who discontinue follow-up would, on average, have had higher (worse) BPRS than predicted from their observed history.
+- If the estimated BPRS time trend and its modification by baseline severity remain essentially unchanged over reasonable $\delta$ values, we report the conclusions as robust to MNAR departures.
+- If conclusions change materially for small-to-moderate $\delta$ values, we report that inference about BPRS evolution is sensitive to assumptions about unobserved post-dropout outcomes, and we describe the approximate $\delta$ threshold at which conclusions change. :contentReference[oaicite:6]{index=6}:contentReference[oaicite:7]{index=7}
+
+
+
+### Reporting and interpretation
+
+Model outputs were reported in clinically interpretable terms:
+
+- For BPRS: estimated average yearly change, and how the trajectory differs by baseline severity (via the time-by-baseline CDR-SB interaction).
+- For the binary endpoint: odds ratios over time and for key predictors, presented with a subject-specific interpretation (GLMM) and a population-averaged interpretation (WGEE), noting that these estimands differ.
+
+All modelling choices were tied back to the observed follow-up structure, the empirical missingness assessment (showing the observation process is not consistent with MCAR), and sensitivity analyses that quantify how dependent key BPRS conclusions are on untestable assumptions about unobserved post-dropout outcomes [@molenberghs2004incomplete].
+
+
+
+## Results
+
+## Discussion
+
+
+## References
