@@ -45,7 +45,7 @@ knitr::opts_chunk$set(echo = FALSE,
                         warning = FALSE,
                         fig.width = 7,
                         fig.height = 4.3,
-                        eval = FALSE)
+                        eval = TRUE)
 
 library(kableExtra)
 
@@ -56,7 +56,9 @@ tidy_with_ci <- function(model,
                          effects = c("fixed", "ran_pars"),
                          conf_level = 0.95,
                          exponentiate = FALSE,
-                         digits = 2) {
+                         digits = 2,
+                         term_patterns = NULL,
+                         term_names = NULL) {
   mm_class <- class(model)
 
   is_mixed <-
@@ -131,6 +133,22 @@ tidy_with_ci <- function(model,
     )]
   }
 
+  # Clean up broom.mixed random effect names (e.g., sd__(Intercept) -> SD (Intercept))
+  out$term <- gsub("^sd__", "SD ", out$term)
+  out$term <- gsub("^cor__", "Cor ", out$term)
+  out$term <- gsub("\\.", " x ", out$term) # Replace dots in interaction terms with ' x '
+
+  # Rename terms using provided patterns and replacement names
+  if (!is.null(term_patterns) && !is.null(term_names)) {
+    if (length(term_patterns) != length(term_names)) {
+      warning("term_patterns and term_names must have the same length. Skipping renaming.")
+    } else {
+      for (i in seq_along(term_patterns)) {
+        out$term <- gsub(term_patterns[i], term_names[i], out$term)
+      }
+    }
+  }
+
   # formatted estimate with CI
   if (all(c("estimate", "conf.low", "conf.high") %in% names(out))) {
     # Identify rows that have valid CIs (i.e., not ran_pars)
@@ -148,16 +166,18 @@ tidy_with_ci <- function(model,
     )
   }
 
-  # format numeric columns that are not the main estimate
+  # format numeric columns (std.error, statistic): Round and replace NA with empty string
   num_cols <- intersect(c("std.error", "statistic"), names(out))
   out[num_cols] <- lapply(out[num_cols], function(x) {
-    if (is.numeric(x)) round(x, digits) else x
+     sapply(x, function(v) {
+       if (is.na(v)) "" else sprintf(paste0("%.", digits, "f"), v)
+     })
   })
 
   # optional: pretty p-values (e.g., <0.001)
   if ("p.value" %in% names(out)) {
-    # Format p-values, leaving NAs as they are
-    out$p.value <- ifelse(is.na(out$p.value), NA_character_,
+    # Format p-values, leaving NAs as blank strings
+    out$p.value <- ifelse(is.na(out$p.value), "",
       ifelse(out$p.value < 10^(-digits),
         paste0("<0.", paste(rep("0", digits - 1), collapse = ""), "1"),
         format(round(out$p.value, digits), nsmall = digits)
@@ -165,12 +185,15 @@ tidy_with_ci <- function(model,
     )
   }
 
-  # reorder columns: put term first, then estimate string
+  # reorder columns: Remove 'effect' and 'group' for cleaner output
   keep_order <- c(
-    "effect", "group", "term", "estimate", "std.error",
+    "term", "estimate", "std.error",
     "statistic", "p.value"
   )
   out <- out[, intersect(keep_order, names(out))]
+  
+  # Rename columns to Professional Headers
+  names(out) <- c("Parameter", "Estimate [95% CI]", "SE", "Statistic", "p-value")
 
   tibble::as_tibble(out)
 }
@@ -351,8 +374,7 @@ id_vars <- c("patid", "trial", "sex", "age",
             "cdrsb0",  "abpet0", "taupet0" )
 
 
-
-alzheimer_long <- melt(alzheimer_data,
+alzheimer_long_cdrsb <- melt(alzheimer_data,
   id.vars = id_vars,
   measure.vars = patterns(
     cdrsb = "^cdrsb[0-6]",
@@ -365,8 +387,31 @@ alzheimer_long <- melt(alzheimer_data,
   variable.factor = FALSE
 )
 
-alzheimer_long[, time := as.integer(time)]
+alzheimer_long_cdrsb[, time := as.integer(time)]
 
+alzheimer_long_cdrsb[, CDRSBbin := as.integer(cdrsb > 10)]
+#alzheimer_long[, time := time - 1]
+
+
+# Display the first few rows of the new long-format data
+#kable(head(alzheimer_long))
+
+
+
+alzheimer_long_bprs <- melt(alzheimer_data,
+  id.vars = id_vars,
+  measure.vars = patterns(
+    cdrsb = "^cdrsb[1-6]",
+    bprs = "^bprs[0-6]",
+    abpet = "^abpet[1-6]",
+    taupet = "^taupet[1-6]"
+  ),
+  variable.name = "time",
+  value.name = c("cdrsb", "bprs", "abpet", "taupet"),
+  variable.factor = FALSE
+)
+
+alzheimer_long_bprs[, time := as.integer(time)]
 #alzheimer_long[, time := time - 1]
 
 
@@ -380,7 +425,7 @@ alzheimer_long[, time := as.integer(time)]
 
 
 
-Alzheimer’s disease is the most common cause of dementia and is a progressive neurodegenerative condition that leads to worsening cognition, neuropsychiatric symptoms, and day-to-day functioning [@scheltens2016ad]. Dementia is a major global health burden—WHO estimates that 57 million people were living with dementia in 2021, with nearly 10 million new cases each year, and the burden falls mainly on older adults [@who_dementia]. Because symptoms change gradually and heterogeneously across patients, longitudinal studies are central for describing average progression, quantifying between-patient differences, and identifying baseline factors linked to faster or slower deterioration. In Alzheimer research and clinical trials, cognitive-functional progression is commonly tracked with the Clinical Dementia Rating–Sum of Boxes (CDR-SB), which captures both cognitive and functional impairment and tends to worsen in a roughly steady way over follow-up in symptomatic disease [@cedarbaum2013cdrsb; @williams2013cdrsb]. Psychiatric symptom burden can be summarised using clinician-rated scales such as the Brief Psychiatric Rating Scale (BPRS), which has been applied in Alzheimer populations to characterise behavioural and psychological symptoms [@ownby1994bprs].
+Alzheimer’s disease is the most common cause of dementia and is a progressive neurodegenerative condition that leads to worsening cognition, neuropsychiatric symptoms, and day-to-day functioning [@scheltens2016ad]. Dementia is a major global health burden,WHO estimates that 57 million people were living with dementia in 2021, with nearly 10 million new cases each year, and the burden falls mainly on older adults [@who_dementia]. Because symptoms change gradually and heterogeneously across patients, longitudinal studies are central for describing average progression, quantifying between - patient differences, and identifying baseline factors linked to faster or slower deterioration. In Alzheimer research and clinical trials, cognitive functional progression is commonly tracked with the Clinical Dementia Rating–Sum of Boxes (CDR-SB), which captures both cognitive and functional impairment and tends to worsen in a roughly steady way over follow-up in symptomatic disease [@cedarbaum2013cdrsb; @williams2013cdrsb]. Psychiatric symptom burden can be summarised using clinician-rated scales such as the Brief Psychiatric Rating Scale (BPRS), which has been applied in Alzheimer populations to characterise behavioural and psychological symptoms [@ownby1994bprs].
 
 This study follows a cohort of patients diagnosed with Alzheimer’s disease who
 were recruited across multiple clinical centres and assessed annually for up to
@@ -539,7 +584,7 @@ $$
 
 In principle, MI can be used for longitudinal outcomes by specifying an imputation model that reflects the repeated-measures structure (time trends, within-patient correlation, and key interactions). In practice, when the proportion missing becomes large (in this study, missingness reaches approximately 60% at later follow-up), MI can become more sensitive to imputation-model specification because a larger fraction of the information about late follow-up trajectories is coming from modelling assumptions rather than directly observed data. Simulation work has shown that the amount of information that can be recovered by MI decreases as missingness increases, and that careful model specification becomes increasingly important at high levels of missingness [@leecarlin2012mi].
 
-For these reasons, MI was not used as the primary analysis strategy here. Instead, we relied on likelihood-based mixed models for the main longitudinal analyses under a working MAR assumption, and we used a dedicated sensitivity analysis to quantify how conclusions change under plausible departures from MAR.
+For these reasons, MI was not used as the primary analysis strategy here. Instead, we relied on likelihood-based mixed models for the main longitudinal analyses under a working MAR assumption, and we used a sensitivity analysis to quantify how conclusions change under departures from MAR.
 
 
 
@@ -554,6 +599,7 @@ $$
 Under standard ignorability conditions—most importantly, that parameters of the measurement model and the missingness model are distinct—likelihood inference based on the observed-data likelihood yields valid estimation for the outcome-model parameters without requiring a fully specified joint model for dropout [@rubin1976inference; @molenberghs2004incomplete]. MAR cannot be confirmed from the observed data, so we complemented the primary continuous-outcome analysis with a sensitivity analysis that probes clinically plausible departures from MAR [@molenberghs2004incomplete].
 
 ### Longitudinal models
+
 #### Continuous outcome (BPRS): linear mixed model (LMM)
 
 This model describes how psychiatric symptom severity (BPRS) changes over time in the cohort, while allowing different patients to start at different symptom levels and to change at different rates. It accounts for within-patient correlation from repeated measurements and accommodates unequal follow-up due to dropout.
@@ -784,7 +830,7 @@ $$
 w_{it}^{\text{stab}}=\frac{\hat{\pi}_{it}^{\text{num}}}{\hat{\pi}_{it}^{\text{den}}},
 $$
 
-where the numerator uses a simpler model (e.g., baseline covariates + time) and the denominator uses the full history model:contentReference[oaicite:9]{index=9}. In practice we implement observation-level weights (a separate weight per measurement), which is the more precise option and is commonly used in standard software workflows
+where the numerator uses a simpler model (e.g., baseline covariates + time) and the denominator uses the full history model. In practice we implement observation-level weights (a separate weight per measurement), which is the more precise option and is commonly used in standard software workflows
 
 **Interpretation**  
 
@@ -831,11 +877,11 @@ $$
 f(r_i\mid X_i,y_i^{o},y_i^{m})=f(r_i\mid X_i,y_i^{o}),
 $$
 
-i.e., conditional on covariates and observed outcome history, missingness does not depend further on unobserved BPRS values. This assumption is not testable from the observed data, so we treat it as a working reference model and explicitly probe departures from it. :contentReference[oaicite:2]{index=2}
+i.e., conditional on covariates and observed outcome history, missingness does not depend further on unobserved BPRS values. This assumption is not testable from the observed data, so we treat it as a working reference model and explicitly probe departures from it.
 
 #### Pattern-mixture sensitivity analysis using a $\delta$-shift (MNAR perturbation)
 
-A sensitivity analysis should make the MNAR concern concrete for BPRS by stating (i) the *direction* (are dropouts likely worse than predicted?), (ii) the *magnitude* (how much worse would they need to be to change conclusions?), and (iii) the *timing* (late follow-up where missingness is highest). :contentReference[oaicite:3]{index=3}
+A sensitivity analysis should make the MNAR concern concrete for BPRS by stating (i) the *direction* (are dropouts likely worse than predicted?), (ii) the magnitude (how much worse would they need to be to change conclusions?), and (iii) the *timing* (late follow-up where missingness is highest). 
 
 We implement a pattern-mixture model for sensitivity analysis via a transparent $\delta$-adjustment:
 
@@ -851,29 +897,582 @@ $$
 y_{ij}^{m}(\delta)=\widehat{y}_{ij}^{MAR}+\delta,\qquad j>D_i.
 $$
 
-3. Sweep $\delta$ over a clinically plausible grid (e.g., $\delta\in\{0,0.5,1,2,3\}$) and refit the same BPRS model on each $\delta$-adjusted completed dataset, tracking the key estimands (notably the time effect and the time-by-baseline-severity interaction). :contentReference[oaicite:4]{index=4}:contentReference[oaicite:5]{index=5}
+3. Sweep $\delta$ over a clinically plausible grid (e.g., $\delta\in\{0,0.5,1,2,3\}$) and refit the same BPRS model on each $\delta$-adjusted completed dataset, tracking the key estimands (notably the time effect and the time-by-baseline-severity interaction). 
 
 **Interpretation**
 
 - $\delta=0$ reproduces the MAR-based analysis.
 - $\delta>0$ encodes the clinically plausible scenario that participants who discontinue follow-up would, on average, have had higher (worse) BPRS than predicted from their observed history.
 - If the estimated BPRS time trend and its modification by baseline severity remain essentially unchanged over reasonable $\delta$ values, we report the conclusions as robust to MNAR departures.
-- If conclusions change materially for small-to-moderate $\delta$ values, we report that inference about BPRS evolution is sensitive to assumptions about unobserved post-dropout outcomes, and we describe the approximate $\delta$ threshold at which conclusions change. :contentReference[oaicite:6]{index=6}:contentReference[oaicite:7]{index=7}
+- If conclusions change materially for small-to-moderate $\delta$ values, we report that inference about BPRS evolution is sensitive to assumptions about unobserved post-dropout outcomes, and we describe the approximate $\delta$ threshold at which conclusions change. 
 
 
 
-### Reporting and interpretation
-
-Model outputs were reported in clinically interpretable terms:
-
-- For BPRS: estimated average yearly change, and how the trajectory differs by baseline severity (via the time-by-baseline CDR-SB interaction).
-- For the binary endpoint: odds ratios over time and for key predictors, presented with a subject-specific interpretation (GLMM) and a population-averaged interpretation (WGEE), noting that these estimands differ.
-
-All modelling choices were tied back to the observed follow-up structure, the empirical missingness assessment (showing the observation process is not consistent with MCAR), and sensitivity analyses that quantify how dependent key BPRS conclusions are on untestable assumptions about unobserved post-dropout outcomes [@molenberghs2004incomplete].
 
 
 
 ## Results
+
+### Missing follow-up data
+
+#### Missingness Patterns
+
+```{r}
+#| label: tbl-missingness-analysis
+#| tbl-cap: "Missingness Patterns in BPRS Measurements Over Time"
+#| tbl-pos: "H"
+
+setDT(alzheimer_data)
+
+# Choose outcome columns and labels (edit only if your follow-up length differs) ---
+bprs_cols <- paste0("bprs", 0:6)
+visit_labels <- c("Baseline", paste("Year", 1:6))
+
+stopifnot(length(bprs_cols) == length(visit_labels))
+
+# classify a single patient's observed/missing pattern ---
+classify_pattern <- function(obs_vec) {
+  # obs_vec: TRUE if observed, FALSE if missing, ordered by time
+  if (all(is.na(obs_vec))) return("No observed BPRS")
+  if (all(obs_vec, na.rm = TRUE) && !any(is.na(obs_vec))) return("Complete follow-up")
+
+  # treat NAs
+  obs_vec <- as.logical(obs_vec)
+
+  if (all(obs_vec)) return("Complete follow-up")
+
+  first_miss <- which(!obs_vec)[1]
+  # If once missing starts, everything after is missing => monotone dropout
+  if (all(!obs_vec[first_miss:length(obs_vec)])) return("Monotone dropout")
+  # Otherwise, there exists missing then later observed => intermittent
+  return("Intermittent (non-monotone)")
+}
+
+# Build per-patient pattern info 
+pat_miss <- alzheimer_data[, {
+  obs <- !is.na(.SD)
+  pat_pattern <- paste(ifelse(obs, "O", "M"), collapse = " ")
+  pat_type <- classify_pattern(obs)
+
+  # last observed visit index (0..6). If none observed, NA.
+  last_obs <- if (any(obs)) max(which(obs)) - 1 else NA_integer_
+
+  list(
+    missingness_type = pat_type,
+    last_observed_visit = last_obs,
+    pattern_string = pat_pattern
+  )
+}, by = patid, .SDcols = bprs_cols]
+
+# Order the factor levels exactly how you want them to appear in the report
+pat_miss[, missingness_type := factor(
+  missingness_type,
+  levels = c("Complete follow-up", "Monotone dropout", "Intermittent (non-monotone)", "No observed BPRS")
+)]
+
+# Table A: overall classification (N, %) ---
+tab_class <- pat_miss[, .N, by = missingness_type][order(missingness_type)]
+tab_class[, pct := round(100 * N / sum(N), 2)]
+setnames(tab_class, c("missingness_type", "N", "pct"),
+         c("Missingness pattern", "Number of patients", "Percent"))
+
+tab_class |>
+    kable(
+        format = "latex",
+        booktabs = TRUE,
+        longtable = TRUE,
+        align = "lcc",
+    ) |>
+    column_spec(2, width = "5cm") |>
+    kable_styling(font_size = 9, position = "center") |>
+    kable_styling(latex_options = c("hold_position", "scale_down"))
+```
+
+
+
+```{r}
+#| label: tbl-retention
+#| tbl-cap: "BPRS observed and missing measurements by scheduled visit"
+#| tbl-pos: "H"
+
+# Table B: retention / percent missing at each scheduled visit ---
+retention <- rbindlist(lapply(seq_along(bprs_cols), function(k) {
+  col <- bprs_cols[k]
+  data.table(
+    Visit = visit_labels[k],
+    Observed = sum(!is.na(alzheimer_data[[col]])),
+    Missing  = sum(is.na(alzheimer_data[[col]]))
+  )
+}))
+retention[, `Percent missing` := round(100 * Missing / (Observed + Missing), 1)]
+
+retention |>
+    kable(
+        format = "latex",
+        booktabs = TRUE,
+        longtable = TRUE,
+        align = "lccc",
+    ) |>
+    column_spec(2, width = "5cm") |>
+    kable_styling(font_size = 9, position = "center") |>
+    kable_styling(latex_options = c("hold_position", "scale_down"))
+```
+
+
+```{r}
+#| label: tbl-top-missingness-patterns
+#| tbl-cap: "Most Frequent Missingness Patterns in BPRS Measurements Over Time by Missingness Group"
+#| tbl-pos: "H"
+# Keep this table small: top 3 patterns per group (edit n_top if needed)
+n_top <- 3
+
+top_patterns <- pat_miss[missingness_type != "No observed BPRS",
+  .N, by = .(missingness_type, pattern_string)
+][order(missingness_type, -N)]
+
+top_patterns <- top_patterns[, head(.SD, n_top), by = missingness_type]
+top_patterns[, pct := round(100 * N / sum(pat_miss$missingness_type == missingness_type), 2),
+             by = missingness_type]
+
+# Split pattern_string into visit columns
+pattern_mat <- tstrsplit(top_patterns$pattern_string, " ", fixed = TRUE)
+pattern_dt <- cbind(
+  top_patterns[, .(Group = as.character(missingness_type))],
+  as.data.table(pattern_mat)
+)
+setnames(pattern_dt, old = names(pattern_dt)[2:(1+length(visit_labels))], new = visit_labels)
+
+pattern_dt[, `Number of patients` := top_patterns$N]
+pattern_dt[, Percent := top_patterns$pct]
+pattern_dt |>
+    kable(
+        format = "latex",
+        booktabs = TRUE,
+        longtable = TRUE,
+        align = "l"  # left-align all columns
+    ) |>
+    column_spec(2, width = "1.5cm") |>
+    kable_styling(font_size = 9, position = "center") |>
+    kable_styling(latex_options = c("hold_position", "scale_down"))
+
+```
+
+
+
+
+```{r}
+#| label: tbl-missingness-patterns
+#| tbl-cap: "Missingness Patterns in BPRS Measurements Over Time"
+#| tbl-pos: "H"
+
+```
+
+
+
+
+
+#### Baseline BPRS by Number of Missed Visits and Percentage Missing Over Time
+
+```{r}
+#| label: fig-missingness-analysis
+#| fig-cap: "Missingness Analysis: Baseline BPRS by Number of Missed Visits (left) and Percentage Missing Over Time (right)"
+#| fig.width: 8.5
+#| fig.height: 3.5
+
+bprs_cols <- paste0("bprs", 0:6)
+alzheimer_data[, n_missing := rowSums(is.na(.SD)), .SDcols = bprs_cols]
+
+# Group by the number of missing visits
+# and calculate summary stats for baseline BPRS
+dropout_summary <- alzheimer_data[!is.na(bprs0), .(
+  mean_bprs0 = mean(bprs0),
+  median_bprs0 = median(bprs0),
+  visit_n_patients = .N
+), by = n_missing][order(n_missing)]
+
+
+
+missing_by_time <- alzheimer_long_bprs[, .(
+  n_patients = uniqueN(patid),
+  n_obs = sum(!is.na(bprs))
+), by = time][order(time)]
+
+missing_by_time[, pct_missing := round(100 *
+                                         (n_patients - n_obs)/
+                                         n_patients, 1)]
+
+
+
+boxplot_meanbprso0 <- ggplot(alzheimer_data[!is.na(bprs0)], 
+                             aes(x = factor(n_missing),
+                                 y = bprs0)) +
+  geom_boxplot(aes(fill = factor(n_missing)),
+               alpha = 0.7) +
+  labs(
+    title = "Baseline BPRS Score by
+    Number of Missed Visits",
+    x = "Number of Missed 
+    BPRS Measurements",
+    y = "Baseline BPRS 
+    Score (bprs0)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+missing_by_time_plot <- ggplot(missing_by_time, 
+                               aes(x = time, y = pct_missing)) +
+  geom_line(color = "blue", size = 1) +
+  geom_point(color = "blue", size = 2) +
+  labs(
+    title = "Percentage of Missing BPRS \n Measurements Over Time",
+    x = "Time (Years)",
+    y = "Percentage of Missing BPRS Measurements (%)"
+  ) +
+  theme_minimal()
+
+grid.arrange(boxplot_meanbprso0,
+             missing_by_time_plot,
+             ncol = 2
+             )
+```
+
+
+### Linear Mixed Model Results with Patient Specific Random Intercept and Slope and trial Random Intercept
+
+```{r}
+#| label: tbl-lmer-reduced-mean-structure
+#| tbl-cap: "Linear Mixed Model Results with with patient Specific Random Intercept and Slope and trial Random Intercept"
+#| tbl-pos: "H"
+
+
+library(lme4)
+fm_adj <- bprs ~ time + sex +
+    age + bmi + job + adl + wzc + cdrsb0 +
+    time:cdrsb0 +
+    1 + (time | patid) + (1 | trial)
+lmer_reduced_mean_structure <- lmer(fm_adj,
+    data = alzheimer_long_bprs,
+    na.action = na.exclude
+)
+
+# summary(lmer_reduced_mean_structure)
+lmer_tidy <- tidy_with_ci(lmer_reduced_mean_structure,
+    term_patterns = c("\\(Intercept\\)", "time", "sex", "age", "bmi", "job", "adl", "wzc", "cdrsb0", "time:cdrsb0"),
+    term_names = c("Intercept", "Time (years)", "Sex", "Age (years)", "BMI (kg/m²)", "Employed", "ADL", "Residence", "Baseline CDR-SB", "Time x Baseline CDR-SB"),
+    digits = 3
+)
+
+lmer_tidy |>
+    kable(
+        format = "latex",
+        #caption = "Mixed Model with Random Intercept
+    #and Slope Results",
+        booktabs = TRUE,
+        longtable = TRUE,
+        align = "lrrrr"
+    ) |>
+    column_spec(2, width = "5cm") |>
+    kable_styling(font_size = 9, position = "center") |>
+    kable_styling(latex_options = c("hold_position", "scale_down"))
+```
+
+### Evolution of CDRSSB > 10 over time
+
+#### Population averaged GEE Results with MAR-consistent Weighting
+
+
+```{r}
+#| label: fig-wgee-weights
+#| fig-cap: "Distribution of stabilized inverse-probability-of-observation weights used in the weighted GEE analysis for CDR-SB > 10"
+#| fig-pos: "H"
+#| fig-width: 6
+#| fig-height: 4
+#| 
+library(data.table)
+library(geepack)
+
+# sort and create missingness indicators ---
+setDT(alzheimer_long_cdrsb)
+setorder(alzheimer_long_cdrsb, patid, time)
+
+# Outcome indicator: 1 if observed, 0 if missing
+alzheimer_long_cdrsb[, R := as.integer(!is.na(CDRSBbin))]
+# Lagged history (within patient)
+alzheimer_long_cdrsb[, `:=`(
+  lag_R      = shift(R,        n = 1L, type = "lag"),
+  lag_Y      = shift(CDRSBbin, n = 1L, type = "lag"),
+  lag_abpet  = shift(abpet,    n = 1L, type = "lag"),
+  lag_taupet = shift(taupet,   n = 1L, type = "lag")
+), by = patid]
+
+# At-risk rows for the discrete-time observation model:
+# "among those observed at t-1, what is P(observed at t)?"
+alzheimer_long_cdrsb[, at_risk := (time > 0 & lag_R == 1)]
+
+#-Denominator model: P(R_it = 1 | observed history up to t-1) ---
+den_fit <- glm(
+  R ~ lag_Y + sex + age + bmi + adl + time + lag_abpet + lag_taupet,
+  data   = alzheimer_long_cdrsb[at_risk == TRUE],
+  family = binomial()
+)
+
+#Numerator model (stabilization): simpler P(R_it = 1 | baseline + time) ---
+num_fit <- glm(
+  R ~ sex + age + bmi + adl + time,
+  data   = alzheimer_long_cdrsb[at_risk == TRUE],
+  family = binomial()
+)
+
+# Predicted conditional probabilities (set to 1 when not at-risk so cumprod is unchanged)
+alzheimer_long_cdrsb[, `:=`(p_den = 1, p_num = 1)]
+alzheimer_long_cdrsb[at_risk == TRUE, p_den := predict(den_fit, type = "response")]
+alzheimer_long_cdrsb[at_risk == TRUE, p_num := predict(num_fit, type = "response")]
+
+# Cumulative probabilities and stabilized weights ---
+alzheimer_long_cdrsb[, `:=`(
+  pi_den = cumprod(p_den),
+  pi_num = cumprod(p_num)
+), by = patid]
+
+alzheimer_long_cdrsb[, w_stab := pi_num / pi_den]
+
+# Keep weights only where outcome is observed (geeglm will drop missing outcomes anyway)
+alzheimer_obs <- alzheimer_long_cdrsb[R == 1]
+
+his_weights <- ggplot(alzheimer_obs, aes(x = w_stab)) +
+  geom_histogram(bins = 30, color = "black", fill = "lightblue") +
+  labs(
+    title = "Stabilized Inverse-Probability-of-Observation Weights",
+    x     = "Weight",
+    y     = "Frequency"
+  ) +
+  theme_minimal()
+his_weights
+```
+
+
+
+
+
+```{r}
+#| label: tbl-wgee-model
+#| tbl-cap: "Weighted GEE Model Results with MAR-consistent Weighting for CDR-SB > 10"
+#| tbl-pos: "H" 
+
+
+# Weighted GEE (WGEE): same mean model as your previous GEE ---
+wgee_model <- geeglm(
+  CDRSBbin ~ time + sex + age + bmi +
+    adl + abpet + taupet +
+    time:abpet + time:taupet,
+  id      = patid,
+  data    = alzheimer_obs,
+  weights = w_stab,                 
+  family  = binomial(link = "logit"),
+  corstr  = "ar1",
+  std.err = "san.se"
+)
+
+summary(wgee_model)
+
+wgee_tidy <- tidy_with_ci(wgee_model,
+  term_patterns = c(
+    "\\(Intercept\\)", "time", "sex", "age", "bmi",
+    "adl", "abpet",  "taupet", "time:abpet", "time:taupet"
+  ),
+  term_names = c(
+    "Intercept", "Time (years)", "Sex", "Age (years)", "BMI (kg/m²)",
+    "ADL", "Amyloid PET", "Tau PET", "Time x Amyloid PET", "Time x Tau PET"
+  ),
+  digits = 3,
+  exp = TRUE
+)
+wgee_tidy |>
+  kable(
+    format = "latex",
+    #caption = "WGEE Model Results (Odds Ratios)",
+    booktabs = TRUE,
+    longtable = TRUE,
+    align = "lrrrr"
+  ) |>
+  column_spec(2, width = "5cm") |>
+  kable_styling(font_size = 9, position = "center") |>
+  kable_styling(latex_options = c("hold_position", "scale_down"))
+```
+
+#### Logistic GLMM Results with Patient Specific Random Intercept and Slope
+
+
+
+```{r}
+#| label: tbl-glmm-model-center
+#| tbl-cap: "Logistic regression mixed effect model results with patient specific random intercept and slope"
+#| tbl-pos: "H"
+
+
+alzheimer_long_cdrsb <- alzheimer_long_cdrsb |>
+  dplyr::mutate(
+    time_c   = time   - mean(time,   na.rm = TRUE),
+    age_c    = age    - mean(age,    na.rm = TRUE),
+    bmi_c    = bmi    - mean(bmi,    na.rm = TRUE),
+    adl_c    = adl    - mean(adl,    na.rm = TRUE),
+    abpet_c  = abpet  - mean(abpet,  na.rm = TRUE),
+    taupet_c = taupet - mean(taupet, na.rm = TRUE)
+  )
+
+ctrl <- glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
+glmm_center <- glmer(
+  CDRSBbin ~ time_c + sex + age_c + bmi_c + adl_c +
+    abpet_c + taupet_c + time_c:taupet_c +
+    (time_c | patid),
+  data   = alzheimer_long_cdrsb,
+  family = binomial(link = "logit"),
+  nAGQ   = 1,
+  control = ctrl
+)
+glmm_tidy <- tidy_with_ci(glmm_center,
+  term_patterns = c(
+    "\\(Intercept\\)", "time_c", "sex", "age_c", "bmi_c",
+    "adl_c", "abpet_c", "taupet_c", "time_c:taupet_c"
+  ),
+  term_names = c(
+    "Intercept", "Time (years)", "Sex", "Age (years)", "BMI (kg/m²)",
+    "ADL", "Amyloid PET", "Tau PET", "Time x Tau PET"
+  ),
+  digits = 3,
+  exp = TRUE
+)
+glmm_tidy |>
+  kable(
+    format = "latex",
+    #caption = "GLMM Model Results (Odds Ratios)",
+    booktabs = TRUE,
+    longtable = TRUE,
+    align = "lrrrr"
+  ) |>
+  column_spec(2, width = "5cm") |>
+  kable_styling(font_size = 9, position = "center") |>
+  kable_styling(latex_options = c("hold_position", "scale_down"))
+```
+
+### Sensitivity analysis for BPRS under a pattern-mixture $\delta$-shift MNAR model
+
+
+```{r}
+#| label: pmm-delta-bprs
+
+
+# Prep
+setDT(alzheimer_long_bprs)
+setorder(alzheimer_long_bprs, patid, time)
+
+# Dropout time D_i = last observed visit for BPRS (works even if missingness isn't perfectly monotone)
+alzheimer_long_bprs[, D_i := max(time[!is.na(bprs)], na.rm = TRUE), by = patid]
+
+# Indicator for "post-dropout" missingness: missing after the last observed BPRS
+alzheimer_long_bprs[, post_dropout := is.na(bprs) & time > D_i]
+
+# Function to build a delta-adjusted completed dataset and refit the same LMM
+fit_pmm_delta <- function(delta, dat, mar_fit, fm) {
+  dat_work <- copy(dat)
+
+  # MAR-based predictions (conditional on estimated random effects)
+  # re.form = NULL includes subject + trial random effects (BLUPs) for observed subjects/centres
+  dat_work[, bprs_mar_hat := predict(mar_fit, newdata = dat_work, re.form = NULL, allow.new.levels = FALSE)]
+
+  # Delta adjustment:
+  # - For any missing BPRS, fill with MAR prediction
+  # - If missingness is post-dropout (time > D_i), add delta
+  dat_work[, bprs_pmm := bprs]
+  dat_work[is.na(bprs_pmm), bprs_pmm := bprs_mar_hat + delta * as.numeric(post_dropout)]
+
+  # Refit the same mean/covariance structure on the delta-adjusted outcome
+  fit_delta <- lmer(
+    update(fm, bprs_pmm ~ .),
+    data = dat_work
+  )
+
+  # Return fit + a tidy fixed-effect table
+  beta  <- fixef(fit_delta)
+  V     <- as.matrix(vcov(fit_delta))
+  se    <- sqrt(diag(V))
+
+  out <- data.table(
+    delta = delta,
+    term  = names(beta),
+    estimate = as.numeric(beta),
+    se = as.numeric(se)
+  )
+  out[, `:=`(
+    lwr = estimate - 1.96 * se,
+    upr = estimate + 1.96 * se
+  )]
+
+  list(fit = fit_delta, table = out)
+}
+
+# Choose a clinically plausible delta grid (BPRS points)
+delta_grid <- c(0, 0.5, 1, 2, 3)
+
+# Run the pattern-mixture delta sensitivity analysis
+pm_list <- lapply(delta_grid, fit_pmm_delta,
+                  dat = alzheimer_long_bprs,
+                  mar_fit = lmer_reduced_mean_structure,
+                  fm = fm_adj)
+
+# Collect fixed effects across deltas
+pm_fixed <- rbindlist(lapply(pm_list, `[[`, "table"))
+
+# 5) key estimands you care about (time trend + effect modification by baseline CDR-SB)
+pm_key <- pm_fixed[term %in% c("time", "time:cdrsb0")]
+
+
+```
+
+
+
+```{r}
+#| label: fig-pmm-delta-bprs
+#| fig-cap: "Sensitivity analysis for BPRS time effect and time-by-baseline-severity interaction under a pattern-mixture $\\delta$-shift MNAR model"
+#| fig-width: 10
+#| fig-height: 5
+#| fig-pos: "H"
+
+library(gridExtra)
+
+
+# Label the two terms nicely for a report
+pm_key[, term_label := factor(
+  term,
+  levels = c("time", "time:cdrsb0"),
+  labels = c("Time effect (β1)", "Time × baseline CDR-SB (β9)")
+)]
+
+p_time <- ggplot(pm_key[term == "time"],
+                 aes(x = delta, y = estimate)) +
+  geom_line() +
+  geom_point() +
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.05) +
+  labs(x = expression(delta),
+       y = "Estimate (95% CI)",
+       title = "Sensitivity of time effect") +
+  theme_minimal()
+
+p_int <- ggplot(pm_key[term == "time:cdrsb0"],
+                aes(x = delta, y = estimate)) +
+  geom_line() +
+  geom_point() +
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.05) +
+  labs(x = expression(delta),
+       y = "Estimate (95% CI)",
+       title = "Sensitivity of time-by-baseline severity interaction") +
+  theme_minimal()
+
+grid.arrange(p_time, p_int, ncol = 2)
+```
+
+
+
 
 ## Discussion
 

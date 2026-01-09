@@ -347,7 +347,7 @@ id_vars <- c("patid", "trial", "sex", "age",
 
 
 
-alzheimer_long <- melt(alzheimer_data,
+alzheimer_long_cdrsb <- melt(alzheimer_data,
   id.vars = id_vars,
   measure.vars = patterns(
     cdrsb = "^cdrsb[0-6]",
@@ -360,13 +360,30 @@ alzheimer_long <- melt(alzheimer_data,
   variable.factor = FALSE
 )
 
-alzheimer_long[, time := as.integer(time)]
+alzheimer_long_cdrsb[, time := as.integer(time)]
 
 #alzheimer_long[, time := time - 1]
 
 
 # Display the first few rows of the new long-format data
 #kable(head(alzheimer_long))
+
+
+
+alzheimer_long_bprs <- melt(alzheimer_data,
+  id.vars = id_vars,
+  measure.vars = patterns(
+    cdrsb = "^cdrsb[1-6]",
+    bprs = "^bprs[0-6]",
+    abpet = "^abpet[1-6]",
+    taupet = "^taupet[1-6]"
+  ),
+  variable.name = "time",
+  value.name = c("cdrsb", "bprs", "abpet", "taupet"),
+  variable.factor = FALSE
+)
+
+alzheimer_long_bprs[, time := as.integer(time)]
 ```
 
 
