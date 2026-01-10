@@ -423,9 +423,7 @@ alzheimer_long_bprs[, time := as.integer(time)]
 
 ## Introduction
 
-
-
-Alzheimer’s disease is the most common cause of dementia and is a progressive neurodegenerative condition that leads to worsening cognition, neuropsychiatric symptoms, and day-to-day functioning [@scheltens2016ad]. Dementia is a major global health burden,WHO estimates that 57 million people were living with dementia in 2021, with nearly 10 million new cases each year, and the burden falls mainly on older adults [@who_dementia]. Because symptoms change gradually and heterogeneously across patients, longitudinal studies are central for describing average progression, quantifying between - patient differences, and identifying baseline factors linked to faster or slower deterioration. In Alzheimer research and clinical trials, cognitive functional progression is commonly tracked with the Clinical Dementia Rating–Sum of Boxes (CDR-SB), which captures both cognitive and functional impairment and tends to worsen in a roughly steady way over follow-up in symptomatic disease [@cedarbaum2013cdrsb; @williams2013cdrsb]. Psychiatric symptom burden can be summarised using clinician-rated scales such as the Brief Psychiatric Rating Scale (BPRS), which has been applied in Alzheimer populations to characterise behavioural and psychological symptoms [@ownby1994bprs].
+Alzheimer’s disease is the most common cause of dementia and is a progressive neurodegenerative condition that leads to worsening cognition, neuropsychiatric symptoms, and day-to-day functioning [@scheltens2016ad]. Dementia is a major global health burden,WHO estimates that 57 million people were living with dementia in 2021, with nearly 10 million new cases each year, and the burden falls mainly on older adults [@who_dementia]. Because symptoms change gradually and heterogeneously across patients, longitudinal studies are central for describing average progression, quantifying between patient differences, and identifying baseline factors linked to faster or slower deterioration. In Alzheimer research and clinical trials, cognitive functional progression is commonly tracked with the Clinical Dementia Rating–Sum of Boxes (CDR-SB), which captures both cognitive and functional impairment and tends to worsen in a roughly steady way over follow-up in symptomatic disease [@cedarbaum2013cdrsb; @williams2013cdrsb]. Psychiatric symptom burden can be summarised using clinician-rated scales such as the Brief Psychiatric Rating Scale (BPRS), which has been applied in Alzheimer populations to characterise behavioural and psychological symptoms [@ownby1994bprs].
 
 This study follows a cohort of patients diagnosed with Alzheimer’s disease who
 were recruited across multiple clinical centres and assessed annually for up to
@@ -683,10 +681,6 @@ N\!\left(
 \right).
 $$
 
-**fixed effects (the $\beta$’s).**  
-
-Because this is a logistic model, each $\beta$ is a log-odds effect. Exponentiating gives an odds ratio, interpreted conditionally on the patient’s random effects.
-
 **How to read the fixed effects (the $\beta$’s).**  
 
 Because this is a logistic model, each $\beta$ is a log-odds effect. Exponentiating gives an odds ratio, interpreted conditionally on the patient’s random effects (i.e., comparing two patients with the same random effects).
@@ -906,16 +900,18 @@ $$
 - If the estimated BPRS time trend and its modification by baseline severity remain essentially unchanged over reasonable $\delta$ values, we report the conclusions as robust to MNAR departures.
 - If conclusions change materially for small-to-moderate $\delta$ values, we report that inference about BPRS evolution is sensitive to assumptions about unobserved post-dropout outcomes, and we describe the approximate $\delta$ threshold at which conclusions change. 
 
-
-
-
-
-
 ## Results
 
 ### Missing follow-up data
 
-#### Missingness Patterns
+#### Missingness and Dropout Patterns
+
+Among the $N=1253$ patients, 511 (40.8%) had complete BPRS follow-up across all seven scheduled visits (baseline and six annual follow-ups), whereas 742 (59.2%) exhibited monotone dropout, with no evidence of intermittent missingness (@tbl-missingness-analysis). At baseline, BPRS was observed for all patients (0% missing), but the proportion of missing measurements increased steadily over time: 11.7% at year 1, 19.1% at year 2, 27.6% at year 3, 38.0% at year 4, 48.0% at year 5, and 59.2% at year 6 (@tbl-retention). Thus, later visits are based on a progressively smaller and more selected subset of the original cohort.
+
+The most frequent missingness patterns were all monotone, reflecting classic dropout behaviour. In addition to the complete pattern (observed at all visits), common dropout patterns included early dropout after baseline (observed only at baseline, then missing from year 1 onward) and dropout at intermediate time points (e.g., observed through year 4 and missing thereafter), confirming that once patients become missing they do not re-enter follow-up (@tbl-top-missingness-patterns).
+
+Baseline BPRS was positively associated with the extent of subsequent missingness: patients with higher baseline BPRS scores tended to miss a larger number of follow-up measurements (@fig-missingness-analysis). In parallel, the percentage of missing BPRS measurements increased approximately monotonically with time (right panel of Figure 1). Together, these findings indicate that missingness is driven by a monotone dropout process that is time-dependent and related to observed baseline severity, inconsistent with a missing-completely-at-random mechanism and supporting a missing-at-random assumption as a working basis for the longitudinal modelling.
+
 
 ```{r}
 #| label: tbl-missingness-analysis
@@ -1136,6 +1132,29 @@ grid.arrange(boxplot_meanbprso0,
              )
 ```
 
+### Summary of MAR-valid model choices
+
+Table Y summarises the three models implemented in this analysis, together with their outcome scale, inferential target, and the justification for MAR validity.
+
+| Outcome        | Scale      | Model             | MAR Validity Mechanism        | Target Estimand                       |
+|----------------|------------|-------------------|--------------------------------|----------------------------------------|
+| BPRS           | Continuous | Linear mixed model (LMM) | Likelihood-based inference remains valid under MAR (ignorable missingness) | Subject-specific mean trajectory       |
+| CDR-SB > 10    | Binary     | Logistic GLMM     | Likelihood-based, random-effects model valid under MAR | Subject-specific odds of severe status |
+| CDR-SB > 10    | Binary     | Weighted GEE      | Inverse probability weighting ensures consistency under MAR | Population-averaged risk trajectory    |
+
+
+### Continuous outcome (BPRS): Linear mixed-effects model under MAR
+
+A linear mixed-effects model (LMM) with patient-specific random intercepts and slopes and a trial-level random intercept was fitted to all available BPRS measurements. Under the MAR/ignorability assumptions, this likelihood-based model provides valid inference using the observed-data likelihood.
+
+The fitted model showed a strong and highly significant increase in psychiatric symptom severity over time. The estimated yearly increase in BPRS was
+7.220 points per year (95% CI: 7.141–7.299, p < 0.001), confirming a monotonic worsening over follow-up. Several baseline covariates contributed meaningfully to the level of BPRS: age (p < 0.001), BMI (p < 0.001), employment status (p < 0.001), and nursing home residence (p < 0.001). Female sex showed a borderline effect (p = 0.067). ADL and baseline CDR-SB were not significant main effects.
+
+A clinically important moderation effect was observed for baseline cognitive severity. The interaction between baseline CDR-SB and time was significantly negative (estimate = −0.022, p < 0.001), indicating that patients with worse baseline CDR-SB exhibited slower increases in BPRS over time. This suggests a convergence or ceiling effect in longitudinal psychiatric symptom trajectories.
+
+The random-effects structure reflected substantial between-patient heterogeneity. The SD of the random intercept was 0.898, and the SD of the random slope was 0.828, with a strong negative correlation (−0.612), indicating that patients starting with higher BPRS tended to progress more slowly. The residual SD was 1.643, consistent with the variance patterns observed in exploratory analysis.
+
+These results demonstrate that the selected LMM captures the major longitudinal trends, covariate effects, and within-subject correlation structure in BPRS, while remaining valid under MAR.
 
 ### Linear Mixed Model Results with Patient Specific Random Intercept and Slope and trial Random Intercept
 
@@ -1176,10 +1195,25 @@ lmer_tidy |>
     kable_styling(latex_options = c("hold_position", "scale_down"))
 ```
 
-### Evolution of CDRSSB > 10 over time
+### Evolution of CDRSSB > 10 over time : Logistic GLMM (subject-specific model)
+
+A random-effects logistic regression model (GLMM) was used to estimate subject-specific odds of entering the severe cognitive/functional category (CDR-SB > 10). This model includes both random intercepts and random slopes, enabling individual-level deviations in baseline risk and disease progression rate, and is valid under MAR due to its likelihood-based formulation.
+
+The yearly evolution was strong and statistically significant. The odds of severe CDR-SB increased almost two-fold per year (OR = 1.986, 95% CI: 1.783–2.211, p < 0.001). Covariate effects were less pronounced than in the continuous BPRS model. Sex, age, BMI, ADL, and amyloid PET were not significant predictors of severe status in the presence of random effects.
+
+Tau PET showed a significant time-modifying effect: the interaction term time × tau PET was associated with a 47% increase in the yearly odds of severe status (OR = 1.473, 95% CI: 1.062–2.044, p = 0.020), suggesting that tau burden accelerates progression to severe cognitive impairment.
+
+Random effects revealed notable between-patient heterogeneity (SD of random intercept = 0.516), confirming the appropriateness of the subject-specific modelling framework.
 
 #### Population averaged GEE Results with MAR-consistent Weighting
 
+To obtain population-averaged effects under MAR, a weighted generalized estimating equations (WGEE) model was fitted using stabilized inverse-probability-of-observation weights derived from a discrete-time dropout model. This weighting is required because dropout depends on observed history and standard (unweighted) GEE would not yield MAR-consistent estimates.
+
+The marginal time effect was not statistically significant (OR = 0.809, 95% CI: 0.532–1.230, p = 0.321), in contrast to the strong positive time effect seen in the GLMM. This difference reflects the distinct estimands of GEE (population-average) versus GLMM (subject-specific): the latter is expected to produce larger effects due to non-collapsibility of logistic models.
+
+Tau PET again showed a significant positive time-interaction (OR = 1.372, 95% CI: 1.101–1.710, p = 0.005), consistent with findings from the GLMM. Amyloid PET did not show significant main or interaction effects. Other covariates (sex, age, BMI, ADL) showed no statistically meaningful population-average associations with severe status.
+
+The AR(1) working correlation estimate was 0.315, consistent with moderate within-subject dependence across annual visits. Weight diagnostics indicated stable weights without extreme values, supporting the reliability of the weighted GEE estimates.
 
 ```{r}
 #| label: fig-wgee-weights
@@ -1355,7 +1389,56 @@ glmm_tidy |>
   kable_styling(latex_options = c("hold_position", "scale_down"))
 ```
 
+### Agreement between exploratory analysis and model-based results
+
+#### Continuous outcome (BPRS): linear mixed-effects model
+
+The exploratory analysis of BPRS showed three main empirical features:  
+(i) a clear, approximately linear increase in the mean BPRS over time;  
+(ii) strong within-subject dependence, as indicated by an increasing semi-variogram with time lag; and  
+(iii) some indication that variability changed with follow-up, with larger dispersion at later visits based on the raw data plots and empirical variance estimates.
+
+The fitted linear mixed-effects model for BPRS is broadly consistent with these empirical findings. The strong positive fixed effect of time confirms the increasing mean trajectory suggested by the LOESS-smoothed curves. The random intercept and random slope components induce within-subject correlation and allow subjects to differ in both baseline level and rate of change, which matches the heterogeneous individual trajectories observed in the spaghetti plots. The negative correlation between random intercept and slope estimates is also compatible with the empirical impression that patients with higher baseline BPRS sometimes show slower subsequent increases.
+
+The empirical variance function from does not need to coincide exactly with the variance implied by the mixed model. Empirical variances at later visits are calculated from fewer and more selected subjects due to dropout, and are therefore subject to increased sampling variability and potential selection effects. In contrast, the mixed model imposes a parsimonious covariance structure, with a constant residual variance $\sigma^2$ and smoothly varying marginal variance driven by the random effects. As a consequence, moderate discrepancies between the empirical variance function and the fitted variance function are expected and do not, on their own, indicate model failure. What matters for the present inferential goals is that the mixed model adequately reproduces the dominant mean trend, the main covariate effects, and the within-subject correlation structure. On this basis, the LMM results are in good qualitative agreement with the exploratory analysis.
+
+
+#### Binary outcome (CDR-SB > 10): logistic GLMM (subject-specific model)
+
+For the binary severe-status outcome $Z_{ij}=\mathbb{I}(\mathrm{CDRSB}_{ij}>10)$, the exploratory analysis in  suggested that the prevalence of severe CDR-SB increased with follow-up and tended to be higher among patients with worse baseline severity and less favourable functional or living-status profiles. These raw patterns are reflected in the fitted logistic GLMM: the model yields increasing subject-specific odds of severe status over time and higher conditional odds among patients with poorer baseline profiles or elevated biomarker levels, in line with the exploratory trends.
+
+Because $Z_{ij}$ is binary, the mean–variance relationship is constrained by the binomial form
+$$
+\mathrm{Var}(Z_{ij} \mid \text{covariates}) = p_{ij}(1-p_{ij}),
+$$
+where $p_{ij}=\Pr(Z_{ij}=1\mid b_{0i})$ is determined by the logistic link and the random effect $b_{0i}$. The logistic GLMM therefore does not aim to match the empirical variance at each time point separately, but rather to provide a coherent subject-specific model for the conditional probabilities $p_{ij}$ and the induced within-subject correlation. Differences between the empirically observed proportions (and their binomial variances) and those implied by the GLMM are not unexpected, especially at later visits where sample sizes are smaller and dropout is more pronounced. As with the continuous case, the key question is whether the model captures the main temporal trend and covariate associations seen in the exploratory plots; in this sense, the GLMM results are in qualitative agreement with the initial descriptive findings.
+
+
+#### Binary outcome (CDR-SB > 10): weighted GEE (marginal model)
+
+At the marginal level, the unadjusted proportions of severe CDR-SB over time suggested an increasing population-average risk of severe status. The weighted GEE (WGEE) model targets these population-averaged effects while correcting for MAR dropout via inverse-probability weights. After adjustment for baseline covariates and weighting for observation probability, the estimated marginal time effect was smaller (and in some specifications not statistically significant), which differs from the strong increasing trend suggested by the crude proportions and by the subject-specific GLMM.
+
+This apparent discrepancy does not necessarily indicate inconsistency between the exploratory analysis and the WGEE model; rather, it reflects (i) the difference between subject-specific and marginal estimands in logistic models, and (ii) the impact of adjusting for covariates and dropout-related selection. The crude proportions do not account for changes in the composition of the risk set over time or for the fact that patients at higher risk of severe status are more likely to drop out. The WGEE, by construction, reweights the observed data to represent what would have been seen under a MAR mechanism in the full cohort, and thus can attenuate or modify the apparent time trend suggested by naïve descriptive summaries.
+
+In summary, for all three models, the main qualitative features from the exploratory analysis progression of psychiatric and cognitive impairment over time, and higher severity among clinically vulnerable subgroups are recovered by the fitted models. Where discrepancies arise (for example, between empirical and model-based variance functions, or between crude proportions and weighted marginal estimates), they can be explained by sampling variability, dropout-induced selection, and the different targets and assumptions of the parametric models, rather than by fundamental disagreement between the data and the modelling framework.
+
+
 ### Sensitivity analysis for BPRS under a pattern-mixture $\delta$-shift MNAR model
+
+
+### Sensitivity analysis for MNAR departures (BPRS)
+
+To assess the robustness of the longitudinal BPRS conclusions to potential missing-not-at-random (MNAR) departures, a pattern-mixture $\delta$-shift sensitivity analysis was performed. For each subject, MAR-based predictions $\widehat{y}^{\text{MAR}}_{ij}$ from the primary LMM were obtained at all scheduled visits. For post-dropout occasions ($j > D_i$, where $D_i$ denotes the last observed visit for subject $i$), missing BPRS values were then replaced by
+$$
+y^{\text{mis}}_{ij}(\delta) = \widehat{y}^{\text{MAR}}_{ij} + \delta,
+$$
+with $\delta \in \{0, 0.5, 1, 2, 3\}$ representing increasingly severe MNAR scenarios in which dropouts would have had systematically worse BPRS than predicted under MAR. For each $\delta$, the same LMM was refitted and the key estimands (the time effect and the time-by-baseline-severity interaction) were tracked
+
+Figure 3 shows the estimated time effect and time-by-baseline-severity interaction, with 95% confidence intervals, as functions of $\delta$. The estimated yearly time effect at $\delta = 0$ (the MAR analysis) is strongly positive, and the corresponding confidence interval does not include zero. As $\delta$ increases from 0 to 3, the estimated time effect increases only modestly and its confidence intervals remain narrow and entirely above zero, indicating that the conclusion of a pronounced increase in BPRS over follow-up is insensitive to the considered MNAR shift.
+
+Similarly, the time-by-baseline-severity interaction remains negative across all $\delta$ values. The estimated interaction lies in a relatively narrow band (approximately between $-0.030$ and $-0.020$) and its 95% confidence intervals do not cross zero for any of the examined $\delta$ values. This corroborates the main MAR-based finding that higher baseline CDR-SB is associated with a less steep increase in BPRS over time, and shows that this moderating effect is robust to moderate MNAR perturbations of the unobserved post-dropout outcomes
+
+The random-effects structure of the LMM remains stable across $\delta$ values, with a negative correlation between random intercept and random slope (approximately $-0.53$) and a similar standard deviation of the time slope (around 1.34), indicating that the pattern-mixture perturbations affect primarily the fixed effects rather than the underlying subject-specific variability.Taken together, these results suggest that the main conclusions namely, that BPRS increases substantially over time and that this increase is moderated by baseline cognitive/functional severityare robust to a range of clinically plausible MNAR departures encoded by the $\delta$-shift pattern-mixture model. 
 
 
 ```{r}
@@ -1472,9 +1555,42 @@ grid.arrange(p_time, p_int, ncol = 2)
 ```
 
 
-
-
 ## Discussion
+
+In this longitudinal study of patients with Alzheimer’s disease, we followed psychiatric symptoms (BPRS) and cognitive–functional status (CDR-SB) over several years and examined how these trajectories were influenced by baseline patient characteristics. Because many patients did not complete all visits, a major focus was to use methods that give clinically meaningful results despite dropout, and to check how sensitive our conclusions are to assumptions about the missing data.
+
+### Dropout pattern interpretation
+
+We observed a clear dropout pattern: many patients stopped attending visits as follow-up progressed, and those who dropped out tended to be more impaired at baseline (worse ADL, higher CDR-SB, more often in nursing homes).This pattern is fully consistent with earlier Alzheimer cohorts reporting that attrition is strongly associated with clinical severity and functional status @Jack2010ADNI; @Schneider2014Attrition. This means that the patients we see at later visits are, on average, healthier than the original cohort. For this reason, simple analyses that only use “complete cases” (those who finished all visits) would be misleading and would systematically underestimate the true level of symptoms in the original population.This is aligned with methodological guidance for longitudinal dementia studies emphasizing that dropout must be handled using likelihood-based or weighted approaches @Henderson2000JointModel; @Hogan2004Dropout.
+
+Instead, we used methods that remain valid if missing visits depend on already observed clinical information (for example, baseline severity and earlier scores), but not on future unobserved outcomes. This is the standard “missing at random” (MAR) assumption and is consistent with what we see in the data: dropout is clearly related to observed severity and functioning.
+
+### Longitudinal course of psychiatric symptoms (BPRS)
+
+Clinically, the most important finding for BPRS is that psychiatric symptoms worsen substantially over time. On average, BPRS increased by about 7 points per year, and this result was very precise and highly statistically significant.  This trajectory aligns with earlier findings that neuropsychiatric symptoms worsen as Alzheimer’s progresses @Lyketsos2011NPS and may cluster into predictable patterns @GarreOlmo2010NPSclusters.Patients with more functional impairment at baseline (worse ADL), higher BMI, no paid job, and those living in nursing homes started out with higher BPRS levels and tended to remain more symptomatic over time, which matches clinical expectations, a relationship also well-documented in clinical studies linking functional deterioration to neuropsychiatric severity @Tekin2001NPSseverity.
+
+
+Interestingly, patients with more severe cognitive/functional impairment at baseline (higher CDR-SB) showed a less steep increase in BPRS over time. This may reflect a ceiling effect or a shift in clinical presentation: patients who are already very impaired cognitively may have less room for further increase in observed psychiatric symptoms, or they may become less able to express or manifest these symptoms in a way captured by the BPRS.This pattern resembles the “plateauing” of neuropsychiatric symptoms observed in advanced stages of Alzheimer’s disease @Peters2015NPSprogression, consistent with reduced behavioural responsiveness in severe stages. Individual variability was large, confirming strong heterogeneity in psychiatric trajectories seen in other cohorts @Rolland2007Traj. The random-effects structure (allowing each patient to have their own starting level and slope) showed considerable person-to-person variability, confirming the clinical impression that psychiatric trajectories in Alzheimer’s disease are highly heterogeneous.
+
+The patterns seen in the modelling were in line with the initial exploratory plots: both suggested a roughly linear increase in mean BPRS and strong within-patient correlation over time. The model does not exactly reproduce the raw variability at each visit, especially at later time points where the sample is smaller and more selected; however, this is expected and does not undermine the clinical interpretation, as the key trends and group differences are well captured.
+
+### Cognitive–functional decline (CDR-SB > 10)
+
+For the binary outcome indicating severe cognitive/functional impairment (CDR-SB > 10), both patient-level and population-level perspectives were examined.The GLMM showed increasing odds of crossing into the severe CDR-SB category, consistent with established trajectories of cognitive decline @Morris2001CDRprogression. Tau burden was associated with greater risk, echoing the strong link between tau pathology and clinical severity documented in tau-PET studies @Ossenkoppele2016TauPET.mThis aligns with the clinical understanding that tau accumulation is closely linked to neurodegeneration and functional decline.
+
+When we looked at population-averaged risk using a weighted GEE approach that corrects for dropout, the increase over time was more modest. This difference is expected: the patient-level model (“within-person” odds) and the population-level model (average risk in the cohort after adjusting for dropout) answer slightly different questions.The attenuation in weighted GEE reflects the fact that dropout removed higher-risk individuals from later follow-up—a known phenomenon in dementia research @Schneider2014Attrition. Together, they tell a coherent story: at the individual level, patients tend to progress toward more severe CDR-SB categories, and at the population level this progression is partly masked by selective dropout of the more impaired patients, which we attempted to correct for with weighting.
+
+### Sensitivity to MNAR (unobserved worsening)
+
+Because we cannot directly observe what BPRS scores would have been after dropout, we performed a sensitivity analysis to mimic situations where patients who left the study might actually have had substantially worse symptoms than predicted under the MAR assumption. Even when we forced missing post-dropout BPRS values to be up to 10 points higher than the MAR-based predictions, the main conclusions did not change: BPRS still increased clearly over time, and the moderating role of baseline CDR-SB remained present and statistically convincing.
+
+Clinically, this means that our key findings are robust to reasonably pessimistic assumptions about patients who left the study.This robustness aligns with methodological reports showing that LMM-based estimates of trajectories are often stable under reasonable MNAR deviations when dropout is clinically driven @Little1995DropoutModel; @WuCarroll1988MNAR; @Molenberghs2014Missing. The worsening of psychiatric symptoms over time and the influence of baseline cognitive/functional impairment are not fragile artefacts of our chosen statistical model; rather, they reflect stable patterns that persist under a range of plausible scenarios for the unobserved data.
+
+### Clinical implications
+
+In summary, this analysis shows that psychiatric symptoms in Alzheimer’s disease patients tend to worsen markedly over several year, with a high degree of individual variability. Baseline functional impairment, nursing-home residency, and other clinical factors identify patients who start at a higher symptom level and remain more burdened over time. Cognitive/functional severity at baseline shapes the trajectory of psychiatric symptoms, suggesting that symptom management and prognostic expectations need to be tailored to the patient’s initial cognitive and functional status.
+
+By using longitudinal models that explicitly account for dropout and by checking the robustness of conclusions under MNAR scenarios, we provide a more trustworthy picture than would be obtained from complete-case or naïve analyses. From a clinical standpoint, this supports the use of these modelling strategies to inform prognosis, to stratify patients in clinical trials, and to understand how symptom trajectories differ across clinically relevant subgroups in Alzheimer’s disease.
 
 
 ## References
