@@ -1822,3 +1822,213 @@ By using longitudinal models that explicitly account for dropout and by checking
 
 
 ## References
+
+::: {#refs}
+:::
+
+
+
+## Appendix
+### Linear mixed-effects model for BPRS 
+
+```{r}
+#| label: r-code
+#| eval: false
+#| echo: true
+## Linear mixed-effects model for BPRS (repeated for convenience)
+library(lme4)
+fm_adj <- bprs ~ time + sex +
+    age + bmi + job + adl + wzc + cdrsb0 +
+    time:cdrsb0 +
+    1 + (time | patid) + (1 | trial)
+lmer_reduced_mean_structure <- lmer(fm_adj,
+    data = alzheimer_long_bprs,
+    na.action = na.exclude
+)
+
+```
+
+
+### Generalized estimating equations for CDR-SB > 10 
+
+```{r}
+#| label: r-code-gee
+#| eval: false
+#| echo: true
+library(data.table)
+library(geepack)
+
+# sort and create missingness indicators ---
+setDT(alzheimer_long_cdrsb)
+setorder(alzheimer_long_cdrsb, patid, time)
+
+# Outcome indicator: 1 if observed, 0 if missing
+alzheimer_long_cdrsb[, R := as.integer(!is.na(CDRSBbin))]
+# Lagged history (within patient)
+alzheimer_long_cdrsb[, `:=`(
+  lag_R      = shift(R,        n = 1L, type = "lag"),
+  lag_Y      = shift(CDRSBbin, n = 1L, type = "lag"),
+  lag_abpet  = shift(abpet,    n = 1L, type = "lag"),
+  lag_taupet = shift(taupet,   n = 1L, type = "lag")
+), by = patid]
+
+# At-risk rows for the discrete-time observation model:
+# "among those observed at t-1, what is P(observed at t)?"
+alzheimer_long_cdrsb[, at_risk := (time > 0 & lag_R == 1)]
+
+#-Denominator model: P(R_it = 1 | observed history up to t-1) ---
+den_fit <- glm(
+  R ~ lag_Y + sex + age + bmi + adl + time + lag_abpet + lag_taupet,
+  data   = alzheimer_long_cdrsb[at_risk == TRUE],
+  family = binomial()
+)
+
+#Numerator model (stabilization): simpler P(R_it = 1 | baseline + time) ---
+num_fit <- glm(
+  R ~ sex + age + bmi + adl + time,
+  data   = alzheimer_long_cdrsb[at_risk == TRUE],
+  family = binomial()
+)
+
+# Predicted conditional probabilities (set to 1 when not at-risk so cumprod is unchanged)
+alzheimer_long_cdrsb[, `:=`(p_den = 1, p_num = 1)]
+alzheimer_long_cdrsb[at_risk == TRUE, p_den := predict(den_fit, type = "response")]
+alzheimer_long_cdrsb[at_risk == TRUE, p_num := predict(num_fit, type = "response")]
+
+# Cumulative probabilities and stabilized weights ---
+alzheimer_long_cdrsb[, `:=`(
+  pi_den = cumprod(p_den),
+  pi_num = cumprod(p_num)
+), by = patid]
+
+alzheimer_long_cdrsb[, w_stab := pi_num / pi_den]
+
+# Keep weights only where outcome is observed (geeglm will drop missing outcomes anyway)
+alzheimer_obs <- alzheimer_long_cdrsb[R == 1]
+
+his_weights <- ggplot(alzheimer_obs, aes(x = w_stab)) +
+  geom_histogram(bins = 30, color = "black", fill = "lightblue") +
+  labs(
+    title = "Stabilized Inverse-Probability-of-Observation Weights",
+    x     = "Weight",
+    y     = "Frequency"
+  ) +
+  theme_minimal()
+his_weights
+
+
+# Weighted GEE (WGEE): 
+wgee_model <- geeglm(
+  CDRSBbin ~ time + sex + age + bmi +
+    adl + abpet + taupet +
+    time:abpet + time:taupet,
+  id      = patid,
+  data    = alzheimer_obs,
+  weights = w_stab,                 
+  family  = binomial(link = "logit"),
+  corstr  = "ar1",
+  std.err = "san.se"
+)
+
+```
+
+### Generalized linear mixed-effects model for CDR-SB > 10
+
+```{r}
+#| label: r-code-glmm
+#| eval: false
+#| echo: true
+alzheimer_long_cdrsb <- alzheimer_long_cdrsb |>
+  dplyr::mutate(
+    time_c   = time   - mean(time,   na.rm = TRUE),
+    age_c    = age    - mean(age,    na.rm = TRUE),
+    bmi_c    = bmi    - mean(bmi,    na.rm = TRUE),
+    adl_c    = adl    - mean(adl,    na.rm = TRUE),
+    abpet_c  = abpet  - mean(abpet,  na.rm = TRUE),
+    taupet_c = taupet - mean(taupet, na.rm = TRUE)
+  )
+
+ctrl <- glmerControl(optimizer = "bobyqa", optCtrl = list(maxfun = 2e5))
+glmm_center <- glmer(
+  CDRSBbin ~ time_c + sex + age_c + bmi_c + adl_c +
+    abpet_c + taupet_c + time_c:taupet_c +
+    (time_c | patid),
+  data   = alzheimer_long_cdrsb,
+  family = binomial(link = "logit"),
+  nAGQ   = 1,
+  control = ctrl
+)
+
+```
+
+### PMM delta-shift sensitivity analysis for BPRS 
+```{r}
+#| label: pmm-delta-bprs-appendix
+#| eval: false
+#| echo: true
+
+
+# Prep
+setDT(alzheimer_long_bprs)
+setorder(alzheimer_long_bprs, patid, time)
+
+# Dropout time D_i = last observed visit for BPRS (works even if missingness isn't perfectly monotone)
+alzheimer_long_bprs[, D_i := max(time[!is.na(bprs)], na.rm = TRUE), by = patid]
+
+# Indicator for "post-dropout" missingness: missing after the last observed BPRS
+alzheimer_long_bprs[, post_dropout := is.na(bprs) & time > D_i]
+
+# Function to build a delta-adjusted completed dataset and refit the same LMM
+fit_pmm_delta <- function(delta, dat, mar_fit, fm) {
+  dat_work <- copy(dat)
+
+  # MAR-based predictions (conditional on estimated random effects)
+  # re.form = NULL includes subject + trial random effects (BLUPs) for observed subjects/centres
+  dat_work[, bprs_mar_hat := predict(mar_fit, newdata = dat_work, re.form = NULL, allow.new.levels = FALSE)]
+
+  # Delta adjustment:
+  # - For any missing BPRS, fill with MAR prediction
+  # - If missingness is post-dropout (time > D_i), add delta
+  dat_work[, bprs_pmm := bprs]
+  dat_work[is.na(bprs_pmm), bprs_pmm := bprs_mar_hat + delta * as.numeric(post_dropout)]
+
+  # Refit the same mean/covariance structure on the delta-adjusted outcome
+  fit_delta <- lmer(
+    update(fm, bprs_pmm ~ .),
+    data = dat_work
+  )
+
+  # Return fit + a tidy fixed-effect table
+  beta  <- fixef(fit_delta)
+  V     <- as.matrix(vcov(fit_delta))
+  se    <- sqrt(diag(V))
+
+  out <- data.table(
+    delta = delta,
+    term  = names(beta),
+    estimate = as.numeric(beta),
+    se = as.numeric(se)
+  )
+  out[, `:=`(
+    lwr = estimate - 1.96 * se,
+    upr = estimate + 1.96 * se
+  )]
+
+  list(fit = fit_delta, table = out)
+}
+
+# Choose a clinically plausible delta grid (BPRS points)
+delta_grid <- c(0, 0.5, 1, 2, 3)
+
+# Run the pattern-mixture delta sensitivity analysis
+pm_list <- lapply(delta_grid, fit_pmm_delta,
+                  dat = alzheimer_long_bprs,
+                  mar_fit = lmer_reduced_mean_structure,
+                  fm = fm_adj)
+
+# Collect fixed effects across deltas
+pm_fixed <- rbindlist(lapply(pm_list, `[[`, "table"))
+
+# 5) key estimands you care about (time trend + effect modification by baseline CDR-SB)
+pm_key <- pm_fixed[term %in% c("time", "time:cdrsb0")]
+```
