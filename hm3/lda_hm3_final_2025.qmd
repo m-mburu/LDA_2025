@@ -446,7 +446,7 @@ populations. When dropout is related to a patient’s health status, missing
 outcomes can increase over follow-up and complete-case summaries may give a
 distorted picture of progression [@diggle1994informative].
 
-The objectives of this analysis are fourfold: First, to describe and explore
+The objectives of this analysis are four. First, to describe and explore
 the extent and patterns of missing data over follow-up. As part of this, we
 assess whether the data are consistent with missing completely at random (MCAR)
 by examining associations between missingness and observed patient
@@ -583,7 +583,7 @@ $$
 T = \bar U + \left(1+\frac{1}{m}\right)B.
 $$
 
-In principle, MI can be used for longitudinal outcomes by specifying an imputation model that reflects the repeated-measures structure (time trends, within-patient correlation, and key interactions). In practice, when the proportion missing becomes large (in this study, missingness reaches approximately 60% at later follow-up), MI can become more sensitive to imputation-model specification because a larger fraction of the information about late follow-up trajectories is coming from modelling assumptions rather than directly observed data. Simulation work has shown that the amount of information that can be recovered by MI decreases as missingness increases, and that careful model specification becomes increasingly important at high levels of missingness [@leecarlin2012mi].
+Multiple Imputation can be used for longitudinal outcomes by specifying an imputation model that reflects the repeated-measures structure (time trends, within-patient correlation, and key interactions). In practice, when the proportion missing becomes large (in this study, missingness reaches approximately 60% at later follow-up), MI can become more sensitive to imputation-model specification because a larger fraction of the information about late follow-up trajectories is coming from modelling assumptions rather than directly observed data. Simulation work has shown that the amount of information that can be recovered by MI decreases as missingness increases, and that careful model specification becomes increasingly important at high levels of missingness [@leecarlin2012mi].
 
 For these reasons, MI was not used as the primary analysis strategy here. Instead, we relied on likelihood-based mixed models for the main longitudinal analyses under a working MAR assumption, and we used a sensitivity analysis to quantify how conclusions change under departures from MAR.
 
@@ -597,16 +597,15 @@ $$
 p(R_i \mid Y_i, X_i)=p(R_i \mid Y_i^{\mathrm{obs}}, X_i).
 $$
 
-Under standard ignorability conditions—most importantly, that parameters of the measurement model and the missingness model are distinct—likelihood inference based on the observed-data likelihood yields valid estimation for the outcome-model parameters without requiring a fully specified joint model for dropout [@rubin1976inference; @molenberghs2004incomplete]. MAR cannot be confirmed from the observed data, so we complemented the primary continuous-outcome analysis with a sensitivity analysis that probes clinically plausible departures from MAR [@molenberghs2004incomplete].
+Under standard ignorability conditions  most importantly, that parameters of the measurement model and the missingness model are distinctlikelihood inference based on the observed-data likelihood yields valid estimation for the outcome-model parameters without requiring a fully specified joint model for dropout [@rubin1976inference; @molenberghs2004incomplete]. MAR cannot be confirmed from the observed data, so we complemented the primary continuous-outcome analysis with a sensitivity analysis that probes clinically plausible departures from MAR [@molenberghs2004incomplete].
 
 ### Longitudinal models
 
-#### Continuous outcome (BPRS): linear mixed model (LMM)
+#### Continuous outcome (BPRS): linear mixed effects model (LMM)
 
 This model describes how psychiatric symptom severity (BPRS) changes over time in the cohort, while allowing different patients to start at different symptom levels and to change at different rates. It accounts for within-patient correlation from repeated measurements and accommodates unequal follow-up due to dropout.
 
-To model the BPRS trajectory, we used the linear mixed model specification from Homework 1:
-
+To model the BPRS trajectory, we used the linear mixed effects model specification from Homework 1:
 $$
 \begin{aligned}
 \mathrm{BPRS}_{it} &= (\beta_0 + b_{0i} + u_{0j}) + (\beta_1 + b_{1i})\,\mathrm{time}_{it} \\
@@ -653,7 +652,7 @@ This likelihood-based model uses all available BPRS measurements and supports in
 
 
 
-#### Binary outcome (CDR-SB > 10): logistic GLMM (subject-specific)
+#### Binary outcome (CDR-SB > 10): logistic Generalized Linear Mixed Model (GLMM) (subject-specific)
 
 For the dichotomised cognitive endpoint, the logistic mixed model describes how the probability of being in the severe cognitive/functional category changes over time and with biomarkers, while allowing each patient to have their own baseline risk and their own rate of change. This answers a patient-level clinical question: among patients with the same observed covariates, do individuals still differ in their underlying propensity for severe status, and do they progress at different speeds?
 
@@ -684,9 +683,9 @@ N\!\left(
 \right).
 $$
 
-**How to read the fixed effects (the $\beta$’s).**  
+**fixed effects (the $\beta$’s).**  
 
-Because this is a logistic model, each $\beta$ is a log-odds effect. Exponentiating gives an odds ratio, interpreted conditionally on the patient’s random effects (i.e., comparing two patients with the same random effects).
+Because this is a logistic model, each $\beta$ is a log-odds effect. Exponentiating gives an odds ratio, interpreted conditionally on the patient’s random effects.
 
 - $\beta_0$ is the baseline log-odds of being in the severe category at the reference (centred) time for a reference patient, with centred covariates at zero and biomarkers at their reference levels.
 - $\beta_1$ is the average yearly change in the log-odds of being in the severe category as follow-up time increases (conditional on the random effects).
@@ -707,7 +706,7 @@ Because this is a logistic model, each $\beta$ is a log-odds effect. Exponentiat
 As a likelihood-based model, the GLMM uses all available outcome data under the same working MAR/ignorability conditions described earlier [@molenberghs2004incomplete].
 
 
-##### Population-averaged model: GEE and MAR-consistent weighting (WGEE)
+##### Population-averaged model: Generalized Estimating Equations (GEE) and MAR-consistent weighting (WGEE)
 
 **Clinical target**  
 
@@ -742,13 +741,13 @@ $$
 U(\beta)=\sum_{i=1}^{N} D_i^\top V_i^{-1}\big(Y_i-\mu_i(\beta)\big)=0,
 $$
 
-where $D_i=\partial \mu_i(\beta)/\partial \beta^\top$ and $V_i$ is a working covariance for repeated measures within patient $i$:contentReference[oaicite:2]{index=2}. In Homework 2, the within-patient serial dependence across yearly visits was represented using an AR(1) working correlation, i.e.
+where $D_i=\partial \mu_i(\beta)/\partial \beta^\top$ and $V_i$ is a working covariance for repeated measures within patient $i$. 
 
 $$
 \text{Corr}(Y_{ij},Y_{ik})=\rho^{|j-k|},
 $$
 
-so correlation decays as visits get further apart in  Robust (“sandwich”) standard errors are then used to protect inference on $\beta$ against misspecification of this working correlation (the correlation choice mainly affects efficiency, not the marginal mean target).
+so correlation decays as visits get further apart in  Robust ("sandwich") standard errors are then used to protect inference on $\beta$ against misspecification of this working correlation (the correlation choice mainly affects efficiency, not the marginal mean target).
 
 **Interpretation** 
 
@@ -756,7 +755,7 @@ Each $\beta$ is a population-average log-odds effect. For example, $\beta_1$ is 
 
 ###### MAR-consistent weighting (WGEE)
 
-With long Alzheimer follow-up, later-visit data can become a selected subset of patients (often healthier / less severe / more adherent). If dropout depends on observed history, unweighted GEE can drift toward describing the “survivors” rather than the original cohort:contentReference[oaicite:4]{index=4}.
+With long Alzheimer follow-up, later-visit data can become a selected subset of patients (often healthier / less severe / more adherent). If dropout depends on observed history, unweighted GEE can drift toward describing the “survivors” rather than the original cohort.
 
 Weighted GEE (WGEE) incorporates inverse-probability weights so that observed visits represent both those who remained and those with similar observed history who tended to drop out. Concretely, WGEE replaces $U(\beta)$ by
 
@@ -859,7 +858,7 @@ $$
 D_i=\max\{j:r_{ij}=1\}.
 $$
 
-Dropout is clinically informative if subjects with worse psychiatric symptoms tend to drop out earlier, because then the observed late follow-up may over-represent people with slower/wetter symptom progression. :contentReference[oaicite:1]{index=1}
+Dropout is clinically informative if subjects with worse psychiatric symptoms tend to drop out earlier, because then the observed late follow-up may over-represent people with slower/wetter symptom progression.
 
 #### Primary analysis under MAR (reference point)
 
@@ -883,7 +882,7 @@ $$
 \widehat{y}_{ij}^{MAR}.
 $$
 
-2. Impose an MNAR departure after dropout by shifting the *unobserved* post-dropout BPRS values upward by a constant $\delta$ (interpreted clinically as “dropouts would have been $\delta$ points worse than MAR predicts”):
+2. Impose an MNAR departure after dropout by shifting the unobserved post-dropout BPRS values upward by a constant $\delta$ (interpreted clinically as “dropouts would have been $\delta$ points worse than MAR predicts”):
 
 $$
 y_{ij}^{m}(\delta)=\widehat{y}_{ij}^{MAR}+\delta,\qquad j>D_i.
@@ -945,6 +944,7 @@ simple_avg_plot <- ggplot(alzheimer_long_cdrsb, aes(x = time, y = bprs)) +
     y = "BPRS Score"
   ) +
   theme_minimal()
+simple_avg_plot
 ```
 
 
@@ -1148,9 +1148,8 @@ grid.arrange(cdrsb_time_plot,
 
 Among the $N=1253$ patients, 511 (40.8%) had complete BPRS follow-up across all seven scheduled visits (baseline and six annual follow-ups), whereas 742 (59.2%) exhibited monotone dropout, with no evidence of intermittent missingness (@tbl-missingness-analysis). At baseline, BPRS was observed for all patients (0% missing), but the proportion of missing measurements increased steadily over time: 11.7% at year 1, 19.1% at year 2, 27.6% at year 3, 38.0% at year 4, 48.0% at year 5, and 59.2% at year 6 (@tbl-retention). Thus, later visits are based on a progressively smaller and more selected subset of the original cohort.
 
-The most frequent missingness patterns were all monotone, reflecting classic dropout behaviour. In addition to the complete pattern (observed at all visits), common dropout patterns included early dropout after baseline (observed only at baseline, then missing from year 1 onward) and dropout at intermediate time points (e.g., observed through year 4 and missing thereafter), confirming that once patients become missing they do not re-enter follow-up (@tbl-top-missingness-patterns).
 
-Baseline BPRS was positively associated with the extent of subsequent missingness: patients with higher baseline BPRS scores tended to miss a larger number of follow-up measurements (@fig-missingness-analysis). In parallel, the percentage of missing BPRS measurements increased approximately monotonically with time (right panel of Figure 1). Together, these findings indicate that missingness is driven by a monotone dropout process that is time-dependent and related to observed baseline severity, inconsistent with a missing-completely-at-random mechanism and supporting a missing-at-random assumption as a working basis for the longitudinal modelling.
+The most frequent missingness patterns were all monotone. In addition to the complete pattern (observed at all visits), common dropout patterns included early dropout after baseline (observed only at baseline, then missing from year 1 onward) and dropout at intermediate time points (e.g., observed through year 4 and missing thereafter), confirming that once patients become missing they do not re-enter follow-up (@tbl-top-missingness-patterns).
 
 
 ```{r}
@@ -1224,6 +1223,8 @@ tab_class |>
     kable_styling(latex_options = c("hold_position", "scale_down"))
 ```
 
+
+Baseline BPRS was positively associated with the extent of subsequent missingness, patients with higher baseline BPRS scores tended to miss a larger number of follow-up measurements (@fig-missingness-analysis). In parallel, the percentage of missing BPRS measurements increased approximately monotonically with time (right panel of Figure 1). Together, these findings indicate that missingness is driven by a monotone dropout process that is time-dependent and related to observed baseline severity, inconsistent with a missing-completely-at-random mechanism and supporting a missing-at-random assumption as a working basis for the longitudinal modelling.
 
 
 ```{r}
@@ -1805,7 +1806,7 @@ The patterns seen in the modelling were in line with the initial exploratory plo
 
 For the binary outcome indicating severe cognitive/functional impairment (CDR-SB > 10), both patient-level and population-level perspectives were examined.The GLMM showed increasing odds of crossing into the severe CDR-SB category, consistent with established trajectories of cognitive decline [@Morris2001CDRprogression]. Tau burden was associated with greater risk, echoing the strong link between tau pathology and clinical severity documented in tau-PET studies [@Ossenkoppele2016TauPET].mThis aligns with the clinical understanding that tau accumulation is closely linked to neurodegeneration and functional decline.
 
-When we looked at population-averaged risk using a weighted GEE approach that corrects for dropout, the increase over time was more modest. This difference is expected: the patient-level model (“within-person” odds) and the population-level model (average risk in the cohort after adjusting for dropout) answer slightly different questions.The attenuation in weighted GEE reflects the fact that dropout removed higher-risk individuals from later follow-up—a known phenomenon in dementia research [@Schneider2014Attrition]. Together, they tell a coherent story: at the individual level, patients tend to progress toward more severe CDR-SB categories, and at the population level this progression is partly masked by selective dropout of the more impaired patients, which we attempted to correct for with weighting.
+When we looked at population-averaged risk using a weighted GEE approach that corrects for dropout, the increase over time was more modest. This difference is expected: the patient-level model (“within-person” odds) and the population-level model (average risk in the cohort after adjusting for dropout) answer slightly different questions.The attenuation in weighted GEE reflects the fact that dropout removed higher-risk individuals from later follow-upa known phenomenon in dementia research [@Schneider2014Attrition]. Together, they tell a coherent story: at the individual level, patients tend to progress toward more severe CDR-SB categories, and at the population level this progression is partly masked by selective dropout of the more impaired patients, which we attempted to correct for with weighting.
 
 ### Sensitivity to MNAR (unobserved worsening)
 
