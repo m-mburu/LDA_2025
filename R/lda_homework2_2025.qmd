@@ -463,6 +463,8 @@ grid.arrange(cdrsb_time_plot,
     sex_time,
     ncol = 2
 )
+
+cdrsb_time_plot
 ```
 
 
@@ -520,6 +522,7 @@ retention_plot <- ggplot(retention_by_group,
   theme_minimal() +
   theme(legend.position = "bottom")
 
+retention_plot
 
 ```
 

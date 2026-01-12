@@ -485,6 +485,8 @@ simple_avg_plot <- ggplot(alzheimer_long, aes(x = time, y = bprs)) +
     y = "BPRS Score"
   ) +
   theme_minimal()
+
+simple_avg_plot
 ```
 
 
