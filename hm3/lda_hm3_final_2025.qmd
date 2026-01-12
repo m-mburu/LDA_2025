@@ -422,11 +422,11 @@ alzheimer_long_bprs[, time := as.integer(time)]
 
 ## Abstract
 
-Alzheimer’s disease is characterised by progressive cognitive and neuropsychiatric decline, but longitudinal analysis is complicated by dropout and non-random missingness. We analysed up to six annual follow-up measurements of BPRS (psychiatric symptoms) and CDR-SB (cognitive–functional status) in an Alzheimer cohort, focusing on missingness, disease trajectories, and baseline predictors. Missingness was monotone and strongly related to baseline severity, supporting a missing-at-random (MAR) assumption rather than missing completely at random. For BPRS, a linear mixed model showed a clear increase over time (≈7.2 points/year, p < 0.001), with higher symptom levels among patients who were older, had poorer ADL, lived in nursing homes, or were not employed. Baseline CDR-SB moderated BPRS progression, with more impaired patients showing slower subsequent worsening. For severe CDR-SB (CDR-SB > 10), logistic mixed models and weighted GEE revealed increasing risk over time and an important role for tau PET. A δ-shift pattern-mixture sensitivity analysis indicated that these conclusions were robust to plausible MNAR departures. Clinically, this suggests our findings give a reliable picture of how psychiatric and cognitive problems progress in Alzheimer’s disease, despite substantial loss to follow-up.
+Alzheimer’s disease is characterised by progressive cognitive and neuropsychiatric decline, but longitudinal analysis is complicated by dropout and non-random missingness. We analysed up to six annual follow-up measurements of BPRS (psychiatric symptoms) and CDR-SB (cognitive–functional status) in an Alzheimer cohort, focusing on missingness, disease trajectories, and baseline predictors. Missingness was monotone and strongly related to baseline severity, supporting a missing-at-random (MAR) assumption rather than missing completely at random. For BPRS, a linear mixed model showed a clear increase over time $(\approx7.2 points/year, p < 0.001)$, with higher symptom levels among patients who were older, had poorer ADL, lived in nursing homes, or were not employed. Baseline CDR-SB moderated BPRS progression, with more impaired patients showing slower subsequent worsening. For severe CDR-SB (CDR-SB > 10), logistic mixed models and weighted GEE revealed increasing risk over time and an important role for tau PET. A $\delta$-shift pattern-mixture sensitivity analysis indicated that these conclusions were robust to plausible MNAR departures. Clinically, this suggests our findings give a reliable picture of how psychiatric and cognitive problems progress in Alzheimer’s disease, despite substantial loss to follow-up.
 
 ## Introduction
 
-Alzheimer’s disease is the most common cause of dementia and is a progressive neurodegenerative condition that leads to worsening cognition, neuropsychiatric symptoms, and day-to-day functioning [@scheltens2016ad]. Dementia is a major global health burden,WHO estimates that 57 million people were living with dementia in 2021, with nearly 10 million new cases each year, and the burden falls mainly on older adults [@who_dementia]. Because symptoms change gradually and heterogeneously across patients, longitudinal studies are central for describing average progression, quantifying between patient differences, and identifying baseline factors linked to faster or slower deterioration. In Alzheimer research and clinical trials, cognitive functional progression is commonly tracked with the Clinical Dementia Rating–Sum of Boxes (CDR-SB), which captures both cognitive and functional impairment and tends to worsen in a roughly steady way over follow-up in symptomatic disease [@cedarbaum2013cdrsb; @williams2013cdrsb]. Psychiatric symptom burden can be summarised using clinician-rated scales such as the Brief Psychiatric Rating Scale (BPRS), which has been applied in Alzheimer populations to characterise behavioural and psychological symptoms [@ownby1994bprs].
+Alzheimer’s disease is the most common cause of dementia and is a progressive neurodegenerative condition that leads to worsening cognition, neuropsychiatric symptoms, and day-to-day functioning [@scheltens2016ad]. Dementia is a major global health burden, Wolrd Health Organization (WHO) estimates that 57 million people were living with dementia in 2021, with nearly 10 million new cases each year, and the burden falls mainly on older adults [@who_dementia]. Because symptoms change gradually and heterogeneously across patients, longitudinal studies are central for describing average progression, quantifying between patient differences, and identifying baseline factors linked to faster or slower deterioration. In Alzheimer research and clinical trials, cognitive functional progression is commonly tracked with the Clinical Dementia Rating–Sum of Boxes (CDR-SB), which captures both cognitive and functional impairment and tends to worsen in a roughly steady way over follow-up in symptomatic disease [@cedarbaum2013cdrsb; @williams2013cdrsb]. Psychiatric symptom burden can be summarised using clinician-rated scales such as the Brief Psychiatric Rating Scale (BPRS), which has been applied in Alzheimer populations to characterise behavioural and psychological symptoms [@ownby1994bprs].
 
 This study follows a cohort of patients diagnosed with Alzheimer’s disease who
 were recruited across multiple clinical centres and assessed annually for up to
@@ -444,7 +444,7 @@ In long-term longitudinal studies, dropout is expected, and this is
 particularly common in studies of elderly and clinically vulnerable
 populations. When dropout is related to a patient’s health status, missing
 outcomes can increase over follow-up and complete-case summaries may give a
-distorted picture of progression [@diggle1994informative].
+distorted picture of progression [@molenberghs2004incomplete].
 
 The objectives of this analysis are four. First, to describe and explore
 the extent and patterns of missing data over follow-up. As part of this, we
@@ -460,16 +460,16 @@ Third, to model how the probability of being in the worst cognitive category
 characteristics and biomarkers, using marginal and subject-specific frameworks
 for longitudinal binary outcomes [@liang1986longitudinal].
 Fourth, since the missing-at-random (MAR) assumption cannot be verified from
-the observed data and MAR and MNAR mechanisms can lead to the same observed
+the observed data and MAR and missing not at random (MNAR) mechanisms can lead to the same observed
 patterns, we perform a sensitivity analysis that explores clinically plausible
 departures from MAR toward missing not at random (MNAR) for the continuous BPRS
-outcome [@little1993pattern; @leacy2017delta; @diggle1994informative].
+outcome [@little1993pattern].
 
 ## Methodology
 
 ### Study design, outcomes, and covariates
 
-We analysed data from a multicentre cohort of patients diagnosed with Alzheimer’s disease who were assessed annually for up to six years. Psychiatric symptom severity was measured repeatedly using the Brief Psychiatric Rating Scale (BPRS). Cognitive status was measured using the Clinical Dementia Rating Sum of Boxes (CDR-SB). Two positron emission tomography biomarkers were also assessed annually: amyloid positron emission tomography (amyloid PET) and tau positron emission tomography (tau PET).
+We analysed data from a multicentre cohort of patients diagnosed with Alzheimer’s disease who were assessed annually for up to six years. Psychiatric symptom severity was measured repeatedly using the Brief Psychiatric Rating Scale (BPRS). Cognitive status was measured using the Clinical Dementia Rating Sum of Boxes (CDR-SB). Two positron emission tomography biomarkers were also assessed annually, amyloid positron emission tomography (amyloid PET) and tau positron emission tomography (tau PET).
 
 For the cognitive endpoint, the continuous CDR-SB score was dichotomised to define a clinically severe category:
 
@@ -520,7 +520,7 @@ These classifications were summarised using (i) the distribution of $t_i$ (reten
 
 #### Assessing dependence of missingness on observed data (showing data are not MCAR)
 
-We examined whether missingness is plausibly independent of observed information (more consistent with MCAR) or related to observed disease severity and covariates (supporting a MAR working assumption). This included descriptive comparisons (for example, baseline BPRS by the number of missed follow-up visits) and a discrete-time model for dropout. The goal is not to “prove MAR”, but to demonstrate that missingness is not consistent with a completely random observation process and to motivate methods that remain appropriate when dropout depends on observed history [@molenberghs2004incomplete].
+We examined whether missingness is plausibly independent of observed information (more consistent with MCAR) or related to observed disease severity and covariates (supporting a MAR working assumption). This included descriptive comparisons (for example, baseline BPRS by the number of missed follow-up visits) and a discrete-time model for dropout. The aim is to demonstrate that missingness is not consistent with a completely random observation process and to motivate methods that remain appropriate when dropout depends on observed history [@molenberghs2004incomplete].
 
 A convenient way to formalise dropout is to model the probability of becoming missing at the next visit among those observed at the current visit. Define
 
@@ -540,24 +540,24 @@ $$
 
 where $\mathcal{H}_{ij}$ denotes the observed history up to visit $j$.
 
-If dropout is associated with observed outcomes or covariates, this argues against MCAR. In the terminology of Diggle and Kenward, such a mechanism is compatible with “random dropout” (dropout depending on observed history), for which likelihood-based inference for the measurement model can proceed without explicitly modelling the dropout process, provided standard ignorability/distinct-parameter conditions hold [@diggle1994informative].
+If dropout is associated with observed outcomes or covariates, this argues against MCAR. Diggle and Kenward called this "random dropout" (dropout depending on observed history), for which likelihood-based inference for the measurement model can proceed without explicitly modelling the dropout process, provided standard ignorability/distinct-parameter conditions hold [@diggle1994informative].
 
 
 #### Handling missing data in longitudinal models
 
 ##### Complete case analysis
 
-Complete case analysis restricts the analysis to patients with a fully observed BPRS profile across all scheduled visits. In long follow-up studies, this can remove a large proportion of the cohort and shifts the analysis toward patients who remain under observation. When dropout is related to disease course (for example, patients with worse psychiatric symptoms or faster deterioration being more likely to miss later visits), the complete-case estimate of the BPRS trajectory reflects the evolution among “stayers” rather than the evolution in the full cohort. In that setting, the average yearly change in BPRS can be biased because it is estimated from a selected subgroup, and precision is reduced because many observed BPRS measurements are discarded [@molenberghs2004incomplete].
+Complete case analysis restricts the analysis to patients with a fully observed BPRS profile across all scheduled visits. In long follow-up studies, this can remove a large proportion of the cohort and shifts the analysis toward patients who remain under observation. When dropout is related to disease course (for example, patients with worse psychiatric symptoms or faster deterioration being more likely to miss later visits), the complete-case estimate of the BPRS trajectory reflects the evolution among stayers rather than the evolution in the full cohort. In that setting, the average yearly change in BPRS can be biased because it is estimated from a selected subgroup, and precision is reduced because many observed BPRS measurements are discarded [@molenberghs2004incomplete].
 
 ##### Last observation carried forward (LOCF) and related single-imputation rules
 
-LOCF replaces each missing BPRS value after dropout with the last observed BPRS score for that patient. For a progressive condition, this effectively assumes that a patient’s psychiatric symptom level stays constant after the last attended visit. In terms of BPRS evolution, LOCF tends to flatten the estimated mean trajectory at later follow-up because patients who drop out contribute repeated copies of their last score rather than a plausible continued change. This can lead to underestimation (or distortion) of the average change over time, and it treats imputed values as if they were observed when estimating uncertainty, which can make confidence intervals look too narrow [@molenberghs2004incomplete].
+LOCF replaces each missing BPRS/CDR-SB value after dropout with the last observed BPRS/CDR-SB score for that patient. For a progressive condition, this effectively assumes that a patient’s psychiatric symptom level stays constant after the last attended visit. In terms of BPRS evolution, LOCF tends to flatten the estimated mean trajectory at later follow-up because patients who drop out contribute repeated copies of their last score rather than a plausible continued change. This can lead to underestimation (or distortion) of the average change over time, and it treats imputed values as if they were observed when estimating uncertainty, which can make confidence intervals look too narrow [@molenberghs2004incomplete].
 
 
 
 ##### Multiple imputation (MI)
 
-Multiple imputation treats the missing outcomes as additional unknown quantities and replaces each missing value with $m$ plausible draws from an imputation model. Each imputed dataset is analysed using the same substantive model, and results are then combined using Rubin’s rules so that standard errors reflect both within-imputation variability and the extra uncertainty due to missingness [@rubin1976inference].
+Multiple imputation treats the missing outcomes as additional unknown quantities and replaces each missing value with $m$ plausible draws from an imputation model. Each imputed dataset is analysed using the same substantive model, and results are then combined using Rubin’s rules so that standard errors reflect both within-imputation variability and the extra uncertainty due to missingness.
 
 Let $\hat\theta^{(k)}$ and $\widehat{\mathrm{Var}}(\hat\theta^{(k)})$ denote the estimate and its variance from imputed dataset $k=1,\dots,m$. The pooled estimate is
 
@@ -585,7 +585,7 @@ $$
 
 Multiple Imputation can be used for longitudinal outcomes by specifying an imputation model that reflects the repeated-measures structure (time trends, within-patient correlation, and key interactions). In practice, when the proportion missing becomes large (in this study, missingness reaches approximately 60% at later follow-up), MI can become more sensitive to imputation-model specification because a larger fraction of the information about late follow-up trajectories is coming from modelling assumptions rather than directly observed data. Simulation work has shown that the amount of information that can be recovered by MI decreases as missingness increases, and that careful model specification becomes increasingly important at high levels of missingness [@leecarlin2012mi].
 
-For these reasons, MI was not used as the primary analysis strategy here. Instead, we relied on likelihood-based mixed models for the main longitudinal analyses under a working MAR assumption, and we used a sensitivity analysis to quantify how conclusions change under departures from MAR.
+For these reasons, multiple imputation (MI) was not used as the primary analysis strategy here. Instead, we relied on likelihood-based mixed models for the main longitudinal analyses under a working MAR assumption, and we used a sensitivity analysis to quantify how conclusions change under departures from MAR.
 
 
 
@@ -597,7 +597,7 @@ $$
 p(R_i \mid Y_i, X_i)=p(R_i \mid Y_i^{\mathrm{obs}}, X_i).
 $$
 
-Under standard ignorability conditions  most importantly, that parameters of the measurement model and the missingness model are distinctlikelihood inference based on the observed-data likelihood yields valid estimation for the outcome-model parameters without requiring a fully specified joint model for dropout [@rubin1976inference; @molenberghs2004incomplete]. MAR cannot be confirmed from the observed data, so we complemented the primary continuous-outcome analysis with a sensitivity analysis that probes clinically plausible departures from MAR [@molenberghs2004incomplete].
+Under standard ignorability conditions  most importantly, that parameters of the measurement model and the missingness model are distinct likelihood inference based on the observed-data likelihood yields valid estimation for the outcome-model parameters without requiring a fully specified joint model for dropout [@rubin1976inference; @molenberghs2004incomplete]. MAR cannot be confirmed from the observed data, so we complemented the primary continuous-outcome analysis with a sensitivity analysis that checks clinically plausible departures from MAR.
 
 ### Longitudinal models
 
@@ -710,7 +710,7 @@ As a likelihood-based model, the GLMM uses all available outcome data under the 
 
 **Clinical target**  
 
-The GEE model targets population-average effects: it describes how the average probability of severe cognitive status (e.g., $\Pr(Y_{it}=1)$) changes over time and with covariates in the study population, rather than modelling patient-specific trajectories. In plain terms, it estimates “on average in this cohort, how does risk change with time / biomarkers / baseline characteristics?”, not “how does this particular patient’s latent risk evolve?”.
+The GEE model targets population-average effects: it describes how the average probability of severe cognitive status (e.g., $\Pr(Y_{it}=1)$) changes over time and with covariates in the study population, rather than modelling patient-specific trajectories. In plain terms, it estimates on average in this cohort, how does risk change with time / biomarkers / baseline characteristics? , not how does this particular patient’s latent risk evolve?.
 
 Let $Y_{it}$ be the binary outcome for patient $i$ at annual visit $t$ (e.g., $Y_{it}=1$ if $\mathrm{CDR\text{-}SB}_{it}>10$), and let the covariate vector match Homework 2:
 
@@ -860,9 +860,9 @@ $$
 
 Dropout is clinically informative if subjects with worse psychiatric symptoms tend to drop out earlier, because then the observed late follow-up may over-represent people with slower/wetter symptom progression.
 
-#### Primary analysis under MAR (reference point)
+#### Primary analysis under MAR 
 
-Our primary BPRS analysis is likelihood-based (LMM). The MAR assumption can be written as
+Our primary BPRS analysis is likelihood-based Linear Mixed Model (LMM). The MAR assumption can be written as
 
 $$
 f(r_i\mid X_i,y_i^{o},y_i^{m})=f(r_i\mid X_i,y_i^{o}),
@@ -872,17 +872,17 @@ i.e., conditional on covariates and observed outcome history, missingness does n
 
 #### Pattern-mixture sensitivity analysis using a $\delta$-shift (MNAR perturbation)
 
-A sensitivity analysis should make the MNAR concern concrete for BPRS by stating (i) the direction (are dropouts likely worse than predicted?), (ii) the magnitude (how much worse would they need to be to change conclusions?), and (iii) the *timing* (late follow-up where missingness is highest). 
+A sensitivity analysis should make the MNAR concern concrete for BPRS by stating (i) the direction (are dropouts likely worse than predicted?), (ii) the magnitude (how much worse would they need to be to change conclusions?), and (iii) the timing (late follow-up where missingness is highest). 
 
 We implement a pattern-mixture model for sensitivity analysis via a transparent $\delta$-adjustment:
 
-1. Fit the MAR LMM and obtain MAR-based predictions for each scheduled visit:
+1. Fit the MAR(assumption) LMM and obtain MAR-based predictions for each scheduled visit:
    
 $$
 \widehat{y}_{ij}^{MAR}.
 $$
 
-2. Impose an MNAR departure after dropout by shifting the unobserved post-dropout BPRS values upward by a constant $\delta$ (interpreted clinically as “dropouts would have been $\delta$ points worse than MAR predicts”):
+2. Impose an MNAR departure after dropout by shifting the unobserved post-dropout BPRS values upward by a constant $\delta$ (interpreted clinically as dropouts would have been $\delta$ points worse than MAR predicts):
 
 $$
 y_{ij}^{m}(\delta)=\widehat{y}_{ij}^{MAR}+\delta,\qquad j>D_i.
@@ -2017,7 +2017,7 @@ fit_pmm_delta <- function(delta, dat, mar_fit, fm) {
   list(fit = fit_delta, table = out)
 }
 
-# Choose a clinically plausible delta grid (BPRS points)
+# clinically plausible delta grid (BPRS points)
 delta_grid <- c(0, 0.5, 1, 2, 3)
 
 # Run the pattern-mixture delta sensitivity analysis
@@ -2029,6 +2029,6 @@ pm_list <- lapply(delta_grid, fit_pmm_delta,
 # Collect fixed effects across deltas
 pm_fixed <- rbindlist(lapply(pm_list, `[[`, "table"))
 
-# 5) key estimands you care about (time trend + effect modification by baseline CDR-SB)
+#  (time trend + effect modification by baseline CDR-SB)
 pm_key <- pm_fixed[term %in% c("time", "time:cdrsb0")]
 ```
