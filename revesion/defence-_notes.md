@@ -1,0 +1,227 @@
+Revision Homework 3
+================
+
+## Defence notes: PMM vs SEM vs Shared-parameter models (MNAR frameworks)
+
+### Pattern-mixture models (PMM)
+
+#### 1) What PMM means (simple language)
+
+- PMM says: people who drop out at different times can have different
+  outcome trajectories.
+- Statistically, we condition on the dropout pattern $R$ and model
+  $Y \mid R$. That is what the PMM factorisation is expressing.
+
+#### 2) What we actually did (a reduced PMM / sensitivity PMM)
+
+> “We did not fit a fully stratified PMM with pattern-specific fixed
+> effects and interactions. Instead, we used PMM as a sensitivity
+> framework: we kept the observed-data model the same as under MAR
+> (mixed model), and then imposed an explicit assumption for the
+> unobserved outcomes after dropout (a sensitivity ‘shift’).”
+
+This matches the PMM logic: within each dropout pattern, the observed
+part is informed by data, but once the first unobserved time is reached,
+an identifying restriction is needed to extrapolate beyond dropout.
+
+A defence-friendly sentence:
+
+> “PMM separates what the data identify (fit to observed values) from
+> what must be assumed (post-dropout behaviour).”
+
+#### 3) Why this still counts as PMM
+
+Because the MNAR component is introduced through assumptions about the
+distribution of missing outcomes given the dropout pattern, $$
+Y_{\text{mis}} \mid R,
+$$ rather than through an explicit regression model for dropout.
+
+#### 4) Why we chose PMM
+
+- **Interpretability:** departures from MAR become a simple, clinically
+  meaningful statement (e.g., after dropout, outcomes are $\delta$
+  worse/better than MAR would imply).
+- **Transparency:** the MNAR assumption is stated explicitly and can be
+  varied (tipping-point reasoning).
+- **Avoid heavy joint modelling:** SEM/SPM require specifying and
+  trusting an additional dropout/latent structure model, increasing
+  sensitivity to misspecification.
+
+------------------------------------------------------------------------
+
+### Selection models (SEM)
+
+#### 1) What SEM means (simple language)
+
+- SEM says: there is a “true” outcome process, and dropout happens
+  because of that outcome process (possibly including values we do not
+  observe).
+- Statistically, we factor the joint model as $$
+  p(Y, R \mid X) = p(Y \mid X; \theta)\, p(R \mid Y, X; \psi).
+  $$ The key idea is that the dropout part is allowed to depend on $Y$
+  itself (including potentially unobserved $Y$), which is how MNAR
+  enters.
+
+#### 2) What we actually did (and what we did not do)
+
+> “We did not fit a selection model. That would require specifying an
+> explicit dropout mechanism $p(R \mid Y, X; \psi)$ and estimating it
+> jointly with the longitudinal outcome model $p(Y \mid X; \theta)$.
+> Instead, our primary analysis used likelihood-based mixed models under
+> a working MAR assumption, and MNAR was explored using a PMM-style
+> sensitivity approach rather than an explicit dropout regression.”
+
+#### 3) What SEM would have looked like if implemented (example)
+
+Outcome model (mixed model): $$
+Y_{ij} = X_{ij}\beta + Z_{ij}b_i + \varepsilon_{ij}, \qquad b_i \sim N(0, D).
+$$
+
+Dropout model (logistic / discrete-time hazard for being observed at
+visit $j$): $$
+\Pr(R_{ij}=1 \mid R_{i,j-1}=1, Y_{ij}, X_{ij})
+=
+\text{logit}^{-1}\!\left(\alpha_0 + \alpha_1 Y_{ij} + \alpha^\top X_{ij}\right).
+$$
+
+If $\alpha_1 \neq 0$, dropout depends on the outcome. If dropout depends
+on unobserved future outcomes (e.g., $Y_{i,j+1}$), then MNAR is
+explicit.
+
+#### 4) Why we did not choose SEM (defence-friendly)
+
+- **Requires a dropout model:** you must specify and fit
+  $p(R \mid Y, X)$, and MNAR conclusions can be sensitive to
+  misspecification.
+- **Interpretability:** you end up defending the dropout regression
+  structure, which may be less clinically transparent.
+- **More moving parts:** joint estimation is more complex than a
+  sensitivity shift.
+
+One-liner:
+
+> “SEM pushes MNAR into an explicit dropout model; we preferred to keep
+> the observed-data model stable and express MNAR through a transparent
+> sensitivity assumption.”
+
+------------------------------------------------------------------------
+
+### Shared-parameter models (SPM)
+
+#### 1) What SPM means (simple language)
+
+- SPM says: dropout and outcome are linked because they share an
+  unobserved subject-specific trait (latent severity / frailty).
+- Statistically, both $Y$ and $R$ depend on the same random effect
+  $b_i$, and the joint model integrates over that latent effect: $$
+  p(Y, R \mid X)
+  =
+  \int p(Y \mid b_i, X)\, p(R \mid b_i, X)\, p(b_i)\, db_i.
+  $$ The dependence between outcome and missingness is through $b_i$,
+  not directly through observed/unobserved $Y$.
+
+#### 2) What we actually did (and what we did not do)
+
+> “We did not fit a shared-parameter joint model. That would require
+> specifying a dropout model that shares random effects with the outcome
+> model and estimating the joint likelihood (integrating over latent
+> effects). Instead, we used mixed models for the outcome under MAR and
+> used PMM-type sensitivity assumptions to assess departures from MAR.”
+
+#### 3) What SPM would have looked like if implemented (example)
+
+Outcome model (mixed model): $$
+Y_{ij} = X_{ij}\beta + Z_{ij}b_i + \varepsilon_{ij}.
+$$
+
+Dropout model sharing the same $b_i$: $$
+\Pr(R_{ij}=1 \mid R_{i,j-1}=1, b_i, X_{ij})
+=
+\text{logit}^{-1}\!\left(\gamma_0 + \gamma^\top X_{ij} + \lambda b_i\right).
+$$
+
+Here $\lambda$ is the “bridge”: if $\lambda \neq 0$, then subjects with
+higher/lower latent $b_i$ are more likely to drop out, and because $b_i$
+also drives $Y$, dropout becomes informative.
+
+#### 4) Why we did not choose SPM (defence-friendly)
+
+- **Structural assumption:** you assume a particular latent
+  shared-effect structure explains the outcome–dropout dependence.
+- **Harder to diagnose:** if the shared-effect structure is wrong, the
+  MNAR adjustment can be misleading.
+- **Complexity:** joint estimation and integration over random effects
+  is heavier and less transparent to communicate.
+
+One-liner:
+
+> “SEM complicates things by requiring an explicit dropout model; SPM
+> complicates things by requiring a latent shared-effect structure.”
+
+------------------------------------------------------------------------
+
+### Final defence phrasing (short and clean)
+
+> “We used PMM because it turns departures from MAR into a simple,
+> transparent sensitivity parameter (a $\delta$-shift). In contrast, a
+> selection model requires specifying and estimating an explicit dropout
+> model $p(R \mid Y, X)$, potentially depending on unobserved outcomes.
+> A shared-parameter model avoids direct dependence on missing $Y$ but
+> instead assumes a latent shared random effect structure linking
+> dropout and outcomes. We preferred PMM because the MNAR assumption is
+> stated directly and can be varied transparently.”
+
+According to a document from (DATE), when **a lot of data are missing**,
+**MI + GEE can still work under MAR**, but it becomes **increasingly
+model-driven** and your **uncertainty grows**.
+
+### What “a lot missing” does to MI+GEE (practical consequences)
+
+1.  **Imputations start doing most of the work** When late follow-up has
+    heavy missingness, the “late trajectory” is no longer strongly
+    learned from data — it is largely coming from the **imputation model
+    assumptions** (time trend form, interactions, correlation structure,
+    etc.). Your own write-up says exactly this: as missingness
+    increases, MI becomes more sensitive to imputation-model
+    specification because more information comes from modelling rather
+    than directly observed data.
+
+2.  **Standard errors typically get larger (or at least less stable)**
+    Pooling combines:
+
+- **within-imputation variance** (the GEE/sandwich SE inside each
+  imputed dataset), and
+- **between-imputation variance** (how much estimates change across
+  imputations).
+
+With lots missing, the **between-imputation variance tends to
+increase**, so the total variance inflates (Rubin’s pooling).
+
+3.  **You need more imputations (M)** With heavy missingness,
+    Monte-Carlo error from using a small (M) becomes noticeable; the
+    notes emphasize that both the data size (N) and the number of
+    imputations (M) matter for inference/hypothesis testing.
+
+4.  **Risk of “confident wrongness” if the imputation model is
+    misspecified** When missingness is high, any imputation-model
+    mismatch (wrong functional form over time, missing interactions,
+    poor handling of nonlinearity, wrong distribution) can translate
+    into biased pooled estimates, because you’re effectively
+    extrapolating.
+
+5.  **GEE + MI has an extra subtlety: congeniality** MI is “fill in (Y)
+    then analyze as usual”—but for MI+GEE you want the imputation model
+    to be compatible with the marginal mean you’re estimating with GEE;
+    otherwise the pooled result can behave oddly.
+
+### Defence-ready one-liner
+
+> “With heavy missingness, MI+GEE becomes increasingly dependent on the
+> imputation model: between-imputation variability grows, pooled SEs
+> inflate, and conclusions rely more on modelling assumptions than
+> observed data—so you must be very deliberate about the imputation
+> model and often increase the number of imputations.”
+
+If you tell me your missingness level at the *worst* visit (e.g., 60%+),
+I can give you a crisp sentence on how many imputations (M) is
+defensible in that regime.

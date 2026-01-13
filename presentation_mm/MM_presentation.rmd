@@ -1,0 +1,210 @@
+---
+title: "Alzheimer’s Disease Progression Under Dropout: Longitudinal Modelling of BPRS and Severe CDR-SB"
+author: 
+  - Moses Mburu
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+fontsize: 8pt 
+output:
+  beamer_presentation:
+    incremental: false
+    latex_engine: xelatex
+  slidy_presentation:
+    incremental: false
+  github_document:
+    df_print: kable
+  ioslides_presentation:
+    widescreen: true
+    css: style.css
+    self_contained: true
+    incremental: false
+header-includes:
+- \usepackage{longtable}
+- \usepackage{tabu}
+- \usepackage{xcolor}
+- \usepackage{bookmark}
+- \usepackage{booktabs}
+- \usepackage{xcolor}
+- \setbeamercolor{item}{fg=black}
+- \setbeamercolor{subitem}{fg=black}
+- \setbeamercolor{subsubitem}{fg=black}
+- \usetheme{Hannover} #- \usetheme{Boadilla}
+- \usepackage{lmodern}          # Latin Modern (clean, scalable)
+- \usepackage{microtype}        # Improves spacing & kerning subtly
+- \setbeamertemplate{sidebar left}{}
+- \setbeamertemplate{navigation symbols}{}
+
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, eval = TRUE, 
+                      warning = FALSE, message = FALSE,
+                      fig.width = 8, fig.height = 4.5)
+
+library(here)
+library(tidyverse)
+library(data.table)
+library(haven)
+library(janitor)
+library(knitr)
+library(nlme)
+library(gridExtra)
+library(kableExtra)
+# source(here("R","lda_homework1_2025.R"))
+# save.image(here("R","LDA1.RData"))
+load(here("hm3","hm3_objects.rda"))
+```
+
+
+---
+
+### Study Description
+
+- Study design: Longitudinal Alzheimer cohort with repeated follow-up visits per patient (baseline + yearly visits).
+- Outcomes:
+  - Brief Psychiatric Rating Scale (BPRS) (continuous psychiatric symptom score)
+  - Clinical Dementia Rating – Sum of Boxes (CDR-SB) severe indicator:
+    \(Z_{ij}=\mathbb{I}(\text{CDR-SB}_{ij}>10)\)
+- Research questions
+  - BPRS trajectory: Does BPRS change over time, and is its evolution associated with baseline characteristics (e.g., age/sex/education, baseline severity) and biomarkers (time-varying and/or baseline; e.g., ABPET/TAUPET)?
+  - Severe cognition risk: Does the probability of severe cognition (\(\text{CDR-SB}>10\)) increase over time, and is that increase associated with baseline variables and biomarkers?
+- Challenge:
+  - follow-up is incomplete due to dropout, with missingness increasing over time, so naïve complete-case analysis can be biased.
+
+---
+
+### Methodology/Analysis of Data with missing data approaches
+
+- Complete-case analysis (CC): analyse only subjects with complete follow-up (or only fully observed outcome vectors).
+  - Simple, but can be biased unless missingness is MCAR (missing completely at random).
+
+- last observation carried forward (LOCF): use all observed visits, and for dropout replace missing post-dropout values with the last observed value.
+  - Uses more data than CC, but LOCF imposes a strong assumption that outcomes remain unchanged after dropout and can be biased if dropout is related to disease status.
+
+- Multiple imputation (MI):
+
+  - Impute missing outcomes multiple times from an imputation model and combine estimates.
+  - Typically relies on MAR given the imputation model and included history/covariates.
+
+- Likelihood-based models under MAR (primary approach):
+
+  - Fit a longitudinal model (e.g., LMM/GLMM) by maximum likelihood (or REML for LMM).
+  
+- Weighted GEE (WGEE):
+
+  - Extend GEE to handle dropout by weighting observed data by the inverse probability of being observed.
+- Sensitivity analysis for MNAR:
+
+  - Because MAR cannot be verified from the observed data alone, evaluate robustness under plausible departures using a pattern-mixture / \(\delta\)-shift approach.
+
+---
+
+### Results
+
+```{r, fig.cap = "Distribution of CDRSB Scores & BPRS Over Time", fig.width=10, fig.height=4.5}
+
+
+grid.arrange(cdrsb_time_plot,
+    simple_avg_plot,
+    ncol = 2 )
+```
+
+The left panel shows that, as follow-up progresses, a growing proportion of patients move into the worse CDR-SB category (CDR-SB (>10)), indicating worsening cognition over time. The right panel shows a clear increasing LOESS trend in BPRS across years, suggesting psychiatric symptom burden also increases with time before we interpret these trends formally, we next examine missingness and dropout patterns.
+
+---
+
+#### Missing Data Patterns
+
+```{r, fig.width=10, fig.height=4.5}
+
+grid.arrange(boxplot_meanbprso0,
+             missing_by_time_plot,
+             ncol = 2)
+```
+
+* Missingness increases over time, reaching about 60% at the last follow-up.
+* Participants with more missed visits have higher baseline BPRS, suggesting dropout is related to observed severity (not MCAR).
+
+
+---
+
+```{r}
+   
+top_patterns2 <- top_patterns |>
+  dplyr::mutate(
+    pattern = gsub("\\s+", "", pattern_string),   # remove spaces/newlines
+    pct = round(N / nrow(alzheimer_data) * 100, 1)
+  ) |>
+  dplyr::select(
+    `Missingness type` = missingness_type,
+    `Pattern (O=obs, M=miss)` = pattern,
+    `n` = N,
+    `%` = pct
+  )
+
+top_patterns2 <- top_patterns2 |>
+  dplyr::mutate(
+    n_obs = stringr::str_count(`Pattern (O=obs, M=miss)`, "O")
+  ) |>
+  dplyr::arrange(dplyr::desc(n_obs), `Pattern (O=obs, M=miss)`) |>
+  dplyr::select(-n_obs)
+
+
+top_patterns2 |>
+  kable(
+    format = "latex",
+    booktabs = TRUE,
+    longtable = FALSE,
+    align = "lccc",
+    escape = TRUE,
+    caption = "Most common missingness patterns (O = observed, M = missing)"
+  ) |>
+  kableExtra::kable_styling(
+    latex_options = c( "scale_down"),
+    font_size = 9,
+    position = "center"
+  ) |>
+  kableExtra::row_spec(0, bold = TRUE) |>
+  kableExtra::column_spec(2, width = "2.6cm")
+
+
+```
+
+
+* The most common patterns show monotone dropout (once missing starts, later visits are usually missing).
+
+
+---
+
+
+### Key findings (BPRS LMM + severe cognition models)
+
+BPRS (LMM)
+
+- BPRS increased  over follow-up: +7.220 points/year (95% CI 7.141–7.299), p < 0.001
+- Baseline factors associated with higher BPRS levels:
+
+  - Older age (p < 0.001), higher BMI (p < 0.001), nursing home residence (p < 0.001)
+  - Employment (paid job) was associated with lower BPRS (p < 0.001)
+  - Sex was borderline (female vs male: p = 0.067)
+  - ADL and baseline CDR-SB were not significant main effects
+- Baseline severity moderated progression:
+  - time × baseline CDR-SB = −0.022, p < 0.001
+  - Interpretation: worse baseline CDR-SB → slower increase in BPRS over time (convergence/ceiling effect)
+
+Severe cognition (CDR-SB > 10; GLMM)
+
+- Risk increased  with time: OR = 1.986 per year (95% CI 1.783–2.211), p < 0.001
+- Biomarker modification:
+  - time × tau PET OR = 1.473, p = 0.020  higher tau accelerates progression to severe status
+- Other covariates were not significant in this subject-specific model:
+  - sex, age, BMI, ADL, amyloid PET, and tau PET main effect (all p > 0.05)
+
+---
+
+
+### Conclusion (what the clinician needs to hear)
+
+-  Models estimate how BPRS and severe cognition (CDR-SB > 10) change over time and which patient factors are associated with faster worsening, helping identify higher-risk patients for closer follow-up.
+- Sensitivty Analysis\(\delta\)-shift? When we assumed post-dropout  (\(\delta=0\) to \(3\)) shift, the main conclusions did not change: the time trend remained strongly positive and the key predictors (age, BMI, nursing home, paid job, and the time × baseline CDR-SB effect) stayed consistent, while weaker effects (sex, ADL, baseline CDR-SB main effect) were not robust.
+

@@ -12,6 +12,7 @@ format:
     fig-pos: "H"
     tbl-pos: "H"
     number-depth: 6
+    keep-tex: true
     include-in-header:
       text: |
         \renewcommand{\baselinestretch}{1.1}
@@ -1247,7 +1248,7 @@ retention |>
 #| tbl-cap: "Most Frequent Missingness Patterns in BPRS Measurements Over Time by Missingness Group"
 #| tbl-pos: "H"
 # Keep this table small: top 3 patterns per group (edit n_top if needed)
-n_top <- 3
+n_top <- 7
 
 top_patterns <- pat_miss[missingness_type != "No observed BPRS",
   .N, by = .(missingness_type, pattern_string)
@@ -1710,7 +1711,7 @@ fit_pmm_delta <- function(delta, dat, mar_fit, fm) {
 }
 
 # Choose a clinically plausible delta grid (BPRS points)
-delta_grid <- c(0, 0.5, 1, 2, 3)
+delta_grid <- c(0, 0.5, 1, 2, 3, 10)
 
 # Run the pattern-mixture delta sensitivity analysis
 pm_list <- lapply(delta_grid, fit_pmm_delta,
@@ -1815,6 +1816,15 @@ By using longitudinal models that explicitly account for dropout and by checking
 
 
 ## Appendix
+
+```{r}
+#| label: save-bojects-rda
+#| eval: true
+
+all_objects <- ls()
+save(list = all_objects, file = "hm3_objects.rda")
+```
+
 ### Linear mixed-effects model for BPRS 
 
 ```{r}
