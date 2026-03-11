@@ -1,0 +1,88 @@
+
+# Longitudinal Data Analysis (LDA) 2025
+
+This repository contains coursework, homework assignments, and analytic
+projects for the **Longitudinal Data Analysis** course at **UHasselt**
+(2025). The project focuses on applying advanced statistical methods to
+longitudinal clinical data, with a primary case study on Alzheimer’s
+disease progression.
+
+## Project Overview
+
+The main objective is to model the evolution of psychiatric symptoms
+(BPRS) and cognitive-functional status (CDR-SB) over time, accounting
+for within-subject correlation and missing data due to dropout.
+
+### Key Methodologies
+
+- **Exploratory Data Analysis**: Visualization of individual
+  trajectories (spaghetti plots), mean structures, and variance
+  functions (variograms).
+- **Linear Mixed-Effects Models (LMM)**: Analyzing continuous
+  longitudinal outcomes (BPRS) with random intercepts and slopes.
+- **Generalized Linear Mixed Models (GLMM)**: Modeling binary outcomes
+  (severe cognitive impairment, CDR-SB \> 10) to estimate
+  subject-specific risks.
+- **Generalized Estimating Equations (GEE)**: Estimating
+  population-averaged effects, including **Weighted GEE (WGEE)** to
+  correct for bias under Missing At Random (MAR) assumptions.
+- **Missing Data Analysis**:
+  - Investigation of missingness patterns (Monotone vs. Intermittent).
+  - Sensitivity analysis using **Pattern-Mixture Models (PMM)** and
+    $\delta$-adjustment to assess robustness against Missing Not At
+    Random (MNAR) deviations.
+
+## Key Project Deliverables
+
+- [**lda_hm3_final_2025.pdf**](./hm3/lda_hm3_final_2025.pdf) - **Final
+  Report: Longitudinal Analysis of Alzheimer’s Disease Progression.**
+  This comprehensive report details the statistical analysis of
+  psychiatric symptoms and cognitive decline, including methodology,
+  results, and discussion.
+  - **Key Analysis:** Includes Linear Mixed Models for BPRS, Logistic
+    GLMM for severe impairment, and Weighted GEE for population-averaged
+    effects, with sensitivity analysis for non-random dropout.
+- [**lda_hm3_final_2025.qmd**](./hm3/lda_hm3_final_2025.qmd) - **Quarto
+  Source Code for Analysis.** The complete source file containing all R
+  code for data cleaning, visualization, model fitting, and report
+  generation.
+  - **Relevance:** Useful for reproducing the analysis, inspecting model
+    specifications (`lme4`, `geepack`), and understanding the
+    implementation of pattern-mixture models for sensitivity analysis.
+
+## Repository Structure
+
+- **[`data/`](./data/)**: Datasets used for analysis (e.g.,
+  `alzheimer25.sas7bdat`).
+- **[`hm3/`](./hm3/)**: Final assignment resources, including the main
+  Quarto report (`lda_hm3_final_2025.qmd`), bibliography, and generated
+  PDFs.
+- **[`R/`](./R/)**: R scripts and RMarkdown/Quarto source files for
+  Homework 1, 2, and other exploratory scripts (`critic_hm2.rmd`,
+  `diff_gee_random.rmd`).
+- **[`doc/`](./doc/)**: Course documentation and supplementary
+  materials.
+- **[`presentation_mm/`](./presentation_mm/)**: Presentation slides and
+  source files.
+- **[`results/`](./results/)**: Output files, such as CSVs of variance
+  components or model summaries.
+
+## Getting Started
+
+### Prerequisites
+
+- **R**
+- **RStudio**
+- **Quarto** (for rendering `.qmd` files)
+
+### Key Packages
+
+The analysis relies on the following R packages: \* `lme4` (Mixed
+models) \* `geepack` (GEE models) \* `nlme` (Linear mixed models) \*
+`dplyr`, `data.table` (Data manipulation) \* `ggplot2` (Visualization)
+
+### Rendering Reports
+
+To generate the final report for Homework 3: 1. Open
+`hm3/lda_hm3_final_2025.qmd`. 2. Render using Quarto to produce the PDF
+or HTML output.
